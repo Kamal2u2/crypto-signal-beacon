@@ -1,4 +1,3 @@
-
 // Map of signal types to audio files
 const signalSounds = {
   BUY: new Audio('/buy-signal.mp3'),
@@ -107,17 +106,14 @@ export function sendSignalNotification(signalType: 'BUY' | 'SELL', symbol: strin
   const title = `${signalType} Signal Alert`;
   const body = `${symbol}: ${signalType} signal detected with ${confidence.toFixed(0)}% confidence`;
   
-  // Create notification options without the 'vibrate' property
   const notificationOptions: NotificationOptions = {
     body,
     badge: '/favicon.ico',
-    tag: `signal-${signalType.toLowerCase()}-${Date.now()}`,
-    renotify: true
+    tag: `signal-${signalType.toLowerCase()}-${Date.now()}`
   };
   
   sendNotification(title, notificationOptions);
   
-  // Also play sound
   playSignalSound(signalType);
 }
 

@@ -5,7 +5,7 @@ import { toast } from "@/components/ui/use-toast";
 const BINANCE_API_BASE_URL = 'https://api.binance.com/api/v3';
 
 // Valid time intervals supported by Binance
-export type TimeInterval = '1m' | '3m' | '5m' | '15m' | '30m' | '1h';
+export type TimeInterval = '1m' | '3m' | '5m' | '15m' | '30m' | '1h' | '4h' | '1d';
 
 // CoinPair type for supported trading pairs
 export type CoinPair = {
@@ -13,7 +13,7 @@ export type CoinPair = {
   label: string;   // Human-readable format (e.g., BTC/USDT)
 };
 
-// Supported coin pairs
+// Default coin pairs (shown initially)
 export const COIN_PAIRS: CoinPair[] = [
   { symbol: 'BTCUSDT', label: 'BTC/USDT' },
   { symbol: 'ETHUSDT', label: 'ETH/USDT' },
@@ -38,6 +38,41 @@ export interface KlineData {
   numberOfTrades: number;
   takerBuyBaseAssetVolume: number;
   takerBuyQuoteAssetVolume: number;
+}
+
+// Function to fetch all available trading pairs from Binance
+export async function fetchAllCoinPairs(): Promise<CoinPair[]> {
+  try {
+    const url = `${BINANCE_API_BASE_URL}/exchangeInfo`;
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      throw new Error(`Binance API error: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    
+    // Filter for USDT trading pairs (most popular)
+    const usdtPairs = data.symbols
+      .filter((symbol: any) => 
+        symbol.status === 'TRADING' && 
+        symbol.quoteAsset === 'USDT'
+      )
+      .map((symbol: any): CoinPair => ({
+        symbol: symbol.symbol,
+        label: `${symbol.baseAsset}/USDT`
+      }));
+    
+    return usdtPairs;
+  } catch (error) {
+    console.error('Error fetching trading pairs:', error);
+    toast({
+      title: "Error fetching trading pairs",
+      description: error instanceof Error ? error.message : "Failed to load available trading pairs",
+      variant: "destructive"
+    });
+    return COIN_PAIRS; // Return default pairs as fallback
+  }
 }
 
 // Function to fetch kline (candlestick) data from Binance

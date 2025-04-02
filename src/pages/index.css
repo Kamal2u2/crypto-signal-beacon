@@ -1,0 +1,67 @@
+
+/* Increase chart size */
+.crypto-chart-container {
+  height: 70vh;
+  min-height: 400px;
+  max-height: 800px;
+  width: 100%;
+  margin: 0 auto;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  border-radius: 0.5rem;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  background-color: white;
+}
+
+.crypto-chart-container [class^="recharts-"] text {
+  font-size: 12px !important;
+  fill: #4b5563 !important;
+  font-weight: 500;
+}
+
+/* Improve visibility of chart elements */
+.recharts-cartesian-axis-line {
+  stroke: rgba(0, 0, 0, 0.2) !important;
+  stroke-width: 1px !important;
+}
+
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: rgba(0, 0, 0, 0.1) !important;
+}
+
+.recharts-tooltip-wrapper {
+  z-index: 10 !important;
+}
+
+/* Fix dropdown positioning */
+.popover-content {
+  z-index: 50 !important;
+  background-color: white !important;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* Glass card styling */
+.glass-card {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  background-color: rgba(255, 255, 255, 0.8);
+}
+
+/* Improve control panel styling */
+.control-panel-card {
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* Make signal display more prominent */
+.signal-card {
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background-color: white;
+}
+
+/* Fix command menu scrolling */
+.command-list {
+  max-height: 300px;
+  overflow-y: auto;
+}

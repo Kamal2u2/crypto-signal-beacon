@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
@@ -25,6 +26,9 @@ import {
   requestNotificationPermission,
   sendSignalNotification
 } from '@/services/notificationService';
+
+// Add some CSS to increase chart size
+import './index.css';
 
 const Index = () => {
   // State for user selections
@@ -223,8 +227,8 @@ const Index = () => {
       </header>
       
       <main className="container py-8 space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="md:col-span-2">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <div className="lg:col-span-1">
             <ControlPanel 
               selectedPair={selectedPair}
               setSelectedPair={handlePairChange}
@@ -237,106 +241,113 @@ const Index = () => {
               onRefresh={handleRefresh}
               isLoading={isLoading}
             />
-          </div>
-          <div className="md:col-span-1">
-            <ConfidenceControl
-              confidenceThreshold={confidenceThreshold}
-              setConfidenceThreshold={setConfidenceThreshold}
-              alertVolume={alertVolume}
-              setAlertVolume={setAlertVolume}
-              alertsEnabled={alertsEnabled}
-              setAlertsEnabled={setAlertsEnabled}
-            />
-          </div>
-        </div>
-        
-        {/* Signal Summary Card at the top for better visibility */}
-        {signalData && (
-          <div className={cn(
-            "glass-card p-4 mb-4 flex flex-wrap items-center justify-between gap-4",
-            {
-              'opacity-50': signalData.confidence < confidenceThreshold
-            }
-          )}>
-            <div className="flex items-center gap-3">
-              <div className={cn(
-                "p-3 rounded-full",
-                {
-                  'bg-crypto-buy text-white': signalData.overallSignal === 'BUY',
-                  'bg-crypto-sell text-white': signalData.overallSignal === 'SELL',
-                  'bg-crypto-hold text-white': signalData.overallSignal === 'HOLD',
-                  'bg-gray-400 text-white': signalData.overallSignal === 'NEUTRAL'
-                }
-              )}>
-                {signalData.overallSignal === 'BUY' && <ArrowUp className="h-6 w-6" />}
-                {signalData.overallSignal === 'SELL' && <ArrowDown className="h-6 w-6" />}
-                {(signalData.overallSignal === 'HOLD' || signalData.overallSignal === 'NEUTRAL') && <Minus className="h-6 w-6" />}
-              </div>
-              
-              <div>
-                <h2 className={cn(
-                  "text-xl font-bold",
-                  {
-                    'text-crypto-buy': signalData.overallSignal === 'BUY',
-                    'text-crypto-sell': signalData.overallSignal === 'SELL',
-                    'text-crypto-hold': signalData.overallSignal === 'HOLD',
-                    'text-gray-600': signalData.overallSignal === 'NEUTRAL'
-                  }
-                )}>
-                  {signalData.overallSignal} {selectedPair.label}
-                </h2>
-                <p className="text-sm text-gray-600">
-                  {signalData.confidence.toFixed(0)}% confidence 
-                  {signalData.confidence < confidenceThreshold && (
-                    <span className="text-crypto-sell ml-2">(Below threshold)</span>
-                  )}
-                </p>
-              </div>
-            </div>
             
-            {signalData.priceTargets && (signalData.overallSignal === 'BUY' || signalData.overallSignal === 'SELL') && (
-              <div className="flex flex-wrap gap-4">
-                <div className="flex flex-col">
-                  <span className="text-xs text-gray-500">Entry</span>
-                  <span className="font-medium">${signalData.priceTargets.entryPrice.toFixed(2)}</span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-xs text-crypto-sell">Stop Loss</span>
-                  <span className="font-medium">${signalData.priceTargets.stopLoss.toFixed(2)}</span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-xs text-crypto-buy">Target 1</span>
-                  <span className="font-medium">${signalData.priceTargets.target1.toFixed(2)}</span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-xs text-crypto-buy">Target 2</span>
-                  <span className="font-medium">${signalData.priceTargets.target2.toFixed(2)}</span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-xs text-crypto-buy">Target 3</span>
-                  <span className="font-medium">${signalData.priceTargets.target3.toFixed(2)}</span>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="md:col-span-2">
-            <PriceChart 
-              data={klineData}
-              isPending={isLoading}
-              symbol={selectedPair.symbol}
-            />
+            <div className="mt-6">
+              <ConfidenceControl
+                confidenceThreshold={confidenceThreshold}
+                setConfidenceThreshold={setConfidenceThreshold}
+                alertVolume={alertVolume}
+                setAlertVolume={setAlertVolume}
+                alertsEnabled={alertsEnabled}
+                setAlertsEnabled={setAlertsEnabled}
+              />
+            </div>
           </div>
           
-          <div className="md:col-span-1">
-            <SignalDisplay 
-              signalData={signalData}
-              symbol={selectedPair.label}
-              lastPrice={currentPrice}
-              confidenceThreshold={confidenceThreshold}
-            />
+          <div className="lg:col-span-3">
+            {/* Signal Summary Card at the top for better visibility */}
+            {signalData && (
+              <div className={cn(
+                "glass-card p-4 mb-4 flex flex-wrap items-center justify-between gap-4 bg-white rounded-lg shadow-md border",
+                {
+                  'border-crypto-buy': signalData.overallSignal === 'BUY',
+                  'border-crypto-sell': signalData.overallSignal === 'SELL',
+                  'border-crypto-hold': signalData.overallSignal === 'HOLD',
+                  'border-gray-300': signalData.overallSignal === 'NEUTRAL',
+                  'opacity-70': signalData.confidence < confidenceThreshold
+                }
+              )}>
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "p-3 rounded-full",
+                    {
+                      'bg-crypto-buy text-white': signalData.overallSignal === 'BUY',
+                      'bg-crypto-sell text-white': signalData.overallSignal === 'SELL',
+                      'bg-crypto-hold text-white': signalData.overallSignal === 'HOLD',
+                      'bg-gray-400 text-white': signalData.overallSignal === 'NEUTRAL'
+                    }
+                  )}>
+                    {signalData.overallSignal === 'BUY' && <ArrowUp className="h-6 w-6" />}
+                    {signalData.overallSignal === 'SELL' && <ArrowDown className="h-6 w-6" />}
+                    {(signalData.overallSignal === 'HOLD' || signalData.overallSignal === 'NEUTRAL') && <Minus className="h-6 w-6" />}
+                  </div>
+                  
+                  <div>
+                    <h2 className={cn(
+                      "text-xl font-bold",
+                      {
+                        'text-crypto-buy': signalData.overallSignal === 'BUY',
+                        'text-crypto-sell': signalData.overallSignal === 'SELL',
+                        'text-crypto-hold': signalData.overallSignal === 'HOLD',
+                        'text-gray-600': signalData.overallSignal === 'NEUTRAL'
+                      }
+                    )}>
+                      {signalData.overallSignal} {selectedPair.label}
+                    </h2>
+                    <p className="text-sm text-gray-600">
+                      {signalData.confidence.toFixed(0)}% confidence 
+                      {signalData.confidence < confidenceThreshold && (
+                        <span className="text-crypto-sell ml-2">(Below threshold)</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+                
+                {signalData.priceTargets && (signalData.overallSignal === 'BUY' || signalData.overallSignal === 'SELL') && (
+                  <div className="flex flex-wrap gap-4">
+                    <div className="flex flex-col">
+                      <span className="text-xs text-gray-500">Entry</span>
+                      <span className="font-medium">${signalData.priceTargets.entryPrice.toFixed(2)}</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-xs text-crypto-sell">Stop Loss</span>
+                      <span className="font-medium">${signalData.priceTargets.stopLoss.toFixed(2)}</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-xs text-crypto-buy">Target 1</span>
+                      <span className="font-medium">${signalData.priceTargets.target1.toFixed(2)}</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-xs text-crypto-buy">Target 2</span>
+                      <span className="font-medium">${signalData.priceTargets.target2.toFixed(2)}</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-xs text-crypto-buy">Target 3</span>
+                      <span className="font-medium">${signalData.priceTargets.target3.toFixed(2)}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* Price Chart - Now larger */}
+            <div className="crypto-chart-container">
+              <PriceChart 
+                data={klineData}
+                isPending={isLoading}
+                symbol={selectedPair.symbol}
+              />
+            </div>
+            
+            {/* Signals Display */}
+            <div className="mt-6">
+              <SignalDisplay 
+                signalData={signalData}
+                symbol={selectedPair.label}
+                lastPrice={currentPrice}
+                confidenceThreshold={confidenceThreshold}
+              />
+            </div>
           </div>
         </div>
       </main>

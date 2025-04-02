@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import ControlPanel from '@/components/ControlPanel';
@@ -21,7 +20,6 @@ import {
   initializeAudio, 
   playSignalSound 
 } from '@/services/notificationService';
-import { Card, CardContent } from '@/components/ui/card';
 
 const Index = () => {
   // State for user selections
@@ -148,28 +146,32 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-crypto-primary text-foreground">
-      <header className="w-full py-6 border-b border-gray-800">
+      <header className="w-full py-6 border-b border-crypto-border bg-gradient-to-r from-blue-50 to-indigo-50">
         <div className="container">
-          <h1 className="text-3xl font-bold text-center text-primary">Crypto Signal Beacon</h1>
-          <p className="text-center text-muted-foreground mt-2">
-            Real-time cryptocurrency trading signals powered by technical analysis
+          <h1 className="text-3xl font-bold text-center text-gray-800">
+            Crypto Signal Beacon
+          </h1>
+          <p className="text-center text-gray-600 mt-2">
+            Real-time cryptocurrency trading signals powered by advanced technical analysis
           </p>
         </div>
       </header>
       
-      <main className="container py-6 space-y-6">
-        <ControlPanel 
-          selectedPair={selectedPair}
-          setSelectedPair={handlePairChange}
-          selectedInterval={selectedInterval}
-          setSelectedInterval={setSelectedInterval}
-          refreshInterval={refreshInterval}
-          setRefreshInterval={setRefreshInterval}
-          isAutoRefreshEnabled={isAutoRefreshEnabled}
-          setIsAutoRefreshEnabled={setIsAutoRefreshEnabled}
-          onRefresh={handleRefresh}
-          isLoading={isLoading}
-        />
+      <main className="container py-8 space-y-6">
+        <div className="control-card">
+          <ControlPanel 
+            selectedPair={selectedPair}
+            setSelectedPair={handlePairChange}
+            selectedInterval={selectedInterval}
+            setSelectedInterval={setSelectedInterval}
+            refreshInterval={refreshInterval}
+            setRefreshInterval={setRefreshInterval}
+            isAutoRefreshEnabled={isAutoRefreshEnabled}
+            setIsAutoRefreshEnabled={setIsAutoRefreshEnabled}
+            onRefresh={handleRefresh}
+            isLoading={isLoading}
+          />
+        </div>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="md:col-span-2">
@@ -190,12 +192,12 @@ const Index = () => {
         </div>
       </main>
       
-      <footer className="mt-12 py-6 border-t border-gray-800 bg-crypto-secondary">
+      <footer className="mt-12 py-6 border-t border-crypto-border bg-crypto-accent">
         <div className="container text-center">
-          <p className="text-sm text-muted-foreground">
-            Crypto Signal Beacon — Real-time trading signals 
+          <p className="text-sm text-gray-600">
+            Crypto Signal Beacon — Advanced trading signals with real-time data
           </p>
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="text-xs text-gray-500 mt-1">
             Disclaimer: This tool is for educational purposes only. Always do your own research before making trading decisions.
           </p>
         </div>

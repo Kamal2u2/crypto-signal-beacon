@@ -26,10 +26,26 @@ const config: Config = {
         background: "var(--background)",
         foreground: "var(--foreground)",
         crypto: {
-          primary: "#0F172A", // Dark blue color for the background
-          buy: "#22c55e", // Green for buy signals
+          primary: "#FFFFFF", // Light background
+          secondary: "#F8FAFC", // Slightly off-white for cards
+          accent: "#EEF2FF", // Light accent color
+          buy: "#22c55e", // Green for buy signals 
           sell: "#ef4444", // Red for sell signals
           hold: "#f59e0b", // Amber/yellow for hold signals
+          border: "#E2E8F0", // Light border color
+          chart: {
+            line: "#3B82F6", // Blue for chart lines
+            grid: "#E2E8F0", // Light grid lines
+            sma: "#10B981", // Green for SMA
+            ema: "#8B5CF6", // Purple for EMA
+            volume: "#CBD5E1", // Light gray for volume
+            bollingerUpper: "#F43F5E", // Pink for upper Bollinger band
+            bollingerLower: "#3B82F6", // Blue for lower Bollinger band
+            bollingerMiddle: "#8B5CF6", // Purple for middle Bollinger band
+            rsi: "#F59E0B", // Amber for RSI
+            macd: "#10B981", // Green for MACD
+            signal: "#F43F5E", // Pink for signal line
+          },
         },
         primary: {
           DEFAULT: "var(--primary)",
@@ -74,10 +90,24 @@ const config: Config = {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
+        "pulse": {
+          "0%, 100%": { opacity: "1" },
+          "50%": { opacity: "0.5" },
+        },
+        "fade-in": {
+          "0%": { opacity: "0" },
+          "100%": { opacity: "1" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "pulse": "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        "fade-in": "fade-in 0.4s ease-out",
+      },
+      boxShadow: {
+        card: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+        "card-hover": "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
       },
     },
   },

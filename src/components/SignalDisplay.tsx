@@ -4,7 +4,7 @@ import { SignalSummary, TradingSignal } from '@/services/technicalAnalysisServic
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { ArrowDown, ArrowUp, Minus } from 'lucide-react';
+import { ArrowDown, ArrowUp, Minus, AlertTriangle } from 'lucide-react';
 
 interface SignalDisplayProps {
   signalData: SignalSummary | null;
@@ -15,14 +15,15 @@ interface SignalDisplayProps {
 const SignalDisplay: React.FC<SignalDisplayProps> = ({ signalData, symbol, lastPrice }) => {
   if (!signalData) {
     return (
-      <Card className="w-full h-full bg-crypto-secondary border-crypto-primary">
+      <Card className="signal-card w-full h-full">
         <CardHeader className="pb-2">
           <CardTitle className="text-lg font-medium">Signal Analysis</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col items-center justify-center h-32">
-            <p className="text-muted-foreground">No signals available</p>
-            <p className="text-sm text-muted-foreground mt-1">Select a coin pair to view signals</p>
+            <AlertTriangle className="h-10 w-10 text-gray-400 mb-2" />
+            <p className="text-gray-600">No signals available</p>
+            <p className="text-sm text-gray-500 mt-1">Select a coin pair to view signals</p>
           </div>
         </CardContent>
       </Card>
@@ -32,17 +33,17 @@ const SignalDisplay: React.FC<SignalDisplayProps> = ({ signalData, symbol, lastP
   const { overallSignal, confidence, signals } = signalData;
 
   const signalColor = {
-    BUY: 'bg-signal-buy text-green-950',
-    SELL: 'bg-signal-sell text-red-950',
-    HOLD: 'bg-signal-hold text-yellow-950',
-    NEUTRAL: 'bg-signal-neutral text-gray-950'
+    BUY: 'signal-buy',
+    SELL: 'signal-sell',
+    HOLD: 'signal-hold',
+    NEUTRAL: 'signal-neutral'
   };
 
   const signalBorderColor = {
-    BUY: 'border-signal-buy',
-    SELL: 'border-signal-sell',
-    HOLD: 'border-signal-hold',
-    NEUTRAL: 'border-signal-neutral'
+    BUY: 'border-crypto-buy',
+    SELL: 'border-crypto-sell',
+    HOLD: 'border-crypto-hold',
+    NEUTRAL: 'border-gray-300'
   };
 
   const signalIcon = {
@@ -54,7 +55,7 @@ const SignalDisplay: React.FC<SignalDisplayProps> = ({ signalData, symbol, lastP
 
   return (
     <Card className={cn(
-      "w-full h-full bg-crypto-secondary", 
+      "signal-card w-full h-full", 
       signalBorderColor[overallSignal as keyof typeof signalBorderColor],
       "border-2"
     )}>
@@ -62,9 +63,9 @@ const SignalDisplay: React.FC<SignalDisplayProps> = ({ signalData, symbol, lastP
         <div className="flex justify-between items-center">
           <CardTitle className="text-lg font-medium">Signal Analysis</CardTitle>
           <div className="flex items-center space-x-2">
-            <span className="text-sm text-muted-foreground">{symbol}</span>
+            <span className="text-sm text-gray-600">{symbol}</span>
             {lastPrice && (
-              <span className="font-semibold">${lastPrice.toFixed(2)}</span>
+              <span className="font-semibold text-gray-800">${lastPrice.toFixed(2)}</span>
             )}
           </div>
         </div>
@@ -72,7 +73,7 @@ const SignalDisplay: React.FC<SignalDisplayProps> = ({ signalData, symbol, lastP
       <CardContent>
         <div className="mb-4">
           <div className="flex justify-between items-center mb-2">
-            <h3 className="text-sm font-medium text-muted-foreground">Overall Signal</h3>
+            <h3 className="text-sm font-medium text-gray-600">Overall Signal</h3>
             <Badge 
               className={cn(
                 "px-3 py-1", 
@@ -86,32 +87,32 @@ const SignalDisplay: React.FC<SignalDisplayProps> = ({ signalData, symbol, lastP
             </Badge>
           </div>
           
-          <div className="w-full bg-gray-700 rounded-full h-2.5 mb-1">
+          <div className="w-full bg-gray-200 rounded-full h-2.5 mb-1">
             <div 
               className={cn(
                 "h-2.5 rounded-full", 
                 {
-                  'bg-signal-buy': overallSignal === 'BUY',
-                  'bg-signal-sell': overallSignal === 'SELL',
-                  'bg-signal-hold': overallSignal === 'HOLD',
-                  'bg-signal-neutral': overallSignal === 'NEUTRAL'
+                  'bg-crypto-buy': overallSignal === 'BUY',
+                  'bg-crypto-sell': overallSignal === 'SELL',
+                  'bg-crypto-hold': overallSignal === 'HOLD',
+                  'bg-gray-400': overallSignal === 'NEUTRAL'
                 }
               )}
               style={{ width: `${confidence}%` }}
             ></div>
           </div>
-          <p className="text-xs text-right text-muted-foreground">{confidence.toFixed(0)}% confidence</p>
+          <p className="text-xs text-right text-gray-500">{confidence.toFixed(0)}% confidence</p>
         </div>
         
-        <h3 className="text-sm font-medium text-muted-foreground mb-2">Signal Details</h3>
+        <h3 className="text-sm font-medium text-gray-600 mb-2">Signal Details</h3>
         <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
           {signals.map((signal: TradingSignal, index: number) => (
             <div 
               key={index}
-              className="p-2 rounded-md bg-gray-800 border border-gray-700"
+              className="p-3 rounded-md bg-crypto-accent border border-crypto-border"
             >
               <div className="flex justify-between items-center">
-                <span className="text-sm font-medium">{signal.indicator}</span>
+                <span className="text-sm font-medium text-gray-700">{signal.indicator}</span>
                 <Badge 
                   className={cn(
                     "px-2 py-0.5 text-xs", 
@@ -121,7 +122,7 @@ const SignalDisplay: React.FC<SignalDisplayProps> = ({ signalData, symbol, lastP
                   {signal.type}
                 </Badge>
               </div>
-              <p className="text-xs text-muted-foreground mt-1">{signal.message}</p>
+              <p className="text-xs text-gray-600 mt-1">{signal.message}</p>
             </div>
           ))}
         </div>

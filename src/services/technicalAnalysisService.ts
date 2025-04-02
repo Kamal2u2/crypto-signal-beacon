@@ -1,4 +1,3 @@
-
 import { KlineData } from "./binanceService";
 
 // Types of signals that can be generated
@@ -162,10 +161,134 @@ export function calculateMACD(
   return { macd: macdLine, signal: signalLine, histogram };
 }
 
+// Calculate Bollinger Bands
+export function calculateBollingerBands(
+  prices: number[],
+  period: number = 20,
+  multiplier: number = 2
+): { upper: number[], middle: number[], lower: number[] } {
+  const middle = calculateSMA(prices, period);
+  const upper: number[] = [];
+  const lower: number[] = [];
+
+  // Calculate standard deviation for each point
+  for (let i = 0; i < prices.length; i++) {
+    if (isNaN(middle[i])) {
+      upper.push(NaN);
+      lower.push(NaN);
+      continue;
+    }
+
+    // Get the subset of prices for this period
+    const startIndex = Math.max(0, i - period + 1);
+    const subset = prices.slice(startIndex, i + 1);
+    
+    // Calculate standard deviation
+    const mean = middle[i];
+    const squaredDiffs = subset.map(price => Math.pow(price - mean, 2));
+    const variance = squaredDiffs.reduce((sum, val) => sum + val, 0) / subset.length;
+    const stdDev = Math.sqrt(variance);
+    
+    // Calculate bands
+    upper.push(middle[i] + (multiplier * stdDev));
+    lower.push(middle[i] - (multiplier * stdDev));
+  }
+
+  return { upper, middle, lower };
+}
+
+// Calculate Average True Range (ATR)
+export function calculateATR(
+  closes: number[],
+  highs: number[],
+  lows: number[],
+  period: number = 14
+): number[] {
+  const trueRanges: number[] = [];
+  const atr: number[] = [];
+  
+  // Calculate True Range for each candle
+  for (let i = 0; i < closes.length; i++) {
+    if (i === 0) {
+      // For first candle, TR is simply High - Low
+      trueRanges.push(highs[i] - lows[i]);
+    } else {
+      // TR is max of: current high-low, |current high-previous close|, |current low-previous close|
+      const hl = highs[i] - lows[i];
+      const hpc = Math.abs(highs[i] - closes[i-1]);
+      const lpc = Math.abs(lows[i] - closes[i-1]);
+      trueRanges.push(Math.max(hl, hpc, lpc));
+    }
+  }
+  
+  // Calculate ATR using EMA of True Range
+  for (let i = 0; i < closes.length; i++) {
+    if (i < period) {
+      // Not enough data for calculation
+      atr.push(NaN);
+      continue;
+    }
+    
+    if (i === period) {
+      // First ATR is simple average of first 'period' true ranges
+      const firstATR = trueRanges.slice(0, period).reduce((a, b) => a + b, 0) / period;
+      atr.push(firstATR);
+    } else {
+      // Subsequent ATRs use the smoothing formula
+      atr.push(((atr[atr.length - 1] * (period - 1)) + trueRanges[i]) / period);
+    }
+  }
+  
+  return atr;
+}
+
+// Calculate Stochastic Oscillator
+export function calculateStochasticOscillator(
+  closes: number[],
+  highs: number[],
+  lows: number[],
+  kPeriod: number = 14,
+  dPeriod: number = 3
+): { k: number[], d: number[] } | null {
+  if (closes.length < kPeriod) {
+    return null;
+  }
+  
+  const k: number[] = [];
+  const d: number[] = [];
+  
+  // Fill with NaN for the first (kPeriod-1) positions
+  for (let i = 0; i < kPeriod - 1; i++) {
+    k.push(NaN);
+  }
+  
+  // Calculate %K values
+  for (let i = kPeriod - 1; i < closes.length; i++) {
+    const lookbackHigh = Math.max(...highs.slice(i - kPeriod + 1, i + 1));
+    const lookbackLow = Math.min(...lows.slice(i - kPeriod + 1, i + 1));
+    
+    // %K formula: 100 * (C - L14) / (H14 - L14)
+    // where C is current close, L14 is lowest low of last 14 periods, H14 is highest high of last 14 periods
+    if (lookbackHigh === lookbackLow) {
+      k.push(100); // Avoid division by zero
+    } else {
+      const kValue = 100 * ((closes[i] - lookbackLow) / (lookbackHigh - lookbackLow));
+      k.push(kValue);
+    }
+  }
+  
+  // Calculate %D values (SMA of %K)
+  const dSMA = calculateSMA(k, dPeriod);
+  
+  return { k, d: dSMA };
+}
+
 // Generate signals based on technical indicators
 export function generateSignals(klineData: KlineData[]): SignalSummary {
-  // Extract closing prices
+  // Extract prices
   const prices = klineData.map(candle => candle.close);
+  const highs = klineData.map(candle => candle.high);
+  const lows = klineData.map(candle => candle.low);
   
   if (prices.length < 30) {
     return {
@@ -194,7 +317,6 @@ export function generateSignals(klineData: KlineData[]): SignalSummary {
   // Check for MA crossovers
   if (!isNaN(currentShortSMA) && !isNaN(prevShortSMA) && 
       !isNaN(currentLongSMA) && !isNaN(prevLongSMA)) {
-        
     if (prevShortSMA <= prevLongSMA && currentShortSMA > currentLongSMA) {
       signals.push({
         type: 'BUY',
@@ -296,6 +418,106 @@ export function generateSignals(klineData: KlineData[]): SignalSummary {
           message: 'MACD histogram turned negative'
         });
       }
+    }
+  }
+  
+  // 4. Bollinger Bands Signal
+  const bollingerBands = calculateBollingerBands(prices);
+  const currentPrice = prices[prices.length - 1];
+  const currentUpperBand = bollingerBands.upper[bollingerBands.upper.length - 1];
+  const currentLowerBand = bollingerBands.lower[bollingerBands.lower.length - 1];
+  
+  if (!isNaN(currentUpperBand) && !isNaN(currentLowerBand)) {
+    if (currentPrice > currentUpperBand) {
+      signals.push({
+        type: 'SELL',
+        indicator: 'Bollinger Bands',
+        strength: 75,
+        message: 'Price is above upper Bollinger Band - potentially overbought'
+      });
+    } else if (currentPrice < currentLowerBand) {
+      signals.push({
+        type: 'BUY',
+        indicator: 'Bollinger Bands',
+        strength: 75,
+        message: 'Price is below lower Bollinger Band - potentially oversold'
+      });
+    } else {
+      signals.push({
+        type: 'HOLD',
+        indicator: 'Bollinger Bands',
+        strength: 50,
+        message: 'Price is within Bollinger Bands - normal volatility'
+      });
+    }
+  }
+  
+  // 5. Stochastic Oscillator Signal
+  const stochastic = calculateStochasticOscillator(prices, highs, lows);
+  
+  if (stochastic) {
+    const currentK = stochastic.k[stochastic.k.length - 1];
+    const currentD = stochastic.d[stochastic.d.length - 1];
+    const prevK = stochastic.k[stochastic.k.length - 2];
+    const prevD = stochastic.d[stochastic.d.length - 2];
+    
+    if (!isNaN(currentK) && !isNaN(currentD) && !isNaN(prevK) && !isNaN(prevD)) {
+      if (currentK > 80 && currentD > 80) {
+        signals.push({
+          type: 'SELL',
+          indicator: 'Stochastic',
+          strength: 70,
+          message: 'Stochastic oscillator in overbought territory'
+        });
+      } else if (currentK < 20 && currentD < 20) {
+        signals.push({
+          type: 'BUY',
+          indicator: 'Stochastic',
+          strength: 70,
+          message: 'Stochastic oscillator in oversold territory'
+        });
+      }
+      
+      // Stochastic crossover
+      if (prevK < prevD && currentK > currentD) {
+        signals.push({
+          type: 'BUY',
+          indicator: 'Stochastic Crossover',
+          strength: 65,
+          message: '%K crossed above %D line - potential buy signal'
+        });
+      } else if (prevK > prevD && currentK < currentD) {
+        signals.push({
+          type: 'SELL',
+          indicator: 'Stochastic Crossover',
+          strength: 65,
+          message: '%K crossed below %D line - potential sell signal'
+        });
+      }
+    }
+  }
+  
+  // 6. Price vs EMA signal
+  const ema50 = calculateEMA(prices, 50);
+  const currentEMA50 = ema50[ema50.length - 1];
+  
+  if (!isNaN(currentEMA50)) {
+    const priceDiffPercent = ((currentPrice - currentEMA50) / currentEMA50) * 100;
+    
+    if (priceDiffPercent > 5) {
+      signals.push({
+        type: 'SELL',
+        indicator: 'EMA Deviation',
+        strength: 60,
+        message: `Price is ${priceDiffPercent.toFixed(2)}% above EMA50 - potentially overextended`
+      });
+    } else if (priceDiffPercent < -5) {
+      signals.push({
+        type: 'BUY',
+        indicator: 'EMA Deviation',
+        strength: 60,
+        message: `Price is ${Math.abs(priceDiffPercent).toFixed(2)}% below EMA50 - potentially undervalued`
+      });
     }
   }
   

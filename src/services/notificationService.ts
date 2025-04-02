@@ -1,3 +1,4 @@
+
 // Map of signal types to audio files
 const signalSounds = {
   BUY: new Audio('/buy-signal.mp3'),

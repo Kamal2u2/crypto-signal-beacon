@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
@@ -22,7 +21,9 @@ import {
 } from '@/services/technicalAnalysisService';
 import { 
   initializeAudio, 
-  playSignalSound 
+  playSignalSound,
+  requestNotificationPermission,
+  sendSignalNotification
 } from '@/services/notificationService';
 
 const Index = () => {
@@ -49,6 +50,9 @@ const Index = () => {
   
   // Audio initialization flag
   const [isAudioInitialized, setIsAudioInitialized] = useState<boolean>(false);
+  
+  // Notification permission state
+  const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(false);
 
   // Function to fetch data
   const fetchData = useCallback(async () => {
@@ -69,10 +73,20 @@ const Index = () => {
                              signals.overallSignal !== 'HOLD' && 
                              signals.confidence >= confidenceThreshold;
         
-        // Check if we need to play a notification sound
+        // Check if we need to play a notification sound or send browser notification
         if (isAudioInitialized && alertsEnabled && isSignalValid && signals.overallSignal !== lastSignalType) {
           if (signals.overallSignal === 'BUY' || signals.overallSignal === 'SELL') {
+            // Play sound alert
             playSignalSound(signals.overallSignal, alertVolume);
+            
+            // Send browser notification if enabled
+            if (notificationsEnabled) {
+              sendSignalNotification(
+                signals.overallSignal, 
+                selectedPair.label, 
+                signals.confidence
+              );
+            }
             
             // Show toast notification
             toast({
@@ -104,7 +118,7 @@ const Index = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedPair, selectedInterval, isAudioInitialized, lastSignalType, alertsEnabled, alertVolume, confidenceThreshold]);
+  }, [selectedPair, selectedInterval, isAudioInitialized, lastSignalType, alertsEnabled, alertVolume, confidenceThreshold, notificationsEnabled]);
 
   // Set up initial data fetch
   useEffect(() => {
@@ -115,6 +129,10 @@ const Index = () => {
       initializeAudio();
       setIsAudioInitialized(true);
       document.removeEventListener('click', initAudio);
+      
+      // Also try to request notification permission
+      const hasPermission = requestNotificationPermission();
+      setNotificationsEnabled(hasPermission);
     };
     
     // Audio needs to be initialized after a user interaction
@@ -175,6 +193,32 @@ const Index = () => {
           <p className="text-center text-gray-600 mt-2">
             Real-time cryptocurrency trading signals powered by advanced technical analysis
           </p>
+          <div className="flex justify-center mt-2">
+            <button
+              className={cn(
+                "text-xs px-3 py-1 rounded-full transition-colors",
+                notificationsEnabled 
+                  ? "bg-green-100 text-green-700 border border-green-300" 
+                  : "bg-gray-100 text-gray-600 border border-gray-300 hover:bg-blue-50"
+              )}
+              onClick={() => {
+                const hasPermission = requestNotificationPermission();
+                setNotificationsEnabled(hasPermission);
+                
+                toast({
+                  title: hasPermission 
+                    ? "Notifications enabled" 
+                    : "Notification permission required",
+                  description: hasPermission 
+                    ? "You will receive browser notifications for new signals" 
+                    : "Please allow notifications in your browser settings",
+                  variant: hasPermission ? "default" : "destructive",
+                });
+              }}
+            >
+              {notificationsEnabled ? "Notifications On" : "Enable Notifications"}
+            </button>
+          </div>
         </div>
       </header>
       

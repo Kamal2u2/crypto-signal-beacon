@@ -631,6 +631,125 @@ function detectInvertedHeadAndShoulders(prices: number[]): PatternDetection | nu
   return null;
 }
 
+// Detect support and resistance levels
+export function findSupportResistanceLevels(
+  highs: number[], 
+  lows: number[], 
+  prices: number[]
+) {
+  // We'll use a simple algorithm based on local minima and maxima
+  const supportLevels: number[] = [];
+  const resistanceLevels: number[] = [];
+  
+  const lookbackPeriod = 5; // Number of candles to look back and forward
+  const significance = 0.5; // % price difference to consider significant
+  const currentPrice = prices[prices.length - 1];
+  
+  // Find local minima (support) and maxima (resistance)
+  for (let i = lookbackPeriod; i < lows.length - lookbackPeriod; i++) {
+    // Check for local minimum (support)
+    let isLocalMin = true;
+    for (let j = i - lookbackPeriod; j < i; j++) {
+      if (lows[i] > lows[j]) {
+        isLocalMin = false;
+        break;
+      }
+    }
+    for (let j = i + 1; j <= i + lookbackPeriod; j++) {
+      if (lows[i] > lows[j]) {
+        isLocalMin = false;
+        break;
+      }
+    }
+    
+    if (isLocalMin) {
+      supportLevels.push(lows[i]);
+    }
+    
+    // Check for local maximum (resistance)
+    let isLocalMax = true;
+    for (let j = i - lookbackPeriod; j < i; j++) {
+      if (highs[i] < highs[j]) {
+        isLocalMax = false;
+        break;
+      }
+    }
+    for (let j = i + 1; j <= i + lookbackPeriod; j++) {
+      if (highs[i] < highs[j]) {
+        isLocalMax = false;
+        break;
+      }
+    }
+    
+    if (isLocalMax) {
+      resistanceLevels.push(highs[i]);
+    }
+  }
+  
+  // Group similar levels together (within significance %)
+  const groupedSupport = groupSimilarLevels(supportLevels, significance);
+  const groupedResistance = groupSimilarLevels(resistanceLevels, significance);
+  
+  // Sort levels by strength (frequency of touches)
+  const sortedSupport = sortLevelsByStrength(groupedSupport);
+  const sortedResistance = sortLevelsByStrength(groupedResistance);
+  
+  // Keep only the strongest few levels that are relevant to current price
+  const relevantSupport = sortedSupport
+    .filter(level => level < currentPrice) // Support must be below current price
+    .slice(0, 3); // Keep top 3
+  
+  const relevantResistance = sortedResistance
+    .filter(level => level > currentPrice) // Resistance must be above current price
+    .slice(0, 3); // Keep top 3
+  
+  return {
+    support: relevantSupport,
+    resistance: relevantResistance
+  };
+}
+
+// Helper function to group similar price levels
+function groupSimilarLevels(levels: number[], significance: number): number[] {
+  if (levels.length === 0) return [];
+  
+  // Sort levels
+  const sortedLevels = [...levels].sort((a, b) => a - b);
+  
+  // Group similar levels
+  const groups: number[][] = [];
+  let currentGroup: number[] = [sortedLevels[0]];
+  
+  for (let i = 1; i < sortedLevels.length; i++) {
+    const prevLevel = sortedLevels[i - 1];
+    const currentLevel = sortedLevels[i];
+    
+    // If the levels are similar, add to the current group
+    if ((Math.abs(currentLevel - prevLevel) / prevLevel) * 100 < significance) {
+      currentGroup.push(currentLevel);
+    } else {
+      // Start a new group
+      groups.push(currentGroup);
+      currentGroup = [currentLevel];
+    }
+  }
+  
+  // Add the last group
+  if (currentGroup.length > 0) {
+    groups.push(currentGroup);
+  }
+  
+  // Calculate average level for each group
+  return groups.map(group => 
+    group.reduce((sum, level) => sum + level, 0) / group.length
+  );
+}
+
+// Helper function to sort levels by strength (frequency of occurrence)
+function sortLevelsByStrength(levels: number[]): number[] {
+  return levels.sort((a, b) => a - b);
+}
+
 // Generate signals based on technical indicators
 export function generateSignals(klineData: KlineData[]): SignalSummary {
   // Extract prices

@@ -35,6 +35,51 @@ export function initializeAudio() {
   console.log("Audio initialization attempted. User interaction is still required.");
 }
 
+// Request permission for browser notifications
+export function requestNotificationPermission() {
+  if (!("Notification" in window)) {
+    console.log("This browser does not support desktop notification");
+    return false;
+  }
+  
+  if (Notification.permission === "granted") {
+    return true;
+  } else if (Notification.permission !== "denied") {
+    Notification.requestPermission().then(permission => {
+      return permission === "granted";
+    });
+  }
+  
+  return Notification.permission === "granted";
+}
+
+// Send browser notification
+export function sendNotification(title: string, options: NotificationOptions = {}) {
+  if (!("Notification" in window)) {
+    return;
+  }
+  
+  if (Notification.permission === "granted") {
+    const notification = new Notification(title, {
+      icon: '/favicon.ico',
+      ...options
+    });
+    
+    notification.onclick = function() {
+      window.focus();
+      this.close();
+    };
+    
+    return notification;
+  } else if (Notification.permission !== "denied") {
+    Notification.requestPermission().then(permission => {
+      if (permission === "granted") {
+        sendNotification(title, options);
+      }
+    });
+  }
+}
+
 // Play the appropriate sound based on signal type
 export function playSignalSound(signalType: 'BUY' | 'SELL' | null, volume: number = 0.7) {
   if (!signalType || !(signalType in signalSounds)) return;
@@ -55,6 +100,23 @@ export function playSignalSound(signalType: 'BUY' | 'SELL' | null, volume: numbe
       });
     }
   }
+}
+
+// Send notification for trading signal
+export function sendSignalNotification(signalType: 'BUY' | 'SELL', symbol: string, confidence: number) {
+  const title = `${signalType} Signal Alert`;
+  const body = `${symbol}: ${signalType} signal detected with ${confidence.toFixed(0)}% confidence`;
+  
+  sendNotification(title, {
+    body,
+    badge: '/favicon.ico',
+    vibrate: [200, 100, 200],
+    tag: `signal-${signalType.toLowerCase()}-${Date.now()}`,
+    renotify: true
+  });
+  
+  // Also play sound
+  playSignalSound(signalType);
 }
 
 // Test audio to let user confirm it's working

@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -61,6 +62,18 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				// Custom colors for crypto signals
+				signal: {
+					buy: '#4ade80',    // Green for buy signals
+					sell: '#ef4444',   // Red for sell signals
+					hold: '#facc15',    // Yellow for hold signals
+					neutral: '#9ca3af'  // Gray for neutral or no signal
+				},
+				crypto: {
+					primary: '#1E293B',  // Dark blue-gray for backgrounds
+					secondary: '#0F172A', // Darker blue-gray for contrast
+					accent: '#3B82F6'     // Blue for accents and highlights
 				}
 			},
 			borderRadius: {
@@ -84,11 +97,16 @@ export default {
 					to: {
 						height: '0'
 					}
+				},
+				'pulse-signal': {
+					'0%, 100%': { opacity: '1' },
+					'50%': { opacity: '0.5' }
 				}
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+				'pulse-signal': 'pulse-signal 2s ease-in-out infinite'
 			}
 		}
 	},

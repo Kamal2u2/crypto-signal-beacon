@@ -78,6 +78,7 @@ const PriceChart: React.FC<PriceChartProps> = ({ data, isPending, symbol }) => {
       macd: macdResult.macd[index],
       signal: macdResult.signal[index],
       histogram: macdResult.histogram[index],
+      histogramColor: macdResult.histogram[index] >= 0 ? "#00ff00" : "#ff0000",
       upper: bollingerBands.upper[index],
       middle: bollingerBands.middle[index],
       lower: bollingerBands.lower[index]
@@ -292,7 +293,7 @@ const PriceChart: React.FC<PriceChartProps> = ({ data, isPending, symbol }) => {
               />
               <Line type="monotone" dataKey="macd" stroke="#ff0000" dot={false} />
               <Line type="monotone" dataKey="signal" stroke="#0000ff" dot={false} />
-              <Bar dataKey="histogram" fill={(datum) => (datum.histogram >= 0 ? '#00ff00' : '#ff0000')} />
+              <Bar dataKey="histogram" fill="histogramColor" />
             </ComposedChart>
           )}
         </div>

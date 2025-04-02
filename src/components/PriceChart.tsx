@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -464,7 +463,7 @@ const PriceChart: React.FC<PriceChartProps> = ({ data, isPending, symbol }) => {
               />
               <Bar 
                 dataKey="histogram" 
-                fill={(datum) => datum.histogram >= 0 ? "#00ff00" : "#ff0000"}
+                fill="histogramColor"
                 name="Histogram"
               />
               <ReferenceLine y={0} stroke="#64748b" strokeDasharray="3 3" />

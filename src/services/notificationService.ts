@@ -107,13 +107,15 @@ export function sendSignalNotification(signalType: 'BUY' | 'SELL', symbol: strin
   const title = `${signalType} Signal Alert`;
   const body = `${symbol}: ${signalType} signal detected with ${confidence.toFixed(0)}% confidence`;
   
-  sendNotification(title, {
+  // Create notification options without the 'vibrate' property
+  const notificationOptions: NotificationOptions = {
     body,
     badge: '/favicon.ico',
-    vibrate: [200, 100, 200],
     tag: `signal-${signalType.toLowerCase()}-${Date.now()}`,
     renotify: true
-  });
+  };
+  
+  sendNotification(title, notificationOptions);
   
   // Also play sound
   playSignalSound(signalType);

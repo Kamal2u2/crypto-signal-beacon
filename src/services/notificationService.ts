@@ -95,7 +95,7 @@ const showNotification = (title: string, body: string, type: string = 'info') =>
       // Create and show the notification
       const notification = new Notification(title, {
         body: body,
-        icon: type === 'BUY' ? '/buy-icon.png' : '/sell-icon.png',
+        icon: type === 'BUY' ? '/buy-icon.png' : (type === 'SELL' ? '/sell-icon.png' : null),
       });
       
       // Close the notification after 5 seconds
@@ -106,4 +106,28 @@ const showNotification = (title: string, body: string, type: string = 'info') =>
       console.error('Error showing notification:', error);
     }
   }
+};
+
+// Debug the signal system - logs detailed analysis info
+export const debugSignalSystem = (signalData: any, rawData: any) => {
+  console.group("Signal System Debug");
+  console.log("Signal Summary:", signalData);
+  if (rawData && rawData.length > 0) {
+    console.log("Latest Price Data:", rawData.slice(-5));
+    console.log("Data Point Count:", rawData.length);
+    
+    // Calculate some basic indicators to verify data
+    if (rawData.length >= 20) {
+      const closePrices = rawData.map((d: any) => d.close);
+      const lastClose = closePrices[closePrices.length - 1];
+      const prevClose = closePrices[closePrices.length - 2];
+      
+      console.log("Last close price:", lastClose);
+      console.log("Previous close price:", prevClose);
+      console.log("Price change:", ((lastClose - prevClose) / prevClose * 100).toFixed(2) + "%");
+    }
+  }
+  console.groupEnd();
+  
+  return true; // Return true for chaining
 };

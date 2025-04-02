@@ -1,9 +1,9 @@
 
 /* Increase chart size */
 .crypto-chart-container {
-  height: 70vh;
-  min-height: 400px;
-  max-height: 800px;
+  height: 80vh;
+  min-height: 500px;
+  max-height: 900px;
   width: 100%;
   margin: 0 auto;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
@@ -14,7 +14,7 @@
 }
 
 .crypto-chart-container [class^="recharts-"] text {
-  font-size: 12px !important;
+  font-size: 14px !important;
   fill: #4b5563 !important;
   font-weight: 500;
 }
@@ -34,12 +34,31 @@
   z-index: 10 !important;
 }
 
-/* Fix dropdown positioning */
+/* Fix dropdown positioning and enhance visibility */
 .popover-content {
   z-index: 50 !important;
   background-color: white !important;
   border: 1px solid rgba(0, 0, 0, 0.1);
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* Apply solid background to all select content and dropdown menus */
+.SelectContent, 
+.CommandList,
+.PopoverContent,
+[data-radix-popper-content-wrapper] {
+  background-color: white !important;
+  backdrop-filter: blur(10px) !important;
+  border: 1px solid rgba(0, 0, 0, 0.2) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+  z-index: 100 !important;
+}
+
+/* Enhanced input styling */
+.command-input,
+.select-trigger,
+.command-item {
+  background-color: white !important;
 }
 
 /* Glass card styling */
@@ -64,4 +83,26 @@
 .command-list {
   max-height: 300px;
   overflow-y: auto;
+}
+
+/* Enhance readability of dropdown menus */
+.select-content,
+.command-list,
+.popover-content {
+  background-color: white !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  z-index: 50 !important;
+}
+
+/* Make switch components more visible */
+.switch-thumb {
+  background-color: white !important;
+}
+
+.switch-track {
+  background-color: rgba(0, 0, 0, 0.2) !important;
+}
+
+.switch-track[data-state="checked"] {
+  background-color: #3b82f6 !important;
 }

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
@@ -24,7 +23,8 @@ import {
   initializeAudio, 
   playSignalSound,
   requestNotificationPermission,
-  sendSignalNotification
+  sendSignalNotification,
+  debugSignalSystem
 } from '@/services/notificationService';
 
 // Add some CSS to increase chart size
@@ -38,7 +38,7 @@ const Index = () => {
   const [isAutoRefreshEnabled, setIsAutoRefreshEnabled] = useState<boolean>(false);
   
   // Signal settings
-  const [confidenceThreshold, setConfidenceThreshold] = useState<number>(60);
+  const [confidenceThreshold, setConfidenceThreshold] = useState<number>(50); // Lower threshold to get more signals
   const [alertsEnabled, setAlertsEnabled] = useState<boolean>(true);
   const [alertVolume, setAlertVolume] = useState<number>(0.7);
   
@@ -57,11 +57,19 @@ const Index = () => {
   
   // Notification permission state
   const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(false);
+  
+  // Debug counter to track refresh cycles
+  const debugCounterRef = useRef<number>(0);
 
   // Function to fetch data
   const fetchData = useCallback(async () => {
     setIsLoading(true);
+    debugCounterRef.current += 1;
+    const cycleNumber = debugCounterRef.current;
+    
     try {
+      console.log(`[Cycle ${cycleNumber}] Fetching data for ${selectedPair.symbol} at ${selectedInterval} interval`);
+      
       // Fetch kline data
       const data = await fetchKlineData(selectedPair.symbol, selectedInterval, 100);
       
@@ -71,6 +79,9 @@ const Index = () => {
         // Generate signals
         const signals = generateSignals(data);
         setSignalData(signals);
+        
+        // Debug the signal system
+        debugSignalSystem(signals, data);
         
         // Check if signal meets the confidence threshold
         const isSignalValid = signals.overallSignal !== 'NEUTRAL' && 
@@ -102,6 +113,9 @@ const Index = () => {
           setLastSignalType(signals.overallSignal);
         }
         
+        // Log the signal and confidence for debugging
+        console.log(`[Cycle ${cycleNumber}] Signal: ${signals.overallSignal}, Confidence: ${signals.confidence.toFixed(0)}%, Threshold: ${confidenceThreshold}%`);
+        
         // Fetch current price
         const price = await fetchCurrentPrice(selectedPair.symbol);
         setCurrentPrice(price);
@@ -113,7 +127,7 @@ const Index = () => {
         });
       }
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error(`[Cycle ${cycleNumber}] Error fetching data:`, error);
       toast({
         title: "Error",
         description: "Failed to fetch data from Binance API",
@@ -185,6 +199,9 @@ const Index = () => {
   const handlePairChange = (pair: CoinPair) => {
     setSelectedPair(pair);
     setLastSignalType(null); // Reset signal type when pair changes
+    
+    // Log pair change for debugging
+    console.log(`Switching to pair: ${pair.symbol}`);
   };
 
   return (

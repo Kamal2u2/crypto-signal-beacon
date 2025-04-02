@@ -104,15 +104,15 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                 <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[300px] p-0" align="start">
-              <Command>
+            <PopoverContent className="w-[300px] p-0 bg-white" align="start">
+              <Command className="bg-white">
                 <CommandInput 
                   placeholder="Search coin pair..." 
                   value={searchTerm}
                   onValueChange={setSearchTerm}
-                  className="h-9"
+                  className="h-9 bg-white"
                 />
-                <CommandList>
+                <CommandList className="command-list bg-white">
                   <CommandEmpty>No coin pairs found.</CommandEmpty>
                   <CommandGroup>
                     <ScrollArea className="h-[300px]">
@@ -130,7 +130,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                               setOpenCoinSearch(false);
                               setSearchTerm('');
                             }}
-                            className="cursor-pointer"
+                            className="cursor-pointer bg-white hover:bg-gray-100"
                           >
                             {pair.label}
                           </CommandItem>
@@ -151,7 +151,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             <SelectTrigger id="time-interval" className="w-[180px] bg-white">
               <SelectValue placeholder="Select Interval" />
             </SelectTrigger>
-            <SelectContent className="bg-white">
+            <SelectContent className="bg-white border border-gray-200 shadow-md">
               <SelectItem value="1m">1 Minute</SelectItem>
               <SelectItem value="3m">3 Minutes</SelectItem>
               <SelectItem value="5m">5 Minutes</SelectItem>
@@ -192,7 +192,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
               <SelectTrigger id="refresh-interval" className="w-[180px] bg-white">
                 <SelectValue placeholder="Select Interval" />
               </SelectTrigger>
-              <SelectContent className="bg-white">
+              <SelectContent className="bg-white border border-gray-200 shadow-md">
+                <SelectItem value="5000">5 Seconds</SelectItem>
                 <SelectItem value="10000">10 Seconds</SelectItem>
                 <SelectItem value="15000">15 Seconds</SelectItem>
                 <SelectItem value="30000">30 Seconds</SelectItem>

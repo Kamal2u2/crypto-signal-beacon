@@ -1,1066 +1,427 @@
-import { KlineData } from "./binanceService";
 
-// Types of signals that can be generated
+import { KlineData } from './binanceService';
+
 export type SignalType = 'BUY' | 'SELL' | 'HOLD' | 'NEUTRAL';
 
-// Interface for a trading signal
-export interface TradingSignal {
-  type: SignalType;
-  indicator: string;
-  strength: number; // 0-100, indicates confidence
-  message: string;
+interface IndicatorSignal {
+  signal: SignalType;
+  weight: number;
+  confidence: number;
 }
 
-// Interface for price targets and stoploss
-export interface PriceTargets {
-  entryPrice: number;
-  stopLoss: number;
-  target1: number;
-  target2: number;
-  target3: number;
-  riskRewardRatio: number;
-}
-
-// Interface for aggregated signals
 export interface SignalSummary {
   overallSignal: SignalType;
   confidence: number;
-  signals: TradingSignal[];
-  priceTargets: PriceTargets | null;
-  patterns: PatternDetection[] | null;
+  indicators: {
+    [key: string]: IndicatorSignal;
+  };
+  priceTargets?: {
+    entryPrice: number;
+    stopLoss: number;
+    target1: number;
+    target2: number;
+    target3: number;
+    riskRewardRatio: number;
+  };
 }
 
-// Interface for pattern detection
-export interface PatternDetection {
-  name: string;
-  type: 'bullish' | 'bearish' | 'neutral';
-  confidence: number;
-  description: string;
-}
-
-// Calculate Simple Moving Average (SMA)
-export function calculateSMA(prices: number[], period: number): number[] {
-  const sma: number[] = [];
+// Simple Moving Average
+const calculateSMA = (data: number[], period: number): number[] => {
+  const result: number[] = [];
   
-  // We need at least 'period' data points to calculate the first SMA
-  if (prices.length < period) {
-    return new Array(prices.length).fill(NaN);
-  }
-  
-  // Calculate SMA for each valid position
-  for (let i = 0; i < prices.length; i++) {
+  for (let i = 0; i < data.length; i++) {
     if (i < period - 1) {
-      sma.push(NaN); // Not enough data yet
-    } else {
-      const sum = prices.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0);
-      sma.push(sum / period);
+      result.push(NaN);
+      continue;
     }
+    
+    const sum = data.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0);
+    result.push(sum / period);
   }
   
-  return sma;
-}
+  return result;
+};
 
-// Calculate Exponential Moving Average (EMA)
-export function calculateEMA(prices: number[], period: number): number[] {
-  const ema: number[] = [];
+// Exponential Moving Average
+const calculateEMA = (data: number[], period: number): number[] => {
+  const result: number[] = [];
   const multiplier = 2 / (period + 1);
   
-  // Initialize EMA with SMA for the first value
-  let initialSMA = 0;
-  for (let i = 0; i < period; i++) {
-    initialSMA += prices[i];
-  }
-  initialSMA /= period;
+  // First EMA is SMA
+  const sma = calculateSMA(data.slice(0, period), period)[period - 1];
+  result.push(sma);
   
-  // Fill with NaN for the first (period-1) positions
-  for (let i = 0; i < period - 1; i++) {
-    ema.push(NaN);
-  }
-  
-  // Add the initial SMA value
-  ema.push(initialSMA);
-  
-  // Calculate EMA for the rest of the data
-  for (let i = period; i < prices.length; i++) {
-    const newEMA = prices[i] * multiplier + ema[ema.length - 1] * (1 - multiplier);
-    ema.push(newEMA);
+  for (let i = 1; i < data.length - period + 1; i++) {
+    const currentValue = data[i + period - 1];
+    const previousEMA = result[i - 1];
+    const currentEMA = (currentValue - previousEMA) * multiplier + previousEMA;
+    result.push(currentEMA);
   }
   
-  return ema;
-}
+  // Pad the beginning with NaN to match input array length
+  const padding = Array(period - 1).fill(NaN);
+  return [...padding, ...result];
+};
 
-// Calculate Relative Strength Index (RSI)
-export function calculateRSI(prices: number[], period: number = 14): number[] {
-  const rsi: number[] = [];
-  const gains: number[] = [];
-  const losses: number[] = [];
+// Relative Strength Index
+const calculateRSI = (data: number[], period: number = 14): number[] => {
+  const result: number[] = [];
+  const changes: number[] = [];
   
   // Calculate price changes
-  for (let i = 1; i < prices.length; i++) {
-    const change = prices[i] - prices[i - 1];
-    gains.push(change > 0 ? change : 0);
-    losses.push(change < 0 ? Math.abs(change) : 0);
+  for (let i = 1; i < data.length; i++) {
+    changes.push(data[i] - data[i - 1]);
   }
   
-  // Fill with NaN for the first period positions
-  for (let i = 0; i < period; i++) {
-    rsi.push(NaN);
-  }
-  
-  // Calculate initial average gain and loss
-  let avgGain = gains.slice(0, period).reduce((a, b) => a + b, 0) / period;
-  let avgLoss = losses.slice(0, period).reduce((a, b) => a + b, 0) / period;
-  
-  // Calculate RSI for each subsequent position
-  for (let i = period; i < prices.length; i++) {
-    // Update average gain and loss using smoothing
-    avgGain = ((avgGain * (period - 1)) + gains[i - 1]) / period;
-    avgLoss = ((avgLoss * (period - 1)) + losses[i - 1]) / period;
+  // Calculate average gains and losses
+  for (let i = 0; i < changes.length; i++) {
+    if (i < period) {
+      result.push(NaN);
+      continue;
+    }
+    
+    const periodChanges = changes.slice(i - period, i);
+    const gains = periodChanges.filter(change => change > 0);
+    const losses = periodChanges.filter(change => change < 0);
+    
+    const avgGain = gains.length ? gains.reduce((sum, gain) => sum + gain, 0) / period : 0;
+    const avgLoss = losses.length ? Math.abs(losses.reduce((sum, loss) => sum + loss, 0)) / period : 0;
     
     // Calculate RS and RSI
-    const rs = avgGain / (avgLoss === 0 ? 0.001 : avgLoss); // Avoid division by zero
-    const rsiValue = 100 - (100 / (1 + rs));
-    rsi.push(rsiValue);
-  }
-  
-  return rsi;
-}
-
-// Calculate MACD (Moving Average Convergence Divergence)
-export function calculateMACD(
-  prices: number[], 
-  fastPeriod: number = 12, 
-  slowPeriod: number = 26, 
-  signalPeriod: number = 9
-): {macd: number[], signal: number[], histogram: number[]} {
-  const fastEMA = calculateEMA(prices, fastPeriod);
-  const slowEMA = calculateEMA(prices, slowPeriod);
-  
-  // Calculate MACD line (fast EMA - slow EMA)
-  const macdLine: number[] = [];
-  for (let i = 0; i < prices.length; i++) {
-    if (isNaN(fastEMA[i]) || isNaN(slowEMA[i])) {
-      macdLine.push(NaN);
+    if (avgLoss === 0) {
+      result.push(100);
     } else {
-      macdLine.push(fastEMA[i] - slowEMA[i]);
+      const rs = avgGain / avgLoss;
+      const rsi = 100 - (100 / (1 + rs));
+      result.push(rsi);
     }
   }
   
-  // Calculate signal line (EMA of MACD line)
-  const validMacdValues = macdLine.filter(val => !isNaN(val));
-  let signalLine: number[] = new Array(prices.length).fill(NaN);
+  // Pad the beginning with NaN to match input array length
+  return [NaN, ...result];
+};
+
+// Moving Average Convergence Divergence
+const calculateMACD = (data: number[], fastPeriod: number = 12, slowPeriod: number = 26, signalPeriod: number = 9): {macd: number[], signal: number[], histogram: number[]} => {
+  const fastEMA = calculateEMA(data, fastPeriod);
+  const slowEMA = calculateEMA(data, slowPeriod);
+  const macd: number[] = [];
   
-  if (validMacdValues.length >= signalPeriod) {
-    // Find the position where we have enough valid MACD values to start calculating the signal line
-    const startIndex = macdLine.findIndex((val, idx) => !isNaN(val) && 
-      macdLine.slice(idx, idx + signalPeriod).every(v => !isNaN(v)));
-    
-    if (startIndex !== -1) {
-      const macdSignal = calculateEMA(macdLine.slice(startIndex), signalPeriod);
-      
-      // Insert the calculated values at the correct positions
-      for (let i = 0; i < macdSignal.length; i++) {
-        const targetIdx = startIndex + i + signalPeriod - 1;
-        if (targetIdx < signalLine.length) {
-          signalLine[targetIdx] = macdSignal[i];
-        }
-      }
+  // Calculate MACD line
+  for (let i = 0; i < data.length; i++) {
+    if (isNaN(fastEMA[i]) || isNaN(slowEMA[i])) {
+      macd.push(NaN);
+    } else {
+      macd.push(fastEMA[i] - slowEMA[i]);
     }
   }
   
-  // Calculate histogram (MACD line - signal line)
+  // Calculate Signal line
+  const validMacd = macd.filter(val => !isNaN(val));
+  const signal = calculateEMA(validMacd, signalPeriod);
+  
+  // Pad the signal line to match MACD length
+  const paddedSignal: number[] = Array(macd.length - signal.length).fill(NaN).concat(signal);
+  
+  // Calculate Histogram
   const histogram: number[] = [];
-  for (let i = 0; i < prices.length; i++) {
-    if (isNaN(macdLine[i]) || isNaN(signalLine[i])) {
+  for (let i = 0; i < macd.length; i++) {
+    if (isNaN(macd[i]) || isNaN(paddedSignal[i])) {
       histogram.push(NaN);
     } else {
-      histogram.push(macdLine[i] - signalLine[i]);
+      histogram.push(macd[i] - paddedSignal[i]);
     }
   }
   
-  return { macd: macdLine, signal: signalLine, histogram };
-}
+  return { macd, signal: paddedSignal, histogram };
+};
 
-// Calculate Bollinger Bands
-export function calculateBollingerBands(
-  prices: number[],
-  period: number = 20,
-  multiplier: number = 2
-): { upper: number[], middle: number[], lower: number[] } {
-  const middle = calculateSMA(prices, period);
+// Bollinger Bands
+const calculateBollingerBands = (data: number[], period: number = 20, stdDev: number = 2): {upper: number[], middle: number[], lower: number[]} => {
+  const sma = calculateSMA(data, period);
   const upper: number[] = [];
   const lower: number[] = [];
-
-  // Calculate standard deviation for each point
-  for (let i = 0; i < prices.length; i++) {
-    if (isNaN(middle[i])) {
+  
+  for (let i = 0; i < data.length; i++) {
+    if (i < period - 1) {
       upper.push(NaN);
       lower.push(NaN);
       continue;
     }
-
-    // Get the subset of prices for this period
-    const startIndex = Math.max(0, i - period + 1);
-    const subset = prices.slice(startIndex, i + 1);
+    
+    const slice = data.slice(i - period + 1, i + 1);
+    const mean = sma[i];
     
     // Calculate standard deviation
-    const mean = middle[i];
-    const squaredDiffs = subset.map(price => Math.pow(price - mean, 2));
-    const variance = squaredDiffs.reduce((sum, val) => sum + val, 0) / subset.length;
-    const stdDev = Math.sqrt(variance);
+    const squaredDiffs = slice.map(value => Math.pow(value - mean, 2));
+    const variance = squaredDiffs.reduce((sum, value) => sum + value, 0) / period;
+    const standardDeviation = Math.sqrt(variance);
     
-    // Calculate bands
-    upper.push(middle[i] + (multiplier * stdDev));
-    lower.push(middle[i] - (multiplier * stdDev));
-  }
-
-  return { upper, middle, lower };
-}
-
-// Calculate Average True Range (ATR)
-export function calculateATR(
-  closes: number[],
-  highs: number[],
-  lows: number[],
-  period: number = 14
-): number[] {
-  const trueRanges: number[] = [];
-  const atr: number[] = [];
-  
-  // Calculate True Range for each candle
-  for (let i = 0; i < closes.length; i++) {
-    if (i === 0) {
-      // For first candle, TR is simply High - Low
-      trueRanges.push(highs[i] - lows[i]);
-    } else {
-      // TR is max of: current high-low, |current high-previous close|, |current low-previous close|
-      const hl = highs[i] - lows[i];
-      const hpc = Math.abs(highs[i] - closes[i-1]);
-      const lpc = Math.abs(lows[i] - closes[i-1]);
-      trueRanges.push(Math.max(hl, hpc, lpc));
-    }
+    upper.push(mean + stdDev * standardDeviation);
+    lower.push(mean - stdDev * standardDeviation);
   }
   
-  // Calculate ATR using EMA of True Range
-  for (let i = 0; i < closes.length; i++) {
-    if (i < period) {
-      // Not enough data for calculation
-      atr.push(NaN);
-      continue;
-    }
-    
-    if (i === period) {
-      // First ATR is simple average of first 'period' true ranges
-      const firstATR = trueRanges.slice(0, period).reduce((a, b) => a + b, 0) / period;
-      atr.push(firstATR);
-    } else {
-      // Subsequent ATRs use the smoothing formula
-      atr.push(((atr[atr.length - 1] * (period - 1)) + trueRanges[i]) / period);
-    }
-  }
-  
-  return atr;
-}
-
-// Calculate Stochastic Oscillator
-export function calculateStochasticOscillator(
-  closes: number[],
-  highs: number[],
-  lows: number[],
-  kPeriod: number = 14,
-  dPeriod: number = 3
-): { k: number[], d: number[] } | null {
-  if (closes.length < kPeriod) {
-    return null;
-  }
-  
-  const k: number[] = [];
-  const d: number[] = [];
-  
-  // Fill with NaN for the first (kPeriod-1) positions
-  for (let i = 0; i < kPeriod - 1; i++) {
-    k.push(NaN);
-  }
-  
-  // Calculate %K values
-  for (let i = kPeriod - 1; i < closes.length; i++) {
-    const lookbackHigh = Math.max(...highs.slice(i - kPeriod + 1, i + 1));
-    const lookbackLow = Math.min(...lows.slice(i - kPeriod + 1, i + 1));
-    
-    // %K formula: 100 * (C - L14) / (H14 - L14)
-    // where C is current close, L14 is lowest low of last 14 periods, H14 is highest high of last 14 periods
-    if (lookbackHigh === lookbackLow) {
-      k.push(100); // Avoid division by zero
-    } else {
-      const kValue = 100 * ((closes[i] - lookbackLow) / (lookbackHigh - lookbackLow));
-      k.push(kValue);
-    }
-  }
-  
-  // Calculate %D values (SMA of %K)
-  const dSMA = calculateSMA(k, dPeriod);
-  
-  return { k, d: dSMA };
-}
-
-// Calculate stoploss and target prices based on signal type and technical analysis
-export function calculatePriceTargets(
-  klineData: KlineData[],
-  signalType: SignalType
-): PriceTargets | null {
-  if (signalType === 'NEUTRAL' || signalType === 'HOLD' || klineData.length < 20) {
-    return null;
-  }
-  
-  const currentPrice = klineData[klineData.length - 1].close;
-  
-  let stopLoss: number;
-  let target1: number;
-  let target2: number;
-  let target3: number;
-  let riskRewardRatio: number;
-  
-  const stopLossPercent = 0.02; // 2% as requested
-  
-  if (signalType === 'BUY') {
-    // For buy signals: stopLoss is 2% below entry
-    stopLoss = currentPrice * (1 - stopLossPercent);
-    
-    // Calculate targets based on risk multiple (using requested 1:1.5 risk-reward ratio)
-    const riskAmount = currentPrice - stopLoss;
-    target1 = currentPrice + (riskAmount * 1.5); // 1.5:1 risk:reward as requested
-    target2 = currentPrice + (riskAmount * 2.0); // Extended target
-    target3 = currentPrice + (riskAmount * 3.0); // Extended target
-    
-    riskRewardRatio = 1.5; // As per requirements
-  } else {
-    // For sell signals: stopLoss is 2% above entry
-    stopLoss = currentPrice * (1 + stopLossPercent);
-    
-    // Calculate targets (downward for sell signals)
-    const riskAmount = stopLoss - currentPrice;
-    target1 = currentPrice - (riskAmount * 1.5); // 1.5:1 risk:reward as requested
-    target2 = currentPrice - (riskAmount * 2.0); // Extended target
-    target3 = currentPrice - (riskAmount * 3.0); // Extended target
-    
-    riskRewardRatio = 1.5; // As per requirements
-  }
-  
-  return {
-    entryPrice: currentPrice,
-    stopLoss: parseFloat(stopLoss.toFixed(2)),
-    target1: parseFloat(target1.toFixed(2)),
-    target2: parseFloat(target2.toFixed(2)),
-    target3: parseFloat(target3.toFixed(2)),
-    riskRewardRatio: parseFloat(riskRewardRatio.toFixed(2))
-  };
-}
-
-// Pattern recognition functions
-function detectDoubleBottom(prices: number[]): PatternDetection | null {
-  if (prices.length < 50) return null;
-  
-  // Get last 50 prices
-  const recentPrices = prices.slice(-50);
-  const lowestPoints: number[] = [];
-  
-  // Find local minimums
-  for (let i = 2; i < recentPrices.length - 2; i++) {
-    if (recentPrices[i] < recentPrices[i-1] && 
-        recentPrices[i] < recentPrices[i-2] &&
-        recentPrices[i] < recentPrices[i+1] && 
-        recentPrices[i] < recentPrices[i+2]) {
-      lowestPoints.push(i);
-    }
-  }
-  
-  // Need at least 2 bottoms with a peak in between
-  if (lowestPoints.length < 2) return null;
-  
-  // Check for double bottom pattern (two similar lows with a peak in between)
-  for (let i = 0; i < lowestPoints.length - 1; i++) {
-    const firstBottom = lowestPoints[i];
-    const secondBottom = lowestPoints[i+1];
-    
-    // The bottoms should be at least 10 bars apart
-    if (secondBottom - firstBottom < 10) continue;
-    
-    // Check if bottoms are at similar price levels (within 2%)
-    const firstPrice = recentPrices[firstBottom];
-    const secondPrice = recentPrices[secondBottom];
-    const priceDifference = Math.abs(firstPrice - secondPrice) / firstPrice;
-    
-    if (priceDifference <= 0.02) {
-      // Find peak between the bottoms
-      let peakPrice = -Infinity;
-      for (let j = firstBottom + 1; j < secondBottom; j++) {
-        if (recentPrices[j] > peakPrice) {
-          peakPrice = recentPrices[j];
-        }
-      }
-      
-      // Peak should be significantly higher than bottoms
-      if (peakPrice > firstPrice * 1.03 && peakPrice > secondPrice * 1.03) {
-        // Check if price has moved up after the second bottom
-        const currentPrice = recentPrices[recentPrices.length - 1];
-        if (currentPrice > secondPrice) {
-          return {
-            name: 'Double Bottom',
-            type: 'bullish',
-            confidence: 70 + (30 * (1 - priceDifference * 50)), // Higher confidence for closer bottoms
-            description: 'Double bottom pattern detected - potential reversal from downtrend to uptrend'
-          };
-        }
-      }
-    }
-  }
-  
-  return null;
-}
-
-function detectDoubleTop(prices: number[]): PatternDetection | null {
-  if (prices.length < 50) return null;
-  
-  // Get last 50 prices
-  const recentPrices = prices.slice(-50);
-  const highestPoints: number[] = [];
-  
-  // Find local maximums
-  for (let i = 2; i < recentPrices.length - 2; i++) {
-    if (recentPrices[i] > recentPrices[i-1] && 
-        recentPrices[i] > recentPrices[i-2] &&
-        recentPrices[i] > recentPrices[i+1] && 
-        recentPrices[i] > recentPrices[i+2]) {
-      highestPoints.push(i);
-    }
-  }
-  
-  // Need at least 2 tops with a trough in between
-  if (highestPoints.length < 2) return null;
-  
-  // Check for double top pattern (two similar highs with a trough in between)
-  for (let i = 0; i < highestPoints.length - 1; i++) {
-    const firstTop = highestPoints[i];
-    const secondTop = highestPoints[i+1];
-    
-    // The tops should be at least 10 bars apart
-    if (secondTop - firstTop < 10) continue;
-    
-    // Check if tops are at similar price levels (within 2%)
-    const firstPrice = recentPrices[firstTop];
-    const secondPrice = recentPrices[secondTop];
-    const priceDifference = Math.abs(firstPrice - secondPrice) / firstPrice;
-    
-    if (priceDifference <= 0.02) {
-      // Find trough between the tops
-      let troughPrice = Infinity;
-      for (let j = firstTop + 1; j < secondTop; j++) {
-        if (recentPrices[j] < troughPrice) {
-          troughPrice = recentPrices[j];
-        }
-      }
-      
-      // Trough should be significantly lower than tops
-      if (troughPrice < firstPrice * 0.97 && troughPrice < secondPrice * 0.97) {
-        // Check if price has moved down after the second top
-        const currentPrice = recentPrices[recentPrices.length - 1];
-        if (currentPrice < secondPrice) {
-          return {
-            name: 'Double Top',
-            type: 'bearish',
-            confidence: 70 + (30 * (1 - priceDifference * 50)), // Higher confidence for closer tops
-            description: 'Double top pattern detected - potential reversal from uptrend to downtrend'
-          };
-        }
-      }
-    }
-  }
-  
-  return null;
-}
-
-function detectHeadAndShoulders(prices: number[]): PatternDetection | null {
-  if (prices.length < 60) return null;
-  
-  // Get last 60 prices
-  const recentPrices = prices.slice(-60);
-  const highPoints: number[] = [];
-  
-  // Find local maximums
-  for (let i = 2; i < recentPrices.length - 2; i++) {
-    if (recentPrices[i] > recentPrices[i-1] && 
-        recentPrices[i] > recentPrices[i-2] &&
-        recentPrices[i] > recentPrices[i+1] && 
-        recentPrices[i] > recentPrices[i+2]) {
-      highPoints.push(i);
-    }
-  }
-  
-  // Need at least 3 peaks for head and shoulders
-  if (highPoints.length < 3) return null;
-  
-  // Check for head and shoulders pattern
-  for (let i = 0; i < highPoints.length - 2; i++) {
-    const leftShoulder = highPoints[i];
-    const head = highPoints[i+1];
-    const rightShoulder = highPoints[i+2];
-    
-    // The head should be higher than both shoulders
-    if (recentPrices[head] <= recentPrices[leftShoulder] || 
-        recentPrices[head] <= recentPrices[rightShoulder]) {
-      continue;
-    }
-    
-    // The shoulders should be at similar heights (within 5%)
-    const leftShoulderPrice = recentPrices[leftShoulder];
-    const rightShoulderPrice = recentPrices[rightShoulder];
-    const shoulderDifference = Math.abs(leftShoulderPrice - rightShoulderPrice) / leftShoulderPrice;
-    
-    if (shoulderDifference <= 0.05) {
-      // Find the neckline (connect troughs between shoulders and head)
-      let leftTrough = Infinity;
-      for (let j = leftShoulder + 1; j < head; j++) {
-        if (recentPrices[j] < leftTrough) {
-          leftTrough = recentPrices[j];
-        }
-      }
-      
-      let rightTrough = Infinity;
-      for (let j = head + 1; j < rightShoulder; j++) {
-        if (recentPrices[j] < rightTrough) {
-          rightTrough = recentPrices[j];
-        }
-      }
-      
-      // The troughs should be at similar levels to form a neckline
-      const troughDifference = Math.abs(leftTrough - rightTrough) / leftTrough;
-      
-      if (troughDifference <= 0.03) {
-        // Check if price has broken below the neckline after the right shoulder
-        const necklineLevel = (leftTrough + rightTrough) / 2;
-        const currentPrice = recentPrices[recentPrices.length - 1];
-        
-        if (currentPrice < necklineLevel) {
-          return {
-            name: 'Head and Shoulders',
-            type: 'bearish',
-            confidence: 80 - (shoulderDifference * 100) - (troughDifference * 100),
-            description: 'Head and shoulders pattern detected - potential reversal from uptrend to downtrend'
-          };
-        }
-      }
-    }
-  }
-  
-  return null;
-}
-
-function detectInvertedHeadAndShoulders(prices: number[]): PatternDetection | null {
-  if (prices.length < 60) return null;
-  
-  // Get last 60 prices
-  const recentPrices = prices.slice(-60);
-  const lowPoints: number[] = [];
-  
-  // Find local minimums
-  for (let i = 2; i < recentPrices.length - 2; i++) {
-    if (recentPrices[i] < recentPrices[i-1] && 
-        recentPrices[i] < recentPrices[i-2] &&
-        recentPrices[i] < recentPrices[i+1] && 
-        recentPrices[i] < recentPrices[i+2]) {
-      lowPoints.push(i);
-    }
-  }
-  
-  // Need at least 3 lows for inverted head and shoulders
-  if (lowPoints.length < 3) return null;
-  
-  // Check for inverted head and shoulders pattern
-  for (let i = 0; i < lowPoints.length - 2; i++) {
-    const leftShoulder = lowPoints[i];
-    const head = lowPoints[i+1];
-    const rightShoulder = lowPoints[i+2];
-    
-    // The head should be lower than both shoulders
-    if (recentPrices[head] >= recentPrices[leftShoulder] || 
-        recentPrices[head] >= recentPrices[rightShoulder]) {
-      continue;
-    }
-    
-    // The shoulders should be at similar heights (within 5%)
-    const leftShoulderPrice = recentPrices[leftShoulder];
-    const rightShoulderPrice = recentPrices[rightShoulder];
-    const shoulderDifference = Math.abs(leftShoulderPrice - rightShoulderPrice) / leftShoulderPrice;
-    
-    if (shoulderDifference <= 0.05) {
-      // Find the neckline (connect peaks between shoulders and head)
-      let leftPeak = -Infinity;
-      for (let j = leftShoulder + 1; j < head; j++) {
-        if (recentPrices[j] > leftPeak) {
-          leftPeak = recentPrices[j];
-        }
-      }
-      
-      let rightPeak = -Infinity;
-      for (let j = head + 1; j < rightShoulder; j++) {
-        if (recentPrices[j] > rightPeak) {
-          rightPeak = recentPrices[j];
-        }
-      }
-      
-      // The peaks should be at similar levels to form a neckline
-      const peakDifference = Math.abs(leftPeak - rightPeak) / leftPeak;
-      
-      if (peakDifference <= 0.03) {
-        // Check if price has broken above the neckline after the right shoulder
-        const necklineLevel = (leftPeak + rightPeak) / 2;
-        const currentPrice = recentPrices[recentPrices.length - 1];
-        
-        if (currentPrice > necklineLevel) {
-          return {
-            name: 'Inverted Head and Shoulders',
-            type: 'bullish',
-            confidence: 80 - (shoulderDifference * 100) - (peakDifference * 100),
-            description: 'Inverted head and shoulders pattern detected - potential reversal from downtrend to uptrend'
-          };
-        }
-      }
-    }
-  }
-  
-  return null;
-}
-
-// Detect support and resistance levels
-export function findSupportResistanceLevels(
-  highs: number[], 
-  lows: number[], 
-  prices: number[]
-) {
-  // We'll use a simple algorithm based on local minima and maxima
-  const supportLevels: number[] = [];
-  const resistanceLevels: number[] = [];
-  
-  const lookbackPeriod = 5; // Number of candles to look back and forward
-  const significance = 0.5; // % price difference to consider significant
-  const currentPrice = prices[prices.length - 1];
-  
-  // Find local minima (support) and maxima (resistance)
-  for (let i = lookbackPeriod; i < lows.length - lookbackPeriod; i++) {
-    // Check for local minimum (support)
-    let isLocalMin = true;
-    for (let j = i - lookbackPeriod; j < i; j++) {
-      if (lows[i] > lows[j]) {
-        isLocalMin = false;
-        break;
-      }
-    }
-    for (let j = i + 1; j <= i + lookbackPeriod; j++) {
-      if (lows[i] > lows[j]) {
-        isLocalMin = false;
-        break;
-      }
-    }
-    
-    if (isLocalMin) {
-      supportLevels.push(lows[i]);
-    }
-    
-    // Check for local maximum (resistance)
-    let isLocalMax = true;
-    for (let j = i - lookbackPeriod; j < i; j++) {
-      if (highs[i] < highs[j]) {
-        isLocalMax = false;
-        break;
-      }
-    }
-    for (let j = i + 1; j <= i + lookbackPeriod; j++) {
-      if (highs[i] < highs[j]) {
-        isLocalMax = false;
-        break;
-      }
-    }
-    
-    if (isLocalMax) {
-      resistanceLevels.push(highs[i]);
-    }
-  }
-  
-  // Group similar levels together (within significance %)
-  const groupedSupport = groupSimilarLevels(supportLevels, significance);
-  const groupedResistance = groupSimilarLevels(resistanceLevels, significance);
-  
-  // Sort levels by strength (frequency of touches)
-  const sortedSupport = sortLevelsByStrength(groupedSupport);
-  const sortedResistance = sortLevelsByStrength(groupedResistance);
-  
-  // Keep only the strongest few levels that are relevant to current price
-  const relevantSupport = sortedSupport
-    .filter(level => level < currentPrice) // Support must be below current price
-    .slice(0, 3); // Keep top 3
-  
-  const relevantResistance = sortedResistance
-    .filter(level => level > currentPrice) // Resistance must be above current price
-    .slice(0, 3); // Keep top 3
-  
-  return {
-    support: relevantSupport,
-    resistance: relevantResistance
-  };
-}
-
-// Helper function to group similar price levels
-function groupSimilarLevels(levels: number[], significance: number): number[] {
-  if (levels.length === 0) return [];
-  
-  // Sort levels
-  const sortedLevels = [...levels].sort((a, b) => a - b);
-  
-  // Group similar levels
-  const groups: number[][] = [];
-  let currentGroup: number[] = [sortedLevels[0]];
-  
-  for (let i = 1; i < sortedLevels.length; i++) {
-    const prevLevel = sortedLevels[i - 1];
-    const currentLevel = sortedLevels[i];
-    
-    // If the levels are similar, add to the current group
-    if ((Math.abs(currentLevel - prevLevel) / prevLevel) * 100 < significance) {
-      currentGroup.push(currentLevel);
-    } else {
-      // Start a new group
-      groups.push(currentGroup);
-      currentGroup = [currentLevel];
-    }
-  }
-  
-  // Add the last group
-  if (currentGroup.length > 0) {
-    groups.push(currentGroup);
-  }
-  
-  // Calculate average level for each group
-  return groups.map(group => 
-    group.reduce((sum, level) => sum + level, 0) / group.length
-  );
-}
-
-// Helper function to sort levels by strength (frequency of occurrence)
-function sortLevelsByStrength(levels: number[]): number[] {
-  return levels.sort((a, b) => a - b);
-}
+  return { upper, middle: sma, lower };
+};
 
 // Generate signals based on technical indicators
-export function generateSignals(klineData: KlineData[]): SignalSummary {
-  // Extract prices
-  const prices = klineData.map(candle => candle.close);
-  const highs = klineData.map(candle => candle.high);
-  const lows = klineData.map(candle => candle.low);
-  const volumes = klineData.map(candle => candle.volume);
+export const generateSignals = (klineData: KlineData[]): SignalSummary => {
+  // Extract close prices
+  const closePrices = klineData.map(kline => kline.close);
+  const highPrices = klineData.map(kline => kline.high);
+  const lowPrices = klineData.map(kline => kline.low);
+  const currentPrice = closePrices[closePrices.length - 1];
   
-  if (prices.length < 30) {
-    return {
-      overallSignal: 'NEUTRAL',
-      confidence: 0,
-      signals: [{
-        type: 'NEUTRAL',
-        indicator: 'Insufficient Data',
-        strength: 0,
-        message: 'Not enough data to generate reliable signals'
-      }],
-      priceTargets: null,
-      patterns: null
-    };
-  }
+  // Calculate indicators
+  const sma20 = calculateSMA(closePrices, 20);
+  const sma50 = calculateSMA(closePrices, 50);
+  const ema20 = calculateEMA(closePrices, 20);
+  const rsi = calculateRSI(closePrices);
+  const macd = calculateMACD(closePrices);
+  const bollingerBands = calculateBollingerBands(closePrices);
   
-  const signals: TradingSignal[] = [];
+  // Initialize signals object
+  const signals: {[key: string]: IndicatorSignal} = {};
   
-  // 1. Calculate RSI
-  const rsi = calculateRSI(prices);
-  const currentRSI = rsi[rsi.length - 1];
+  // Most recent values
+  const lastSMA20 = sma20[sma20.length - 1];
+  const lastSMA50 = sma50[sma50.length - 1];
+  const lastEMA20 = ema20[ema20.length - 1];
+  const lastRSI = rsi[rsi.length - 1];
+  const lastMACD = macd.macd[macd.macd.length - 1];
+  const lastSignal = macd.signal[macd.signal.length - 1];
+  const lastHistogram = macd.histogram[macd.histogram.length - 1];
+  const lastUpperBB = bollingerBands.upper[bollingerBands.upper.length - 1];
+  const lastLowerBB = bollingerBands.lower[bollingerBands.lower.length - 1];
+  const lastMiddleBB = bollingerBands.middle[bollingerBands.middle.length - 1];
   
-  // 2. Calculate MACD
-  const { macd, signal, histogram } = calculateMACD(prices);
-  const currentMACD = macd[macd.length - 1];
-  const currentSignal = signal[signal.length - 1];
-  const currentHistogram = histogram[histogram.length - 1];
-  const prevHistogram = histogram[histogram.length - 2];
+  // Previous values for trend detection
+  const prevSMA20 = sma20[sma20.length - 2];
+  const prevSMA50 = sma50[sma50.length - 2];
+  const prevEMA20 = ema20[ema20.length - 2];
+  const prevRSI = rsi[rsi.length - 2];
+  const prevMACD = macd.macd[macd.macd.length - 2];
+  const prevSignal = macd.signal[macd.signal.length - 2];
+  const prevHistogram = macd.histogram[macd.histogram.length - 2];
   
-  // 3. Calculate Bollinger Bands
-  const bollingerBands = calculateBollingerBands(prices);
-  const currentPrice = prices[prices.length - 1];
-  const currentUpperBand = bollingerBands.upper[bollingerBands.upper.length - 1];
-  const currentLowerBand = bollingerBands.lower[bollingerBands.lower.length - 1];
-  const prevUpperBand = bollingerBands.upper[bollingerBands.upper.length - 2];
-  const prevLowerBand = bollingerBands.lower[bollingerBands.lower.length - 2];
+  // Price movement strength (volatility indicator)
+  const recentHighs = highPrices.slice(-10);
+  const recentLows = lowPrices.slice(-10);
+  const highestHigh = Math.max(...recentHighs);
+  const lowestLow = Math.min(...recentLows);
+  const volatility = (highestHigh - lowestLow) / lowestLow * 100;
+  const isVolatile = volatility > 2.5; // Consider market volatile if more than 2.5% range
   
-  // 4. Calculate Moving Averages
-  const ema50 = calculateEMA(prices, 50);
-  const sma200 = calculateSMA(prices, 200);
-  const currentEMA50 = ema50[ema50.length - 1];
-  const currentSMA200 = sma200[sma200.length - 1];
-  
-  // 5. Volume Analysis
-  const avgVolume = volumes.slice(-10).reduce((sum, vol) => sum + vol, 0) / 10;
-  const currentVolume = volumes[volumes.length - 1];
-  const isHighVolume = currentVolume > (avgVolume * 1.5);
-  
-  // 6. Check Bollinger Band contraction (low volatility)
-  const currentBandWidth = currentUpperBand - currentLowerBand;
-  const prevBandWidth = prevUpperBand - prevLowerBand;
-  const isBBContracting = currentBandWidth < prevBandWidth;
-  
-  // Add volatility signal
-  if (isBBContracting) {
-    signals.push({
-      type: 'HOLD',
-      indicator: 'Volatility',
-      strength: 80,
-      message: 'Bollinger Bands contracting - low volatility period, avoid trading'
-    });
+  // 1. Moving Average Crossover Signal
+  if (lastSMA20 > lastSMA50 && prevSMA20 <= prevSMA50) {
+    signals['MA Crossover'] = { signal: 'BUY', weight: 3, confidence: 70 };
+  } else if (lastSMA20 < lastSMA50 && prevSMA20 >= prevSMA50) {
+    signals['MA Crossover'] = { signal: 'SELL', weight: 3, confidence: 70 };
+  } else if (lastSMA20 > lastSMA50) {
+    signals['MA Crossover'] = { signal: 'HOLD', weight: 2, confidence: 60 };
   } else {
-    signals.push({
-      type: 'NEUTRAL',
-      indicator: 'Volatility',
-      strength: 40,
-      message: 'Normal volatility conditions'
-    });
+    signals['MA Crossover'] = { signal: 'HOLD', weight: 2, confidence: 60 };
   }
   
-  // Add volume analysis signal
-  if (isHighVolume) {
-    signals.push({
-      type: 'NEUTRAL',
-      indicator: 'Volume',
-      strength: 70,
-      message: `High volume detected (${(currentVolume / avgVolume).toFixed(2)}x average)`
-    });
+  // 2. RSI Signal
+  if (lastRSI < 30) {
+    const confidence = Math.min(100, 100 - lastRSI * 2);
+    signals['RSI'] = { signal: 'BUY', weight: 2, confidence };
+  } else if (lastRSI > 70) {
+    const confidence = Math.min(100, (lastRSI - 50) * 2);
+    signals['RSI'] = { signal: 'SELL', weight: 2, confidence };
+  } else if (lastRSI < 45) {
+    signals['RSI'] = { signal: 'HOLD', weight: 1, confidence: 55 };
+  } else if (lastRSI > 55) {
+    signals['RSI'] = { signal: 'HOLD', weight: 1, confidence: 55 };
   } else {
-    signals.push({
-      type: 'HOLD',
-      indicator: 'Volume',
-      strength: 60,
-      message: 'Low volume - potential weak movement'
-    });
+    signals['RSI'] = { signal: 'NEUTRAL', weight: 1, confidence: 50 };
   }
   
-  // 7. Detect chart patterns
-  const patterns: PatternDetection[] = [];
-  
-  const doubleBottom = detectDoubleBottom(prices);
-  if (doubleBottom) patterns.push(doubleBottom);
-  
-  const doubleTop = detectDoubleTop(prices);
-  if (doubleTop) patterns.push(doubleTop);
-  
-  const headAndShoulders = detectHeadAndShoulders(prices);
-  if (headAndShoulders) patterns.push(headAndShoulders);
-  
-  const invertedHeadAndShoulders = detectInvertedHeadAndShoulders(prices);
-  if (invertedHeadAndShoulders) patterns.push(invertedHeadAndShoulders);
-  
-  // Add pattern-based signals
-  patterns.forEach(pattern => {
-    if (pattern.type === 'bullish') {
-      signals.push({
-        type: 'BUY',
-        indicator: 'Chart Pattern',
-        strength: pattern.confidence,
-        message: `${pattern.name}: ${pattern.description}`
-      });
-    } else if (pattern.type === 'bearish') {
-      signals.push({
-        type: 'SELL',
-        indicator: 'Chart Pattern',
-        strength: pattern.confidence,
-        message: `${pattern.name}: ${pattern.description}`
-      });
-    }
-  });
-  
-  // Check for BUY conditions per your strict rules
-  if (currentRSI > 50 && currentMACD > currentSignal && !isBBContracting && isHighVolume) {
-    signals.push({
-      type: 'BUY',
-      indicator: 'Combined Strategy',
-      strength: 90,
-      message: 'Strong buy signal: RSI > 50, MACD bullish, good volatility, high volume'
-    });
-  } 
-  // Check for SELL conditions per your strict rules
-  else if (currentRSI < 50 && currentMACD < currentSignal && !isBBContracting && isHighVolume) {
-    signals.push({
-      type: 'SELL',
-      indicator: 'Combined Strategy',
-      strength: 90,
-      message: 'Strong sell signal: RSI < 50, MACD bearish, good volatility, high volume'
-    });
+  // 3. MACD Signal
+  if (lastMACD > lastSignal && prevMACD <= prevSignal) {
+    const strength = Math.abs(lastMACD - lastSignal) / Math.abs(lastSignal) * 100;
+    const confidence = Math.min(90, 50 + strength);
+    signals['MACD'] = { signal: 'BUY', weight: 3, confidence };
+  } else if (lastMACD < lastSignal && prevMACD >= prevSignal) {
+    const strength = Math.abs(lastMACD - lastSignal) / Math.abs(lastSignal) * 100;
+    const confidence = Math.min(90, 50 + strength);
+    signals['MACD'] = { signal: 'SELL', weight: 3, confidence };
+  } else if (lastMACD > lastSignal) {
+    signals['MACD'] = { signal: 'HOLD', weight: 2, confidence: 60 };
+  } else {
+    signals['MACD'] = { signal: 'HOLD', weight: 2, confidence: 60 };
   }
   
-  // Add individual indicator signals for reference
-  // RSI Signal
-  if (!isNaN(currentRSI)) {
-    if (currentRSI < 30) {
-      signals.push({
-        type: 'BUY',
-        indicator: 'RSI',
-        strength: 70,
-        message: `RSI is oversold (${currentRSI.toFixed(2)})`
-      });
-    } else if (currentRSI > 70) {
-      signals.push({
-        type: 'SELL',
-        indicator: 'RSI',
-        strength: 70,
-        message: `RSI is overbought (${currentRSI.toFixed(2)})`
-      });
-    } else if (currentRSI > 50) {
-      signals.push({
-        type: 'BUY',
-        indicator: 'RSI',
-        strength: 60,
-        message: `RSI is bullish (${currentRSI.toFixed(2)})`
-      });
+  // 4. MACD Histogram Momentum
+  if (lastHistogram > 0 && lastHistogram > prevHistogram) {
+    signals['MACD Momentum'] = { signal: 'BUY', weight: 2, confidence: 65 };
+  } else if (lastHistogram < 0 && lastHistogram < prevHistogram) {
+    signals['MACD Momentum'] = { signal: 'SELL', weight: 2, confidence: 65 };
+  } else if (lastHistogram > 0) {
+    signals['MACD Momentum'] = { signal: 'HOLD', weight: 1, confidence: 55 };
+  } else {
+    signals['MACD Momentum'] = { signal: 'HOLD', weight: 1, confidence: 55 };
+  }
+  
+  // 5. Bollinger Bands Signal
+  const bbPosition = (currentPrice - lastLowerBB) / (lastUpperBB - lastLowerBB);
+  if (bbPosition < 0.1) {
+    signals['Bollinger Bands'] = { signal: 'BUY', weight: 2, confidence: 80 };
+  } else if (bbPosition > 0.9) {
+    signals['Bollinger Bands'] = { signal: 'SELL', weight: 2, confidence: 80 };
+  } else if (bbPosition < 0.3) {
+    signals['Bollinger Bands'] = { signal: 'HOLD', weight: 1, confidence: 60 };
+  } else if (bbPosition > 0.7) {
+    signals['Bollinger Bands'] = { signal: 'HOLD', weight: 1, confidence: 60 };
+  } else {
+    signals['Bollinger Bands'] = { signal: 'NEUTRAL', weight: 1, confidence: 50 };
+  }
+  
+  // 6. Price vs EMA Signal
+  const emaDiff = (currentPrice - lastEMA20) / lastEMA20 * 100;
+  if (emaDiff > 1 && currentPrice > prevEMA20) {
+    signals['Price/EMA'] = { signal: 'BUY', weight: 2, confidence: 65 };
+  } else if (emaDiff < -1 && currentPrice < prevEMA20) {
+    signals['Price/EMA'] = { signal: 'SELL', weight: 2, confidence: 65 };
+  } else if (emaDiff > 0) {
+    signals['Price/EMA'] = { signal: 'HOLD', weight: 1, confidence: 55 };
+  } else {
+    signals['Price/EMA'] = { signal: 'HOLD', weight: 1, confidence: 55 };
+  }
+  
+  // 7. Volatility-based signal (new)
+  if (isVolatile) {
+    if (currentPrice > lastMiddleBB && lastRSI < 65) {
+      signals['Volatility'] = { signal: 'BUY', weight: 2, confidence: 70 };
+    } else if (currentPrice < lastMiddleBB && lastRSI > 35) {
+      signals['Volatility'] = { signal: 'SELL', weight: 2, confidence: 70 };
     } else {
-      signals.push({
-        type: 'SELL',
-        indicator: 'RSI',
-        strength: 60,
-        message: `RSI is bearish (${currentRSI.toFixed(2)})`
-      });
+      signals['Volatility'] = { signal: 'NEUTRAL', weight: 1, confidence: 50 };
     }
+  } else {
+    signals['Volatility'] = { signal: 'NEUTRAL', weight: 1, confidence: 50 };
   }
   
-  // MACD Signal
-  if (!isNaN(currentMACD) && !isNaN(currentSignal)) {
-    if (currentMACD > currentSignal) {
-      signals.push({
-        type: 'BUY',
-        indicator: 'MACD',
-        strength: 70,
-        message: 'MACD line above signal line - bullish'
-      });
-    } else if (currentMACD < currentSignal) {
-      signals.push({
-        type: 'SELL',
-        indicator: 'MACD',
-        strength: 70,
-        message: 'MACD line below signal line - bearish'
-      });
-    }
+  // Calculate weighted average signal
+  let buyWeight = 0;
+  let sellWeight = 0;
+  let holdWeight = 0;
+  let neutralWeight = 0;
+  let totalWeight = 0;
+  let weightedConfidence = 0;
+  
+  for (const indicator in signals) {
+    const { signal, weight, confidence } = signals[indicator];
+    totalWeight += weight;
+    weightedConfidence += weight * confidence;
     
-    // Check for MACD histogram reversal
-    if (!isNaN(currentHistogram) && !isNaN(prevHistogram)) {
-      if (prevHistogram < 0 && currentHistogram > 0) {
-        signals.push({
-          type: 'BUY',
-          indicator: 'MACD Histogram',
-          strength: 80,
-          message: 'MACD histogram turned positive - momentum change'
-        });
-      } else if (prevHistogram > 0 && currentHistogram < 0) {
-        signals.push({
-          type: 'SELL',
-          indicator: 'MACD Histogram',
-          strength: 80,
-          message: 'MACD histogram turned negative - momentum change'
-        });
-      }
-    }
+    if (signal === 'BUY') buyWeight += weight;
+    else if (signal === 'SELL') sellWeight += weight;
+    else if (signal === 'HOLD') holdWeight += weight;
+    else neutralWeight += weight;
   }
-  
-  // Bollinger Bands Signal
-  if (!isNaN(currentUpperBand) && !isNaN(currentLowerBand)) {
-    if (currentPrice > currentUpperBand) {
-      signals.push({
-        type: 'SELL',
-        indicator: 'Bollinger Bands',
-        strength: 65,
-        message: 'Price is above upper Bollinger Band - potentially overbought'
-      });
-    } else if (currentPrice < currentLowerBand) {
-      signals.push({
-        type: 'BUY',
-        indicator: 'Bollinger Bands',
-        strength: 65,
-        message: 'Price is below lower Bollinger Band - potentially oversold'
-      });
-    }
-  }
-  
-  // Moving Average Trend signals
-  if (!isNaN(currentEMA50) && !isNaN(currentSMA200)) {
-    if (currentPrice > currentEMA50 && currentEMA50 > currentSMA200) {
-      signals.push({
-        type: 'BUY',
-        indicator: 'Trend Analysis',
-        strength: 75,
-        message: 'Strong uptrend: Price > EMA50 > SMA200'
-      });
-    } else if (currentPrice < currentEMA50 && currentEMA50 < currentSMA200) {
-      signals.push({
-        type: 'SELL',
-        indicator: 'Trend Analysis',
-        strength: 75,
-        message: 'Strong downtrend: Price < EMA50 < SMA200'
-      });
-    }
-  }
-  
-  // Aggregate signals to determine overall recommendation
-  let buySignalStrength = 0;
-  let sellSignalStrength = 0;
-  let holdSignalStrength = 0;
-  let totalStrength = 0;
-  
-  signals.forEach(signal => {
-    if (signal.type === 'BUY') buySignalStrength += signal.strength;
-    else if (signal.type === 'SELL') sellSignalStrength += signal.strength;
-    else if (signal.type === 'HOLD') holdSignalStrength += signal.strength;
-    totalStrength += signal.strength;
-  });
   
   // Determine overall signal
   let overallSignal: SignalType = 'NEUTRAL';
-  let confidence = 0;
+  if (buyWeight > sellWeight && buyWeight > holdWeight && buyWeight > neutralWeight) {
+    overallSignal = 'BUY';
+  } else if (sellWeight > buyWeight && sellWeight > holdWeight && sellWeight > neutralWeight) {
+    overallSignal = 'SELL';
+  } else if (holdWeight > buyWeight && holdWeight > sellWeight && holdWeight > neutralWeight) {
+    overallSignal = 'HOLD';
+  }
   
-  if (totalStrength > 0) {
-    const buyRatio = buySignalStrength / totalStrength;
-    const sellRatio = sellSignalStrength / totalStrength;
-    const holdRatio = holdSignalStrength / totalStrength;
+  // Calculate overall confidence
+  const overallConfidence = weightedConfidence / totalWeight;
+  
+  // Calculate price targets if we have a BUY or SELL signal
+  let priceTargets;
+  if (overallSignal === 'BUY' || overallSignal === 'SELL') {
+    // Calculate average true range for stop loss determination
+    const atr = calculateATR(klineData, 14);
+    const lastATR = atr[atr.length - 1];
     
-    // Emphasize combined strategy signals over individual indicators
-    const combinedStrategySignal = signals.find(signal => signal.indicator === 'Combined Strategy');
-    
-    if (combinedStrategySignal) {
-      overallSignal = combinedStrategySignal.type;
-      confidence = combinedStrategySignal.strength;
-    } 
-    else if (holdRatio > 0.4) {
-      // If we have significant hold signals (like low volatility), prioritize them
-      overallSignal = 'HOLD';
-      confidence = holdRatio * 100;
-    }
-    else if (buyRatio > 0.6) {
-      overallSignal = 'BUY';
-      confidence = buyRatio * 100;
-    } else if (sellRatio > 0.6) {
-      overallSignal = 'SELL';
-      confidence = sellRatio * 100;
+    if (overallSignal === 'BUY') {
+      const entryPrice = currentPrice;
+      const stopLoss = entryPrice - (lastATR * 2);
+      const risk = entryPrice - stopLoss;
+      
+      // Set targets with increasing risk-reward ratios
+      const target1 = entryPrice + (risk * 1.5); // 1.5:1 risk-reward
+      const target2 = entryPrice + (risk * 2.5); // 2.5:1 risk-reward  
+      const target3 = entryPrice + (risk * 4);   // 4:1 risk-reward
+      
+      priceTargets = {
+        entryPrice,
+        stopLoss,
+        target1,
+        target2, 
+        target3,
+        riskRewardRatio: 4
+      };
     } else {
-      overallSignal = 'NEUTRAL';
-      confidence = 50;
+      const entryPrice = currentPrice;
+      const stopLoss = entryPrice + (lastATR * 2);
+      const risk = stopLoss - entryPrice;
+      
+      // Set targets with increasing risk-reward ratios
+      const target1 = entryPrice - (risk * 1.5); // 1.5:1 risk-reward
+      const target2 = entryPrice - (risk * 2.5); // 2.5:1 risk-reward
+      const target3 = entryPrice - (risk * 4);   // 4:1 risk-reward
+      
+      priceTargets = {
+        entryPrice,
+        stopLoss,
+        target1,
+        target2,
+        target3,
+        riskRewardRatio: 4
+      };
     }
   }
   
-  // Calculate price targets based on the overall signal
-  const priceTargets = calculatePriceTargets(klineData, overallSignal);
+  // Log detailed confidence values for debugging
+  console.log("Signal weights:", { buyWeight, sellWeight, holdWeight, neutralWeight });
+  console.log("Indicator details:", signals);
   
   return {
     overallSignal,
-    confidence,
-    signals,
-    priceTargets,
-    patterns: patterns.length > 0 ? patterns : null
+    confidence: overallConfidence,
+    indicators: signals,
+    priceTargets
   };
-}
+};
+
+// Average True Range calculation for stop loss and target determination
+const calculateATR = (klineData: KlineData[], period: number = 14): number[] => {
+  const trueRanges: number[] = [];
+  const atrs: number[] = [];
+  
+  // Calculate true ranges
+  for (let i = 0; i < klineData.length; i++) {
+    if (i === 0) {
+      trueRanges.push(klineData[i].high - klineData[i].low);
+      continue;
+    }
+    
+    const highLow = klineData[i].high - klineData[i].low;
+    const highPrevClose = Math.abs(klineData[i].high - klineData[i-1].close);
+    const lowPrevClose = Math.abs(klineData[i].low - klineData[i-1].close);
+    
+    trueRanges.push(Math.max(highLow, highPrevClose, lowPrevClose));
+  }
+  
+  // Calculate ATR as simple moving average of true ranges
+  for (let i = 0; i < trueRanges.length; i++) {
+    if (i < period - 1) {
+      atrs.push(NaN);
+      continue;
+    }
+    
+    const sum = trueRanges.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0);
+    atrs.push(sum / period);
+  }
+  
+  return atrs;
+};

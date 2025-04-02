@@ -82,13 +82,21 @@ const PriceChart: React.FC<PriceChartProps> = ({ data, isPending, symbol }) => {
           <YAxis yAxisId="left" orientation="left" domain={['auto', 'auto']} />
           <YAxis yAxisId="right" orientation="right" domain={[0, 100]} hide />
           <Tooltip 
-            formatter={(value, name) => {
+            formatter={(value, name, props) => {
+              if (!props || !value) return ['-', name];
+              
               if (name === 'normalizedVolume') {
-                return [data[normalizedData.indexOf(value as any)].volume.toFixed(2), 'Volume'];
+                // Find the corresponding data point in the original data
+                const dataIndex = normalizedData.findIndex(item => 
+                  item.normalizedVolume === value);
+                if (dataIndex >= 0 && data[dataIndex]) {
+                  return [data[dataIndex].volume.toFixed(2), 'Volume'];
+                }
+                return ['-', 'Volume'];
               }
               return [parseFloat(value as string).toFixed(2), name];
             }}
-            labelFormatter={(time) => new Date(time).toLocaleString()}
+            labelFormatter={(time) => time ? new Date(time).toLocaleString() : 'Unknown time'}
           />
           <Area 
             yAxisId="left" 

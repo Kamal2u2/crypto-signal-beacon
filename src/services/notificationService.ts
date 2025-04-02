@@ -22,14 +22,20 @@ export function initializeAudio() {
 }
 
 // Play the appropriate sound based on signal type
-export function playSignalSound(signalType: 'BUY' | 'SELL' | null) {
+export function playSignalSound(signalType: 'BUY' | 'SELL' | null, volume: number = 0.7) {
   if (!signalType || !(signalType in signalSounds)) return;
   
   const sound = signalSounds[signalType as keyof typeof signalSounds];
   if (sound) {
+    sound.volume = Math.min(Math.max(volume, 0), 1); // Ensure volume is between 0 and 1
     sound.currentTime = 0;
     sound.play().catch(error => {
       console.error('Error playing notification sound:', error);
     });
   }
+}
+
+// Test audio to let user confirm it's working
+export function testAudioAlert(signalType: 'BUY' | 'SELL', volume: number = 0.7) {
+  playSignalSound(signalType, volume);
 }

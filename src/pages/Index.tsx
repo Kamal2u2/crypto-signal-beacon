@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
@@ -5,6 +6,7 @@ import { ArrowUp, ArrowDown, Minus } from 'lucide-react';
 import ControlPanel from '@/components/ControlPanel';
 import PriceChart from '@/components/PriceChart';
 import SignalDisplay from '@/components/SignalDisplay';
+import ConfidenceControl from '@/components/ConfidenceControl';
 import { 
   CoinPair, 
   COIN_PAIRS, 
@@ -29,6 +31,11 @@ const Index = () => {
   const [selectedInterval, setSelectedInterval] = useState<TimeInterval>('15m');
   const [refreshInterval, setRefreshInterval] = useState<number>(30000); // 30 seconds
   const [isAutoRefreshEnabled, setIsAutoRefreshEnabled] = useState<boolean>(false);
+  
+  // Signal settings
+  const [confidenceThreshold, setConfidenceThreshold] = useState<number>(60);
+  const [alertsEnabled, setAlertsEnabled] = useState<boolean>(true);
+  const [alertVolume, setAlertVolume] = useState<number>(0.7);
   
   // State for data
   const [klineData, setKlineData] = useState<KlineData[]>([]);
@@ -57,10 +64,22 @@ const Index = () => {
         const signals = generateSignals(data);
         setSignalData(signals);
         
+        // Check if signal meets the confidence threshold
+        const isSignalValid = signals.overallSignal !== 'NEUTRAL' && 
+                             signals.overallSignal !== 'HOLD' && 
+                             signals.confidence >= confidenceThreshold;
+        
         // Check if we need to play a notification sound
-        if (isAudioInitialized && signals.overallSignal !== lastSignalType) {
+        if (isAudioInitialized && alertsEnabled && isSignalValid && signals.overallSignal !== lastSignalType) {
           if (signals.overallSignal === 'BUY' || signals.overallSignal === 'SELL') {
-            playSignalSound(signals.overallSignal);
+            playSignalSound(signals.overallSignal, alertVolume);
+            
+            // Show toast notification
+            toast({
+              title: `${signals.overallSignal} Signal Detected`,
+              description: `${selectedPair.label} - Confidence: ${signals.confidence.toFixed(0)}%`,
+              variant: signals.overallSignal === 'BUY' ? 'default' : 'destructive',
+            });
           }
           setLastSignalType(signals.overallSignal);
         }
@@ -85,7 +104,7 @@ const Index = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedPair, selectedInterval, isAudioInitialized, lastSignalType]);
+  }, [selectedPair, selectedInterval, isAudioInitialized, lastSignalType, alertsEnabled, alertVolume, confidenceThreshold]);
 
   // Set up initial data fetch
   useEffect(() => {
@@ -160,24 +179,41 @@ const Index = () => {
       </header>
       
       <main className="container py-8 space-y-6">
-        <div className="control-card">
-          <ControlPanel 
-            selectedPair={selectedPair}
-            setSelectedPair={handlePairChange}
-            selectedInterval={selectedInterval}
-            setSelectedInterval={setSelectedInterval}
-            refreshInterval={refreshInterval}
-            setRefreshInterval={setRefreshInterval}
-            isAutoRefreshEnabled={isAutoRefreshEnabled}
-            setIsAutoRefreshEnabled={setIsAutoRefreshEnabled}
-            onRefresh={handleRefresh}
-            isLoading={isLoading}
-          />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="md:col-span-2">
+            <ControlPanel 
+              selectedPair={selectedPair}
+              setSelectedPair={handlePairChange}
+              selectedInterval={selectedInterval}
+              setSelectedInterval={setSelectedInterval}
+              refreshInterval={refreshInterval}
+              setRefreshInterval={setRefreshInterval}
+              isAutoRefreshEnabled={isAutoRefreshEnabled}
+              setIsAutoRefreshEnabled={setIsAutoRefreshEnabled}
+              onRefresh={handleRefresh}
+              isLoading={isLoading}
+            />
+          </div>
+          <div className="md:col-span-1">
+            <ConfidenceControl
+              confidenceThreshold={confidenceThreshold}
+              setConfidenceThreshold={setConfidenceThreshold}
+              alertVolume={alertVolume}
+              setAlertVolume={setAlertVolume}
+              alertsEnabled={alertsEnabled}
+              setAlertsEnabled={setAlertsEnabled}
+            />
+          </div>
         </div>
         
         {/* Signal Summary Card at the top for better visibility */}
         {signalData && (
-          <div className="glass-card p-4 mb-4 flex flex-wrap items-center justify-between gap-4">
+          <div className={cn(
+            "glass-card p-4 mb-4 flex flex-wrap items-center justify-between gap-4",
+            {
+              'opacity-50': signalData.confidence < confidenceThreshold
+            }
+          )}>
             <div className="flex items-center gap-3">
               <div className={cn(
                 "p-3 rounded-full",
@@ -205,7 +241,12 @@ const Index = () => {
                 )}>
                   {signalData.overallSignal} {selectedPair.label}
                 </h2>
-                <p className="text-sm text-gray-600">{signalData.confidence.toFixed(0)}% confidence</p>
+                <p className="text-sm text-gray-600">
+                  {signalData.confidence.toFixed(0)}% confidence 
+                  {signalData.confidence < confidenceThreshold && (
+                    <span className="text-crypto-sell ml-2">(Below threshold)</span>
+                  )}
+                </p>
               </div>
             </div>
             
@@ -250,6 +291,7 @@ const Index = () => {
               signalData={signalData}
               symbol={selectedPair.label}
               lastPrice={currentPrice}
+              confidenceThreshold={confidenceThreshold}
             />
           </div>
         </div>

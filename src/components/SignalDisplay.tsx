@@ -10,9 +10,15 @@ interface SignalDisplayProps {
   signalData: SignalSummary | null;
   symbol: string;
   lastPrice: number | null;
+  confidenceThreshold?: number;
 }
 
-const SignalDisplay: React.FC<SignalDisplayProps> = ({ signalData, symbol, lastPrice }) => {
+const SignalDisplay: React.FC<SignalDisplayProps> = ({ 
+  signalData, 
+  symbol, 
+  lastPrice,
+  confidenceThreshold = 0
+}) => {
   if (!signalData) {
     return (
       <Card className="signal-card w-full h-full">
@@ -31,6 +37,7 @@ const SignalDisplay: React.FC<SignalDisplayProps> = ({ signalData, symbol, lastP
   }
 
   const { overallSignal, confidence, signals, priceTargets } = signalData;
+  const isBelowThreshold = confidence < confidenceThreshold;
 
   const signalColor = {
     BUY: 'signal-buy',
@@ -64,7 +71,8 @@ const SignalDisplay: React.FC<SignalDisplayProps> = ({ signalData, symbol, lastP
     <Card className={cn(
       "signal-card w-full h-full", 
       signalBorderColor[overallSignal as keyof typeof signalBorderColor],
-      "border-2"
+      "border-2",
+      isBelowThreshold && "opacity-70"
     )}>
       <CardHeader className={cn(
         "pb-2 rounded-t-xl",
@@ -127,7 +135,12 @@ const SignalDisplay: React.FC<SignalDisplayProps> = ({ signalData, symbol, lastP
               style={{ width: `${confidence}%` }}
             ></div>
           </div>
-          <p className="text-xs text-right text-gray-500 w-full">{confidence.toFixed(0)}% confidence</p>
+          <div className="flex justify-between w-full">
+            <p className="text-xs text-gray-500">{confidence.toFixed(0)}% confidence</p>
+            {isBelowThreshold && (
+              <p className="text-xs text-crypto-sell">Below threshold ({confidenceThreshold}%)</p>
+            )}
+          </div>
         </div>
         
         {/* Price targets section */}

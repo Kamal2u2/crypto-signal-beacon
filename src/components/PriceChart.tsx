@@ -1,7 +1,8 @@
+
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid, BarChart, Bar, ComposedChart } from 'recharts';
 import { KlineData } from '@/services/binanceService';
 import { Skeleton } from '@/components/ui/skeleton';
 import { InfoIcon } from 'lucide-react';
@@ -47,6 +48,13 @@ const PriceChart: React.FC<PriceChartProps> = ({ data, isPending, symbol }) => {
     );
   }
 
+  // Prepare volume data - normalize for better visualization
+  const maxVolume = Math.max(...data.map(item => item.volume));
+  const normalizedData = data.map(item => ({
+    ...item,
+    normalizedVolume: (item.volume / maxVolume) * 100
+  }));
+
   return (
     <Card className="price-chart-card">
       <CardHeader>
@@ -58,15 +66,45 @@ const PriceChart: React.FC<PriceChartProps> = ({ data, isPending, symbol }) => {
         </div>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={300}>
-          <AreaChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="time" tickFormatter={(time) => new Date(time).toLocaleTimeString()} />
-            <YAxis domain={['dataMin', 'dataMax']} />
-            <Tooltip />
-            <Area type="monotone" dataKey="close" stroke="#8884d8" fill="#8884d8" />
-          </AreaChart>
-        </ResponsiveContainer>
+        <ComposedChart
+          width={500}
+          height={400}
+          data={normalizedData}
+          margin={{
+            top: 20,
+            right: 20,
+            bottom: 20,
+            left: 20,
+          }}
+        >
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="time" tickFormatter={(time) => new Date(time).toLocaleTimeString()} />
+          <YAxis yAxisId="left" orientation="left" domain={['auto', 'auto']} />
+          <YAxis yAxisId="right" orientation="right" domain={[0, 100]} hide />
+          <Tooltip 
+            formatter={(value, name) => {
+              if (name === 'normalizedVolume') {
+                return [data[normalizedData.indexOf(value as any)].volume.toFixed(2), 'Volume'];
+              }
+              return [parseFloat(value as string).toFixed(2), name];
+            }}
+            labelFormatter={(time) => new Date(time).toLocaleString()}
+          />
+          <Area 
+            yAxisId="left" 
+            type="monotone" 
+            dataKey="close" 
+            stroke="#8884d8" 
+            fill="#8884d8" 
+            fillOpacity={0.3} 
+          />
+          <Bar 
+            yAxisId="right" 
+            dataKey="normalizedVolume" 
+            fill="#82ca9d" 
+            fillOpacity={0.5} 
+          />
+        </ComposedChart>
       </CardContent>
     </Card>
   );

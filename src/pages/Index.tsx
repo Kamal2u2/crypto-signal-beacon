@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import ControlPanel from '@/components/ControlPanel';
@@ -172,6 +173,67 @@ const Index = () => {
             isLoading={isLoading}
           />
         </div>
+        
+        {/* Signal Summary Card at the top for better visibility */}
+        {signalData && (
+          <div className="glass-card p-4 mb-4 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                "p-3 rounded-full",
+                {
+                  'bg-crypto-buy text-white': signalData.overallSignal === 'BUY',
+                  'bg-crypto-sell text-white': signalData.overallSignal === 'SELL',
+                  'bg-crypto-hold text-white': signalData.overallSignal === 'HOLD',
+                  'bg-gray-400 text-white': signalData.overallSignal === 'NEUTRAL'
+                }
+              )}>
+                {signalData.overallSignal === 'BUY' && <ArrowUp className="h-6 w-6" />}
+                {signalData.overallSignal === 'SELL' && <ArrowDown className="h-6 w-6" />}
+                {(signalData.overallSignal === 'HOLD' || signalData.overallSignal === 'NEUTRAL') && <Minus className="h-6 w-6" />}
+              </div>
+              
+              <div>
+                <h2 className={cn(
+                  "text-xl font-bold",
+                  {
+                    'text-crypto-buy': signalData.overallSignal === 'BUY',
+                    'text-crypto-sell': signalData.overallSignal === 'SELL',
+                    'text-crypto-hold': signalData.overallSignal === 'HOLD',
+                    'text-gray-600': signalData.overallSignal === 'NEUTRAL'
+                  }
+                )}>
+                  {signalData.overallSignal} {selectedPair.label}
+                </h2>
+                <p className="text-sm text-gray-600">{signalData.confidence.toFixed(0)}% confidence</p>
+              </div>
+            </div>
+            
+            {signalData.priceTargets && (signalData.overallSignal === 'BUY' || signalData.overallSignal === 'SELL') && (
+              <div className="flex flex-wrap gap-4">
+                <div className="flex flex-col">
+                  <span className="text-xs text-gray-500">Entry</span>
+                  <span className="font-medium">${signalData.priceTargets.entryPrice.toFixed(2)}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs text-crypto-sell">Stop Loss</span>
+                  <span className="font-medium">${signalData.priceTargets.stopLoss.toFixed(2)}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs text-crypto-buy">Target 1</span>
+                  <span className="font-medium">${signalData.priceTargets.target1.toFixed(2)}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs text-crypto-buy">Target 2</span>
+                  <span className="font-medium">${signalData.priceTargets.target2.toFixed(2)}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs text-crypto-buy">Target 3</span>
+                  <span className="font-medium">${signalData.priceTargets.target3.toFixed(2)}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="md:col-span-2">

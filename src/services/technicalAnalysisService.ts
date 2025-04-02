@@ -11,11 +11,22 @@ export interface TradingSignal {
   message: string;
 }
 
+// Interface for price targets and stoploss
+export interface PriceTargets {
+  entryPrice: number;
+  stopLoss: number;
+  target1: number;
+  target2: number;
+  target3: number;
+  riskRewardRatio: number;
+}
+
 // Interface for aggregated signals
 export interface SignalSummary {
   overallSignal: SignalType;
   confidence: number;
   signals: TradingSignal[];
+  priceTargets: PriceTargets | null;
 }
 
 // Calculate Simple Moving Average (SMA)
@@ -283,6 +294,75 @@ export function calculateStochasticOscillator(
   return { k, d: dSMA };
 }
 
+// Calculate stoploss and target prices based on signal type and technical analysis
+export function calculatePriceTargets(
+  klineData: KlineData[],
+  signalType: SignalType
+): PriceTargets | null {
+  if (signalType === 'NEUTRAL' || signalType === 'HOLD' || klineData.length < 20) {
+    return null;
+  }
+  
+  const currentPrice = klineData[klineData.length - 1].close;
+  const highs = klineData.map(candle => candle.high);
+  const lows = klineData.map(candle => candle.low);
+  
+  // Calculate ATR for volatility measurement
+  const atr = calculateATR(
+    klineData.map(candle => candle.close),
+    highs,
+    lows,
+    14
+  );
+  
+  const latestATR = atr[atr.length - 1] || (currentPrice * 0.02); // Default to 2% if ATR not available
+  
+  let stopLoss: number;
+  let target1: number;
+  let target2: number;
+  let target3: number;
+  let riskRewardRatio: number;
+  
+  if (signalType === 'BUY') {
+    // For buy signals
+    // Stoploss is below recent support (lowest low of last 10 candles or ATR-based)
+    const recentLows = lows.slice(-10);
+    const supportLevel = Math.min(...recentLows);
+    stopLoss = Math.min(currentPrice - (latestATR * 2), supportLevel);
+    
+    // Targets based on risk multiples (R:R ratios)
+    const risk = currentPrice - stopLoss;
+    target1 = currentPrice + (risk * 1.5); // 1.5:1 risk:reward
+    target2 = currentPrice + (risk * 2.5); // 2.5:1 risk:reward
+    target3 = currentPrice + (risk * 4);   // 4:1 risk:reward
+    
+    riskRewardRatio = risk > 0 ? (target2 - currentPrice) / risk : 0;
+  } else {
+    // For sell signals
+    // Stoploss is above recent resistance (highest high of last 10 candles or ATR-based)
+    const recentHighs = highs.slice(-10);
+    const resistanceLevel = Math.max(...recentHighs);
+    stopLoss = Math.max(currentPrice + (latestATR * 2), resistanceLevel);
+    
+    // Targets based on risk multiples (R:R ratios) - downward targets for selling
+    const risk = stopLoss - currentPrice;
+    target1 = currentPrice - (risk * 1.5);
+    target2 = currentPrice - (risk * 2.5);
+    target3 = currentPrice - (risk * 4);
+    
+    riskRewardRatio = risk > 0 ? (currentPrice - target2) / risk : 0;
+  }
+  
+  return {
+    entryPrice: currentPrice,
+    stopLoss: parseFloat(stopLoss.toFixed(2)),
+    target1: parseFloat(target1.toFixed(2)),
+    target2: parseFloat(target2.toFixed(2)),
+    target3: parseFloat(target3.toFixed(2)),
+    riskRewardRatio: parseFloat(riskRewardRatio.toFixed(2))
+  };
+}
+
 // Generate signals based on technical indicators
 export function generateSignals(klineData: KlineData[]): SignalSummary {
   // Extract prices
@@ -299,7 +379,8 @@ export function generateSignals(klineData: KlineData[]): SignalSummary {
         indicator: 'Insufficient Data',
         strength: 0,
         message: 'Not enough data to generate reliable signals'
-      }]
+      }],
+      priceTargets: null
     };
   }
   
@@ -567,9 +648,13 @@ export function generateSignals(klineData: KlineData[]): SignalSummary {
     }
   }
   
+  // Calculate price targets based on the overall signal
+  const priceTargets = calculatePriceTargets(klineData, overallSignal);
+  
   return {
     overallSignal,
     confidence,
-    signals
+    signals,
+    priceTargets
   };
 }

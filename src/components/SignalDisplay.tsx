@@ -4,7 +4,7 @@ import { SignalSummary, TradingSignal, PatternDetection } from '@/services/techn
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { ArrowDown, ArrowUp, Minus, AlertTriangle, Target, ShieldAlert, TrendingUp } from 'lucide-react';
+import { ArrowDown, ArrowUp, Minus, AlertTriangle, Target, ShieldAlert, TrendingUp, BarChart3, Layers } from 'lucide-react';
 
 interface SignalDisplayProps {
   signalData: SignalSummary | null;
@@ -40,10 +40,10 @@ const SignalDisplay: React.FC<SignalDisplayProps> = ({
   const isBelowThreshold = confidence < confidenceThreshold;
 
   const signalColor = {
-    BUY: 'signal-buy',
-    SELL: 'signal-sell',
-    HOLD: 'signal-hold',
-    NEUTRAL: 'signal-neutral'
+    BUY: 'bg-crypto-buy/20 text-crypto-buy border-crypto-buy',
+    SELL: 'bg-crypto-sell/20 text-crypto-sell border-crypto-sell',
+    HOLD: 'bg-crypto-hold/20 text-crypto-hold border-crypto-hold',
+    NEUTRAL: 'bg-gray-200 text-gray-700 border-gray-300'
   };
 
   const signalBorderColor = {
@@ -54,9 +54,9 @@ const SignalDisplay: React.FC<SignalDisplayProps> = ({
   };
 
   const signalBackgroundColor = {
-    BUY: 'bg-crypto-buy bg-opacity-10',
-    SELL: 'bg-crypto-sell bg-opacity-10',
-    HOLD: 'bg-crypto-hold bg-opacity-10',
+    BUY: 'bg-crypto-buy/10',
+    SELL: 'bg-crypto-sell/10',
+    HOLD: 'bg-crypto-hold/10',
     NEUTRAL: 'bg-gray-100'
   };
 
@@ -78,21 +78,21 @@ const SignalDisplay: React.FC<SignalDisplayProps> = ({
 
   return (
     <Card className={cn(
-      "signal-card w-full h-full", 
+      "signal-card w-full h-full shadow-lg", 
       signalBorderColor[overallSignal as keyof typeof signalBorderColor],
       "border-2",
-      isBelowThreshold && "opacity-70"
+      isBelowThreshold && "opacity-90"
     )}>
       <CardHeader className={cn(
         "pb-2 rounded-t-xl",
         signalBackgroundColor[overallSignal as keyof typeof signalBackgroundColor]
       )}>
         <div className="flex justify-between items-center">
-          <CardTitle className="text-lg font-medium">Signal Analysis</CardTitle>
+          <CardTitle className="text-lg font-semibold text-gray-800">Signal Analysis</CardTitle>
           <div className="flex items-center space-x-2">
-            <span className="text-sm text-gray-600">{symbol}</span>
+            <span className="text-sm font-medium text-gray-600">{symbol}</span>
             {lastPrice && (
-              <span className="font-semibold text-gray-800">${lastPrice.toFixed(2)}</span>
+              <span className="font-bold text-gray-800 text-base">${lastPrice.toFixed(2)}</span>
             )}
           </div>
         </div>
@@ -100,12 +100,13 @@ const SignalDisplay: React.FC<SignalDisplayProps> = ({
       <CardContent className="pt-4">
         {/* Prominent signal display at the top */}
         <div className={cn(
-          "mb-4 px-4 py-3 rounded-lg flex flex-col items-center",
+          "mb-6 px-4 py-4 rounded-lg flex flex-col items-center",
           signalBackgroundColor[overallSignal as keyof typeof signalBackgroundColor],
           "border",
           signalBorderColor[overallSignal as keyof typeof signalBorderColor],
+          "shadow-sm"
         )}>
-          <div className="flex items-center justify-center mb-2 gap-2">
+          <div className="flex items-center justify-center mb-3 gap-2">
             <div className={cn(
               "p-2 rounded-full",
               {
@@ -118,7 +119,7 @@ const SignalDisplay: React.FC<SignalDisplayProps> = ({
               {signalIcon[overallSignal as keyof typeof signalIcon]}
             </div>
             <span className={cn(
-              "text-xl font-bold",
+              "text-2xl font-bold",
               {
                 'text-crypto-buy': overallSignal === 'BUY',
                 'text-crypto-sell': overallSignal === 'SELL',
@@ -130,10 +131,10 @@ const SignalDisplay: React.FC<SignalDisplayProps> = ({
             </span>
           </div>
           
-          <div className="w-full bg-gray-200 rounded-full h-2.5 mb-1">
+          <div className="w-full bg-gray-200 rounded-full h-3 mb-1">
             <div 
               className={cn(
-                "h-2.5 rounded-full", 
+                "h-3 rounded-full", 
                 {
                   'bg-crypto-buy': overallSignal === 'BUY',
                   'bg-crypto-sell': overallSignal === 'SELL',
@@ -145,24 +146,24 @@ const SignalDisplay: React.FC<SignalDisplayProps> = ({
             ></div>
           </div>
           <div className="flex justify-between w-full">
-            <p className="text-xs text-gray-500">{confidence.toFixed(0)}% confidence</p>
+            <p className="text-sm font-medium text-gray-600">{confidence.toFixed(0)}% confidence</p>
             {isBelowThreshold && (
-              <p className="text-xs text-crypto-sell">Below threshold ({confidenceThreshold}%)</p>
+              <p className="text-sm font-medium text-crypto-sell">Below threshold ({confidenceThreshold}%)</p>
             )}
           </div>
         </div>
         
         {/* Patterns section */}
         {patterns && patterns.length > 0 && (
-          <div className="mb-4 border border-crypto-border rounded-lg p-3">
-            <div className="flex justify-between items-center mb-2">
-              <h3 className="text-sm font-medium flex items-center gap-1">
-                <TrendingUp className="h-4 w-4" />
+          <div className="mb-5 border border-gray-200 rounded-lg p-4 shadow-sm bg-white">
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-sm font-semibold flex items-center gap-1.5 text-gray-800">
+                <TrendingUp className="h-4 w-4 text-blue-500" />
                 <span>Pattern Recognition</span>
               </h3>
               <Badge className={cn(
                 patterns[0].type === 'bullish' ? 'bg-crypto-buy' : 'bg-crypto-sell',
-                'text-white'
+                'text-white font-medium px-2.5 py-1'
               )}>
                 {patterns[0].type.toUpperCase()}
               </Badge>
@@ -170,12 +171,12 @@ const SignalDisplay: React.FC<SignalDisplayProps> = ({
             
             <div className="space-y-2">
               {patterns.map((pattern, index) => (
-                <div key={index} className="text-xs p-2 rounded-md bg-gray-50">
+                <div key={index} className="text-xs p-3 rounded-md bg-gray-50 border border-gray-100">
                   <div className="flex justify-between">
-                    <span className="font-medium">{pattern.name}</span>
-                    <span>{pattern.confidence.toFixed(0)}% confidence</span>
+                    <span className="font-semibold text-gray-800">{pattern.name}</span>
+                    <span className="font-medium">{pattern.confidence.toFixed(0)}% confidence</span>
                   </div>
-                  <p className="mt-1 text-gray-600">{pattern.description}</p>
+                  <p className="mt-1.5 text-gray-600 leading-relaxed">{pattern.description}</p>
                 </div>
               ))}
             </div>
@@ -184,44 +185,47 @@ const SignalDisplay: React.FC<SignalDisplayProps> = ({
         
         {/* Price targets section */}
         {priceTargets && (overallSignal === 'BUY' || overallSignal === 'SELL') && (
-          <div className="mb-4 border border-crypto-border rounded-lg p-3">
-            <div className="flex justify-between items-center mb-2">
-              <h3 className="text-sm font-medium flex items-center gap-1">
-                <Target className="h-4 w-4" />
+          <div className="mb-5 border border-gray-200 rounded-lg p-4 shadow-sm bg-white">
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-sm font-semibold flex items-center gap-1.5 text-gray-800">
+                <Target className="h-4 w-4 text-purple-500" />
                 <span>Price Targets</span>
               </h3>
-              <Badge className={cn(signalColor[overallSignal as keyof typeof signalColor])}>
+              <Badge className={cn(
+                "font-medium px-2.5 py-1",
+                overallSignal === 'BUY' ? 'bg-crypto-buy text-white' : 'bg-crypto-sell text-white'
+              )}>
                 R:R {priceTargets.riskRewardRatio}
               </Badge>
             </div>
             
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Entry:</span>
-                <span className="font-medium">${priceTargets.entryPrice.toFixed(2)}</span>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="flex justify-between items-center p-2 bg-gray-50 rounded-md">
+                <span className="text-gray-600 font-medium">Entry:</span>
+                <span className="font-bold text-gray-800">${priceTargets.entryPrice.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="flex items-center text-crypto-sell">
+              <div className="flex justify-between items-center p-2 bg-red-50 rounded-md">
+                <span className="flex items-center text-crypto-sell font-medium">
                   <ShieldAlert className="h-3 w-3 mr-1" />
                   Stop Loss:
                 </span>
-                <span className="font-medium">${priceTargets.stopLoss.toFixed(2)}</span>
+                <span className="font-bold text-gray-800">${priceTargets.stopLoss.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Target 1:</span>
-                <span className="font-medium">${priceTargets.target1.toFixed(2)}</span>
+              <div className="flex justify-between items-center p-2 bg-green-50 rounded-md">
+                <span className="text-gray-600 font-medium">Target 1:</span>
+                <span className="font-bold text-gray-800">${priceTargets.target1.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Target 2:</span>
-                <span className="font-medium">${priceTargets.target2.toFixed(2)}</span>
+              <div className="flex justify-between items-center p-2 bg-green-50 rounded-md">
+                <span className="text-gray-600 font-medium">Target 2:</span>
+                <span className="font-bold text-gray-800">${priceTargets.target2.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Target 3:</span>
-                <span className="font-medium">${priceTargets.target3.toFixed(2)}</span>
+              <div className="flex justify-between items-center p-2 bg-green-50 rounded-md">
+                <span className="text-gray-600 font-medium">Target 3:</span>
+                <span className="font-bold text-gray-800">${priceTargets.target3.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Risk:</span>
-                <span className="font-medium">
+              <div className="flex justify-between items-center p-2 bg-blue-50 rounded-md">
+                <span className="text-gray-600 font-medium">Risk:</span>
+                <span className="font-bold text-gray-800">
                   {overallSignal === 'BUY' 
                     ? `${((priceTargets.entryPrice - priceTargets.stopLoss) / priceTargets.entryPrice * 100).toFixed(2)}%`
                     : `${((priceTargets.stopLoss - priceTargets.entryPrice) / priceTargets.entryPrice * 100).toFixed(2)}%`
@@ -233,25 +237,33 @@ const SignalDisplay: React.FC<SignalDisplayProps> = ({
         )}
         
         {/* Signal details section */}
-        <h3 className="text-sm font-medium text-gray-600 mb-2">Signal Details</h3>
-        <div className="space-y-2 max-h-[calc(100vh-26rem)] overflow-y-auto pr-1">
+        <div className="flex items-center gap-2 mb-3">
+          <BarChart3 className="h-4 w-4 text-gray-600" />
+          <h3 className="text-sm font-semibold text-gray-800">Signal Details</h3>
+        </div>
+        <div className="space-y-3 max-h-[calc(100vh-26rem)] overflow-y-auto pr-1">
           {sortedSignals.map((signal: TradingSignal, index: number) => (
             <div 
               key={index}
-              className="p-3 rounded-md bg-crypto-accent border border-crypto-border"
+              className="p-3 rounded-md bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
             >
               <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-gray-700">{signal.indicator}</span>
+                <span className="text-sm font-semibold text-gray-800">{signal.indicator}</span>
                 <Badge 
                   className={cn(
-                    "px-2 py-0.5 text-xs", 
-                    signalColor[signal.type as keyof typeof signalColor]
+                    "px-2.5 py-0.5 text-xs font-medium", 
+                    {
+                      'bg-crypto-buy text-white': signal.type === 'BUY',
+                      'bg-crypto-sell text-white': signal.type === 'SELL',
+                      'bg-crypto-hold text-white': signal.type === 'HOLD',
+                      'bg-gray-400 text-white': signal.type === 'NEUTRAL'
+                    }
                   )}
                 >
                   {signal.type}
                 </Badge>
               </div>
-              <p className="text-xs text-gray-600 mt-1">{signal.message}</p>
+              <p className="text-xs text-gray-600 mt-2 leading-relaxed">{signal.message}</p>
             </div>
           ))}
         </div>

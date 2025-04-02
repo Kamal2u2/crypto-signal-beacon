@@ -37,19 +37,19 @@
   }
 
   .signal-buy {
-    @apply bg-crypto-buy bg-opacity-20 text-crypto-buy font-medium;
+    @apply bg-crypto-buy bg-opacity-20 text-crypto-buy font-semibold;
   }
   
   .signal-sell {
-    @apply bg-crypto-sell bg-opacity-20 text-crypto-sell font-medium;
+    @apply bg-crypto-sell bg-opacity-20 text-crypto-sell font-semibold;
   }
   
   .signal-hold {
-    @apply bg-crypto-hold bg-opacity-20 text-crypto-hold font-medium;
+    @apply bg-crypto-hold bg-opacity-20 text-crypto-hold font-semibold;
   }
   
   .signal-neutral {
-    @apply bg-gray-200 text-gray-700 font-medium;
+    @apply bg-gray-200 text-gray-700 font-semibold;
   }
 }
 
@@ -59,24 +59,72 @@
   }
 
   body {
-    @apply bg-crypto-primary text-foreground;
+    @apply bg-gradient-to-br from-white to-gray-50 text-foreground;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight;
+  }
+  
+  h1 {
+    @apply text-3xl lg:text-4xl;
+  }
+  
+  h2 {
+    @apply text-2xl lg:text-3xl;
+  }
+  
+  h3 {
+    @apply text-xl lg:text-2xl;
   }
 }
 
 @layer components {
   .glass-card {
-    @apply bg-white/70 border border-crypto-border shadow-card backdrop-blur-sm hover:shadow-card-hover transition-shadow duration-300;
+    @apply bg-white/90 border border-crypto-border shadow-card backdrop-blur-sm hover:shadow-card-hover transition-shadow duration-300;
   }
   
   .chart-container {
-    @apply rounded-xl glass-card p-4 animate-fade-in;
+    @apply rounded-xl glass-card p-0 animate-fade-in;
   }
   
   .signal-card {
-    @apply rounded-xl glass-card p-4 animate-fade-in transition-all duration-300;
+    @apply rounded-xl glass-card p-0 animate-fade-in transition-all duration-300;
   }
   
   .control-card {
-    @apply rounded-xl glass-card p-4 mb-6;
+    @apply rounded-xl glass-card p-4 mb-6 shadow-md;
+  }
+  
+  .card-header {
+    @apply bg-gradient-to-r from-gray-50 to-gray-100 rounded-t-xl border-b p-4;
+  }
+  
+  .data-label {
+    @apply text-sm font-medium text-gray-500;
+  }
+  
+  .data-value {
+    @apply font-semibold text-gray-800;
+  }
+  
+  .badge-buy {
+    @apply bg-crypto-buy text-white px-2 py-0.5 rounded-full text-xs font-medium;
+  }
+  
+  .badge-sell {
+    @apply bg-crypto-sell text-white px-2 py-0.5 rounded-full text-xs font-medium;
+  }
+  
+  .badge-hold {
+    @apply bg-crypto-hold text-white px-2 py-0.5 rounded-full text-xs font-medium;
+  }
+  
+  .badge-neutral {
+    @apply bg-gray-400 text-white px-2 py-0.5 rounded-full text-xs font-medium;
+  }
+  
+  .indicator-card {
+    @apply border border-gray-100 rounded-lg p-3 bg-white shadow-sm hover:shadow-md transition-shadow;
   }
 }

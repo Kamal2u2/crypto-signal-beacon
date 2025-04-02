@@ -304,18 +304,6 @@ export function calculatePriceTargets(
   }
   
   const currentPrice = klineData[klineData.length - 1].close;
-  const highs = klineData.map(candle => candle.high);
-  const lows = klineData.map(candle => candle.low);
-  
-  // Calculate ATR for volatility measurement
-  const atr = calculateATR(
-    klineData.map(candle => candle.close),
-    highs,
-    lows,
-    14
-  );
-  
-  const latestATR = atr[atr.length - 1] || (currentPrice * 0.02); // Default to 2% if ATR not available
   
   let stopLoss: number;
   let target1: number;
@@ -323,34 +311,30 @@ export function calculatePriceTargets(
   let target3: number;
   let riskRewardRatio: number;
   
+  const stopLossPercent = 0.02; // 2% as requested
+  
   if (signalType === 'BUY') {
-    // For buy signals
-    // Stoploss is below recent support (lowest low of last 10 candles or ATR-based)
-    const recentLows = lows.slice(-10);
-    const supportLevel = Math.min(...recentLows);
-    stopLoss = Math.min(currentPrice - (latestATR * 2), supportLevel);
+    // For buy signals: stopLoss is 2% below entry
+    stopLoss = currentPrice * (1 - stopLossPercent);
     
-    // Targets based on risk multiples (R:R ratios)
-    const risk = currentPrice - stopLoss;
-    target1 = currentPrice + (risk * 1.5); // 1.5:1 risk:reward
-    target2 = currentPrice + (risk * 2.5); // 2.5:1 risk:reward
-    target3 = currentPrice + (risk * 4);   // 4:1 risk:reward
+    // Calculate targets based on risk multiple (using requested 1:1.5 risk-reward ratio)
+    const riskAmount = currentPrice - stopLoss;
+    target1 = currentPrice + (riskAmount * 1.5); // 1.5:1 risk:reward as requested
+    target2 = currentPrice + (riskAmount * 2.0); // Extended target
+    target3 = currentPrice + (riskAmount * 3.0); // Extended target
     
-    riskRewardRatio = risk > 0 ? (target2 - currentPrice) / risk : 0;
+    riskRewardRatio = 1.5; // As per requirements
   } else {
-    // For sell signals
-    // Stoploss is above recent resistance (highest high of last 10 candles or ATR-based)
-    const recentHighs = highs.slice(-10);
-    const resistanceLevel = Math.max(...recentHighs);
-    stopLoss = Math.max(currentPrice + (latestATR * 2), resistanceLevel);
+    // For sell signals: stopLoss is 2% above entry
+    stopLoss = currentPrice * (1 + stopLossPercent);
     
-    // Targets based on risk multiples (R:R ratios) - downward targets for selling
-    const risk = stopLoss - currentPrice;
-    target1 = currentPrice - (risk * 1.5);
-    target2 = currentPrice - (risk * 2.5);
-    target3 = currentPrice - (risk * 4);
+    // Calculate targets (downward for sell signals)
+    const riskAmount = stopLoss - currentPrice;
+    target1 = currentPrice - (riskAmount * 1.5); // 1.5:1 risk:reward as requested
+    target2 = currentPrice - (riskAmount * 2.0); // Extended target
+    target3 = currentPrice - (riskAmount * 3.0); // Extended target
     
-    riskRewardRatio = risk > 0 ? (currentPrice - target2) / risk : 0;
+    riskRewardRatio = 1.5; // As per requirements
   }
   
   return {
@@ -369,6 +353,7 @@ export function generateSignals(klineData: KlineData[]): SignalSummary {
   const prices = klineData.map(candle => candle.close);
   const highs = klineData.map(candle => candle.high);
   const lows = klineData.map(candle => candle.low);
+  const volumes = klineData.map(candle => candle.volume);
   
   if (prices.length < 30) {
     return {
@@ -386,99 +371,143 @@ export function generateSignals(klineData: KlineData[]): SignalSummary {
   
   const signals: TradingSignal[] = [];
   
-  // 1. Moving Average Cross Signal
-  const shortSMA = calculateSMA(prices, 10);
-  const longSMA = calculateSMA(prices, 20);
-  
-  const currentShortSMA = shortSMA[shortSMA.length - 1];
-  const prevShortSMA = shortSMA[shortSMA.length - 2];
-  const currentLongSMA = longSMA[longSMA.length - 1];
-  const prevLongSMA = longSMA[longSMA.length - 2];
-  
-  // Check for MA crossovers
-  if (!isNaN(currentShortSMA) && !isNaN(prevShortSMA) && 
-      !isNaN(currentLongSMA) && !isNaN(prevLongSMA)) {
-    if (prevShortSMA <= prevLongSMA && currentShortSMA > currentLongSMA) {
-      signals.push({
-        type: 'BUY',
-        indicator: 'MA Cross',
-        strength: 75,
-        message: 'Short-term MA crossed above long-term MA'
-      });
-    } else if (prevShortSMA >= prevLongSMA && currentShortSMA < currentLongSMA) {
-      signals.push({
-        type: 'SELL',
-        indicator: 'MA Cross',
-        strength: 75,
-        message: 'Short-term MA crossed below long-term MA'
-      });
-    } else if (currentShortSMA > currentLongSMA) {
-      signals.push({
-        type: 'BUY',
-        indicator: 'MA Position',
-        strength: 60,
-        message: 'Short-term MA above long-term MA'
-      });
-    } else {
-      signals.push({
-        type: 'SELL',
-        indicator: 'MA Position',
-        strength: 60,
-        message: 'Short-term MA below long-term MA'
-      });
-    }
-  }
-  
-  // 2. RSI Signal
+  // 1. Calculate RSI
   const rsi = calculateRSI(prices);
   const currentRSI = rsi[rsi.length - 1];
   
-  if (!isNaN(currentRSI)) {
-    if (currentRSI < 30) {
-      signals.push({
-        type: 'BUY',
-        indicator: 'RSI',
-        strength: 80,
-        message: `RSI is oversold (${currentRSI.toFixed(2)})`
-      });
-    } else if (currentRSI > 70) {
-      signals.push({
-        type: 'SELL',
-        indicator: 'RSI',
-        strength: 80,
-        message: `RSI is overbought (${currentRSI.toFixed(2)})`
-      });
-    } else {
-      signals.push({
-        type: 'HOLD',
-        indicator: 'RSI',
-        strength: 50,
-        message: `RSI is neutral (${currentRSI.toFixed(2)})`
-      });
-    }
-  }
-  
-  // 3. MACD Signal
+  // 2. Calculate MACD
   const { macd, signal, histogram } = calculateMACD(prices);
   const currentMACD = macd[macd.length - 1];
   const currentSignal = signal[signal.length - 1];
   const currentHistogram = histogram[histogram.length - 1];
   const prevHistogram = histogram[histogram.length - 2];
   
+  // 3. Calculate Bollinger Bands
+  const bollingerBands = calculateBollingerBands(prices);
+  const currentPrice = prices[prices.length - 1];
+  const currentUpperBand = bollingerBands.upper[bollingerBands.upper.length - 1];
+  const currentLowerBand = bollingerBands.lower[bollingerBands.lower.length - 1];
+  const prevUpperBand = bollingerBands.upper[bollingerBands.upper.length - 2];
+  const prevLowerBand = bollingerBands.lower[bollingerBands.lower.length - 2];
+  
+  // 4. Calculate Moving Averages
+  const ema50 = calculateEMA(prices, 50);
+  const sma200 = calculateSMA(prices, 200);
+  const currentEMA50 = ema50[ema50.length - 1];
+  const currentSMA200 = sma200[sma200.length - 1];
+  
+  // 5. Volume Analysis
+  const avgVolume = volumes.slice(-10).reduce((sum, vol) => sum + vol, 0) / 10;
+  const currentVolume = volumes[volumes.length - 1];
+  const isHighVolume = currentVolume > (avgVolume * 1.5);
+  
+  // 6. Check Bollinger Band contraction (low volatility)
+  const currentBandWidth = currentUpperBand - currentLowerBand;
+  const prevBandWidth = prevUpperBand - prevLowerBand;
+  const isBBContracting = currentBandWidth < prevBandWidth;
+  
+  // Add volatility signal
+  if (isBBContracting) {
+    signals.push({
+      type: 'HOLD',
+      indicator: 'Volatility',
+      strength: 80,
+      message: 'Bollinger Bands contracting - low volatility period, avoid trading'
+    });
+  } else {
+    signals.push({
+      type: 'NEUTRAL',
+      indicator: 'Volatility',
+      strength: 40,
+      message: 'Normal volatility conditions'
+    });
+  }
+  
+  // Add volume analysis signal
+  if (isHighVolume) {
+    signals.push({
+      type: 'NEUTRAL',
+      indicator: 'Volume',
+      strength: 70,
+      message: `High volume detected (${(currentVolume / avgVolume).toFixed(2)}x average)`
+    });
+  } else {
+    signals.push({
+      type: 'HOLD',
+      indicator: 'Volume',
+      strength: 60,
+      message: 'Low volume - potential weak movement'
+    });
+  }
+  
+  // Check for BUY conditions per your strict rules
+  if (currentRSI > 50 && currentMACD > currentSignal && !isBBContracting && isHighVolume) {
+    signals.push({
+      type: 'BUY',
+      indicator: 'Combined Strategy',
+      strength: 90,
+      message: 'Strong buy signal: RSI > 50, MACD bullish, good volatility, high volume'
+    });
+  } 
+  // Check for SELL conditions per your strict rules
+  else if (currentRSI < 50 && currentMACD < currentSignal && !isBBContracting && isHighVolume) {
+    signals.push({
+      type: 'SELL',
+      indicator: 'Combined Strategy',
+      strength: 90,
+      message: 'Strong sell signal: RSI < 50, MACD bearish, good volatility, high volume'
+    });
+  }
+  
+  // Add individual indicator signals for reference
+  // RSI Signal
+  if (!isNaN(currentRSI)) {
+    if (currentRSI < 30) {
+      signals.push({
+        type: 'BUY',
+        indicator: 'RSI',
+        strength: 70,
+        message: `RSI is oversold (${currentRSI.toFixed(2)})`
+      });
+    } else if (currentRSI > 70) {
+      signals.push({
+        type: 'SELL',
+        indicator: 'RSI',
+        strength: 70,
+        message: `RSI is overbought (${currentRSI.toFixed(2)})`
+      });
+    } else if (currentRSI > 50) {
+      signals.push({
+        type: 'BUY',
+        indicator: 'RSI',
+        strength: 60,
+        message: `RSI is bullish (${currentRSI.toFixed(2)})`
+      });
+    } else {
+      signals.push({
+        type: 'SELL',
+        indicator: 'RSI',
+        strength: 60,
+        message: `RSI is bearish (${currentRSI.toFixed(2)})`
+      });
+    }
+  }
+  
+  // MACD Signal
   if (!isNaN(currentMACD) && !isNaN(currentSignal)) {
     if (currentMACD > currentSignal) {
       signals.push({
         type: 'BUY',
         indicator: 'MACD',
         strength: 70,
-        message: 'MACD line above signal line'
+        message: 'MACD line above signal line - bullish'
       });
     } else if (currentMACD < currentSignal) {
       signals.push({
         type: 'SELL',
         indicator: 'MACD',
         strength: 70,
-        message: 'MACD line below signal line'
+        message: 'MACD line below signal line - bearish'
       });
     }
     
@@ -488,116 +517,54 @@ export function generateSignals(klineData: KlineData[]): SignalSummary {
         signals.push({
           type: 'BUY',
           indicator: 'MACD Histogram',
-          strength: 85,
-          message: 'MACD histogram turned positive'
+          strength: 80,
+          message: 'MACD histogram turned positive - momentum change'
         });
       } else if (prevHistogram > 0 && currentHistogram < 0) {
         signals.push({
           type: 'SELL',
           indicator: 'MACD Histogram',
-          strength: 85,
-          message: 'MACD histogram turned negative'
+          strength: 80,
+          message: 'MACD histogram turned negative - momentum change'
         });
       }
     }
   }
   
-  // 4. Bollinger Bands Signal
-  const bollingerBands = calculateBollingerBands(prices);
-  const currentPrice = prices[prices.length - 1];
-  const currentUpperBand = bollingerBands.upper[bollingerBands.upper.length - 1];
-  const currentLowerBand = bollingerBands.lower[bollingerBands.lower.length - 1];
-  
+  // Bollinger Bands Signal
   if (!isNaN(currentUpperBand) && !isNaN(currentLowerBand)) {
     if (currentPrice > currentUpperBand) {
       signals.push({
         type: 'SELL',
         indicator: 'Bollinger Bands',
-        strength: 75,
+        strength: 65,
         message: 'Price is above upper Bollinger Band - potentially overbought'
       });
     } else if (currentPrice < currentLowerBand) {
       signals.push({
         type: 'BUY',
         indicator: 'Bollinger Bands',
-        strength: 75,
+        strength: 65,
         message: 'Price is below lower Bollinger Band - potentially oversold'
       });
-    } else {
-      signals.push({
-        type: 'HOLD',
-        indicator: 'Bollinger Bands',
-        strength: 50,
-        message: 'Price is within Bollinger Bands - normal volatility'
-      });
     }
   }
   
-  // 5. Stochastic Oscillator Signal
-  const stochastic = calculateStochasticOscillator(prices, highs, lows);
-  
-  if (stochastic) {
-    const currentK = stochastic.k[stochastic.k.length - 1];
-    const currentD = stochastic.d[stochastic.d.length - 1];
-    const prevK = stochastic.k[stochastic.k.length - 2];
-    const prevD = stochastic.d[stochastic.d.length - 2];
-    
-    if (!isNaN(currentK) && !isNaN(currentD) && !isNaN(prevK) && !isNaN(prevD)) {
-      if (currentK > 80 && currentD > 80) {
-        signals.push({
-          type: 'SELL',
-          indicator: 'Stochastic',
-          strength: 70,
-          message: 'Stochastic oscillator in overbought territory'
-        });
-      } else if (currentK < 20 && currentD < 20) {
-        signals.push({
-          type: 'BUY',
-          indicator: 'Stochastic',
-          strength: 70,
-          message: 'Stochastic oscillator in oversold territory'
-        });
-      }
-      
-      // Stochastic crossover
-      if (prevK < prevD && currentK > currentD) {
-        signals.push({
-          type: 'BUY',
-          indicator: 'Stochastic Crossover',
-          strength: 65,
-          message: '%K crossed above %D line - potential buy signal'
-        });
-      } else if (prevK > prevD && currentK < currentD) {
-        signals.push({
-          type: 'SELL',
-          indicator: 'Stochastic Crossover',
-          strength: 65,
-          message: '%K crossed below %D line - potential sell signal'
-        });
-      }
-    }
-  }
-  
-  // 6. Price vs EMA signal
-  const ema50 = calculateEMA(prices, 50);
-  const currentEMA50 = ema50[ema50.length - 1];
-  
-  if (!isNaN(currentEMA50)) {
-    const priceDiffPercent = ((currentPrice - currentEMA50) / currentEMA50) * 100;
-    
-    if (priceDiffPercent > 5) {
-      signals.push({
-        type: 'SELL',
-        indicator: 'EMA Deviation',
-        strength: 60,
-        message: `Price is ${priceDiffPercent.toFixed(2)}% above EMA50 - potentially overextended`
-      });
-    } else if (priceDiffPercent < -5) {
+  // Moving Average Trend signals
+  if (!isNaN(currentEMA50) && !isNaN(currentSMA200)) {
+    if (currentPrice > currentEMA50 && currentEMA50 > currentSMA200) {
       signals.push({
         type: 'BUY',
-        indicator: 'EMA Deviation',
-        strength: 60,
-        message: `Price is ${Math.abs(priceDiffPercent).toFixed(2)}% below EMA50 - potentially undervalued`
+        indicator: 'Trend Analysis',
+        strength: 75,
+        message: 'Strong uptrend: Price > EMA50 > SMA200'
+      });
+    } else if (currentPrice < currentEMA50 && currentEMA50 < currentSMA200) {
+      signals.push({
+        type: 'SELL',
+        indicator: 'Trend Analysis',
+        strength: 75,
+        message: 'Strong downtrend: Price < EMA50 < SMA200'
       });
     }
   }
@@ -624,24 +591,24 @@ export function generateSignals(klineData: KlineData[]): SignalSummary {
     const sellRatio = sellSignalStrength / totalStrength;
     const holdRatio = holdSignalStrength / totalStrength;
     
-    if (buyRatio > 0.6) {
+    // Emphasize combined strategy signals over individual indicators
+    const combinedStrategySignal = signals.find(signal => signal.indicator === 'Combined Strategy');
+    
+    if (combinedStrategySignal) {
+      overallSignal = combinedStrategySignal.type;
+      confidence = combinedStrategySignal.strength;
+    } 
+    else if (holdRatio > 0.4) {
+      // If we have significant hold signals (like low volatility), prioritize them
+      overallSignal = 'HOLD';
+      confidence = holdRatio * 100;
+    }
+    else if (buyRatio > 0.6) {
       overallSignal = 'BUY';
       confidence = buyRatio * 100;
     } else if (sellRatio > 0.6) {
       overallSignal = 'SELL';
       confidence = sellRatio * 100;
-    } else if (holdRatio > 0.6) {
-      overallSignal = 'HOLD';
-      confidence = holdRatio * 100;
-    } else if (buyRatio > sellRatio && buyRatio > holdRatio) {
-      overallSignal = 'BUY';
-      confidence = buyRatio * 100;
-    } else if (sellRatio > buyRatio && sellRatio > holdRatio) {
-      overallSignal = 'SELL';
-      confidence = sellRatio * 100;
-    } else if (holdRatio > buyRatio && holdRatio > sellRatio) {
-      overallSignal = 'HOLD';
-      confidence = holdRatio * 100;
     } else {
       overallSignal = 'NEUTRAL';
       confidence = 50;

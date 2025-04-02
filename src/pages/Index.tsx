@@ -1,6 +1,8 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from '@/components/ui/use-toast';
+import { cn } from '@/lib/utils';
+import { ArrowUp, ArrowDown, Minus } from 'lucide-react';
 import ControlPanel from '@/components/ControlPanel';
 import PriceChart from '@/components/PriceChart';
 import SignalDisplay from '@/components/SignalDisplay';

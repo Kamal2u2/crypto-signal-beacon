@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
@@ -152,7 +151,7 @@ const Index = () => {
       <header className="w-full py-6 border-b border-crypto-border bg-gradient-to-r from-blue-50 to-indigo-50">
         <div className="container">
           <h1 className="text-3xl font-bold text-center text-gray-800">
-            Crypto Signal Beacon
+            Crypto Signal by Kamal
           </h1>
           <p className="text-center text-gray-600 mt-2">
             Real-time cryptocurrency trading signals powered by advanced technical analysis
@@ -259,7 +258,7 @@ const Index = () => {
       <footer className="mt-12 py-6 border-t border-crypto-border bg-crypto-accent">
         <div className="container text-center">
           <p className="text-sm text-gray-600">
-            Crypto Signal Beacon — Advanced trading signals with real-time data
+            Crypto Signal by Kamal — Advanced trading signals with real-time data
           </p>
           <p className="text-xs text-gray-500 mt-1">
             Disclaimer: This tool is for educational purposes only. Always do your own research before making trading decisions.

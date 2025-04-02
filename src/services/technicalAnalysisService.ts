@@ -3,6 +3,20 @@ import { KlineData } from './binanceService';
 
 export type SignalType = 'BUY' | 'SELL' | 'HOLD' | 'NEUTRAL';
 
+export interface PatternDetection {
+  name: string;
+  description: string;
+  type: 'bullish' | 'bearish' | 'neutral';
+  confidence: number;
+}
+
+export interface TradingSignal {
+  indicator: string;
+  type: SignalType;
+  message: string;
+  strength: number;
+}
+
 interface IndicatorSignal {
   signal: SignalType;
   weight: number;
@@ -15,6 +29,8 @@ export interface SignalSummary {
   indicators: {
     [key: string]: IndicatorSignal;
   };
+  signals: TradingSignal[];
+  patterns?: PatternDetection[];
   priceTargets?: {
     entryPrice: number;
     stopLoss: number;
@@ -26,7 +42,7 @@ export interface SignalSummary {
 }
 
 // Simple Moving Average
-const calculateSMA = (data: number[], period: number): number[] => {
+export const calculateSMA = (data: number[], period: number): number[] => {
   const result: number[] = [];
   
   for (let i = 0; i < data.length; i++) {
@@ -43,7 +59,7 @@ const calculateSMA = (data: number[], period: number): number[] => {
 };
 
 // Exponential Moving Average
-const calculateEMA = (data: number[], period: number): number[] => {
+export const calculateEMA = (data: number[], period: number): number[] => {
   const result: number[] = [];
   const multiplier = 2 / (period + 1);
   
@@ -64,7 +80,7 @@ const calculateEMA = (data: number[], period: number): number[] => {
 };
 
 // Relative Strength Index
-const calculateRSI = (data: number[], period: number = 14): number[] => {
+export const calculateRSI = (data: number[], period: number = 14): number[] => {
   const result: number[] = [];
   const changes: number[] = [];
   
@@ -102,7 +118,7 @@ const calculateRSI = (data: number[], period: number = 14): number[] => {
 };
 
 // Moving Average Convergence Divergence
-const calculateMACD = (data: number[], fastPeriod: number = 12, slowPeriod: number = 26, signalPeriod: number = 9): {macd: number[], signal: number[], histogram: number[]} => {
+export const calculateMACD = (data: number[], fastPeriod: number = 12, slowPeriod: number = 26, signalPeriod: number = 9): {macd: number[], signal: number[], histogram: number[]} => {
   const fastEMA = calculateEMA(data, fastPeriod);
   const slowEMA = calculateEMA(data, slowPeriod);
   const macd: number[] = [];
@@ -137,7 +153,7 @@ const calculateMACD = (data: number[], fastPeriod: number = 12, slowPeriod: numb
 };
 
 // Bollinger Bands
-const calculateBollingerBands = (data: number[], period: number = 20, stdDev: number = 2): {upper: number[], middle: number[], lower: number[]} => {
+export const calculateBollingerBands = (data: number[], period: number = 20, stdDev: number = 2): {upper: number[], middle: number[], lower: number[]} => {
   const sma = calculateSMA(data, period);
   const upper: number[] = [];
   const lower: number[] = [];
@@ -162,6 +178,53 @@ const calculateBollingerBands = (data: number[], period: number = 20, stdDev: nu
   }
   
   return { upper, middle: sma, lower };
+};
+
+// Support and Resistance
+export const findSupportResistanceLevels = (highs: number[], lows: number[], closes: number[]): { support: number[], resistance: number[] } => {
+  // Use the last 30 data points for shorter-term levels
+  const recentHighs = highs.slice(-30);
+  const recentLows = lows.slice(-30);
+  
+  // Simple algorithm to find local minima and maxima
+  const resistance: number[] = [];
+  const support: number[] = [];
+  
+  // Find local maxima for resistance
+  for (let i = 5; i < recentHighs.length - 5; i++) {
+    const window = recentHighs.slice(i - 5, i + 6);
+    const max = Math.max(...window);
+    if (max === recentHighs[i] && !resistance.includes(max)) {
+      resistance.push(max);
+    }
+  }
+  
+  // Find local minima for support
+  for (let i = 5; i < recentLows.length - 5; i++) {
+    const window = recentLows.slice(i - 5, i + 6);
+    const min = Math.min(...window);
+    if (min === recentLows[i] && !support.includes(min)) {
+      support.push(min);
+    }
+  }
+  
+  // If we didn't find any, use some defaults based on percentiles
+  if (resistance.length === 0) {
+    resistance.push(Math.max(...recentHighs));
+  }
+  
+  if (support.length === 0) {
+    support.push(Math.min(...recentLows));
+  }
+  
+  // Sort and limit to top 3 levels
+  resistance.sort((a, b) => a - b);
+  support.sort((a, b) => a - b);
+  
+  return {
+    support: support.slice(0, 3),
+    resistance: resistance.slice(-3)
+  };
 };
 
 // Generate signals based on technical indicators
@@ -381,6 +444,17 @@ export const generateSignals = (klineData: KlineData[]): SignalSummary => {
     }
   }
   
+  // Convert signals to TradingSignal array
+  const tradingSignals: TradingSignal[] = Object.entries(signals).map(([indicator, data]) => ({
+    indicator,
+    type: data.signal,
+    message: generateSignalMessage(indicator, data.signal, currentPrice),
+    strength: data.confidence / 20 // Convert confidence (0-100) to strength (0-5)
+  }));
+  
+  // Generate chart patterns based on price action
+  const patterns = detectPatterns(klineData);
+  
   // Log detailed confidence values for debugging
   console.log("Signal weights:", { buyWeight, sellWeight, holdWeight, neutralWeight });
   console.log("Indicator details:", signals);
@@ -389,12 +463,148 @@ export const generateSignals = (klineData: KlineData[]): SignalSummary => {
     overallSignal,
     confidence: overallConfidence,
     indicators: signals,
+    signals: tradingSignals,
+    patterns,
     priceTargets
   };
 };
 
+// Function to detect chart patterns
+const detectPatterns = (klineData: KlineData[]): PatternDetection[] => {
+  const patterns: PatternDetection[] = [];
+  const closes = klineData.map(k => k.close);
+  const highs = klineData.map(k => k.high);
+  const lows = klineData.map(k => k.low);
+  
+  // Only analyze if we have enough data
+  if (klineData.length < 20) return patterns;
+  
+  // Get recent price action
+  const recentCloses = closes.slice(-10);
+  const recentHighs = highs.slice(-10);
+  const recentLows = lows.slice(-10);
+  
+  // Detect potential double bottom
+  const minIndex1 = lows.slice(-20, -10).indexOf(Math.min(...lows.slice(-20, -10))) + (closes.length - 20);
+  const minIndex2 = lows.slice(-10).indexOf(Math.min(...lows.slice(-10))) + (closes.length - 10);
+  
+  if (
+    Math.abs(lows[minIndex1] - lows[minIndex2]) / lows[minIndex1] < 0.03 && // Similar lows (within 3%)
+    minIndex2 - minIndex1 >= 5 && // Some distance between bottoms
+    closes[closes.length - 1] > (recentHighs.reduce((a, b) => a + b, 0) / recentHighs.length) // Current price above recent average highs
+  ) {
+    patterns.push({
+      name: 'Double Bottom',
+      description: 'A bullish reversal pattern that forms after a downtrend when price forms two distinct lows at roughly the same level.',
+      type: 'bullish',
+      confidence: 75
+    });
+  }
+  
+  // Detect potential double top
+  const maxIndex1 = highs.slice(-20, -10).indexOf(Math.max(...highs.slice(-20, -10))) + (closes.length - 20);
+  const maxIndex2 = highs.slice(-10).indexOf(Math.max(...highs.slice(-10))) + (closes.length - 10);
+  
+  if (
+    Math.abs(highs[maxIndex1] - highs[maxIndex2]) / highs[maxIndex1] < 0.03 && // Similar highs (within 3%)
+    maxIndex2 - maxIndex1 >= 5 && // Some distance between tops
+    closes[closes.length - 1] < (recentLows.reduce((a, b) => a + b, 0) / recentLows.length) // Current price below recent average lows
+  ) {
+    patterns.push({
+      name: 'Double Top',
+      description: 'A bearish reversal pattern that forms after an uptrend when price forms two distinct highs at roughly the same level.',
+      type: 'bearish',
+      confidence: 75
+    });
+  }
+  
+  // Simple trend identification based on moving averages
+  const sma10 = calculateSMA(closes, 10);
+  const sma20 = calculateSMA(closes, 20);
+  
+  const last10 = sma10[sma10.length - 1];
+  const prev10 = sma10[sma10.length - 2];
+  const last20 = sma20[sma20.length - 1];
+  const prev20 = sma20[sma20.length - 2];
+  
+  if (last10 > last20 && prev10 <= prev20) {
+    patterns.push({
+      name: 'Golden Cross (Short-term)',
+      description: 'A bullish signal where a shorter-term moving average crosses above a longer-term moving average.',
+      type: 'bullish',
+      confidence: 65
+    });
+  } else if (last10 < last20 && prev10 >= prev20) {
+    patterns.push({
+      name: 'Death Cross (Short-term)',
+      description: 'A bearish signal where a shorter-term moving average crosses below a longer-term moving average.',
+      type: 'bearish',
+      confidence: 65
+    });
+  }
+  
+  return patterns;
+};
+
+// Generate human-readable signal messages
+const generateSignalMessage = (indicator: string, signal: SignalType, price: number): string => {
+  switch (indicator) {
+    case 'MA Crossover':
+      return signal === 'BUY' 
+        ? `Moving average crossover detected. The shorter-term MA has crossed above the longer-term MA, suggesting upward momentum.` 
+        : signal === 'SELL'
+          ? `Moving average crossover detected. The shorter-term MA has crossed below the longer-term MA, suggesting downward momentum.`
+          : `Moving averages indicate a continued ${signal === 'HOLD' ? 'current' : 'neutral'} trend.`;
+    
+    case 'RSI':
+      return signal === 'BUY'
+        ? `RSI indicates oversold conditions. The market may be due for a bounce.`
+        : signal === 'SELL'
+          ? `RSI indicates overbought conditions. The market may be due for a pullback.`
+          : `RSI is in neutral territory, showing balanced buying and selling pressure.`;
+    
+    case 'MACD':
+      return signal === 'BUY'
+        ? `MACD line has crossed above the signal line, suggesting increasing bullish momentum.`
+        : signal === 'SELL'
+          ? `MACD line has crossed below the signal line, suggesting increasing bearish momentum.`
+          : `MACD indicates ${signal === 'HOLD' ? 'continued' : 'neutral'} momentum.`;
+    
+    case 'MACD Momentum':
+      return signal === 'BUY'
+        ? `MACD histogram is positive and increasing, indicating strengthening bullish momentum.`
+        : signal === 'SELL'
+          ? `MACD histogram is negative and decreasing, indicating strengthening bearish momentum.`
+          : `MACD histogram shows ${signal === 'HOLD' ? 'steady' : 'indecisive'} momentum.`;
+    
+    case 'Bollinger Bands':
+      return signal === 'BUY'
+        ? `Price is near the lower Bollinger Band, suggesting a potentially oversold condition.`
+        : signal === 'SELL'
+          ? `Price is near the upper Bollinger Band, suggesting a potentially overbought condition.`
+          : `Price is within the middle range of the Bollinger Bands, suggesting no extreme conditions.`;
+    
+    case 'Price/EMA':
+      return signal === 'BUY'
+        ? `Price is rising and above the EMA, confirming upward momentum.`
+        : signal === 'SELL'
+          ? `Price is falling and below the EMA, confirming downward momentum.`
+          : `Price is close to the EMA, indicating a balanced market.`;
+    
+    case 'Volatility':
+      return signal === 'BUY'
+        ? `Market volatility is elevated with bullish bias. Potential for upside breakout.`
+        : signal === 'SELL'
+          ? `Market volatility is elevated with bearish bias. Potential for downside breakout.`
+          : `Market volatility is ${isNaN(price) ? 'normal' : 'elevated but without clear direction'}.`;
+    
+    default:
+      return `${indicator} indicator suggests a ${signal.toLowerCase()} signal at the current price level.`;
+  }
+};
+
 // Average True Range calculation for stop loss and target determination
-const calculateATR = (klineData: KlineData[], period: number = 14): number[] => {
+export const calculateATR = (klineData: KlineData[], period: number = 14): number[] => {
   const trueRanges: number[] = [];
   const atrs: number[] = [];
   
@@ -425,3 +635,4 @@ const calculateATR = (klineData: KlineData[], period: number = 14): number[] => 
   
   return atrs;
 };
+

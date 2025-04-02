@@ -27,6 +27,15 @@ export interface SignalSummary {
   confidence: number;
   signals: TradingSignal[];
   priceTargets: PriceTargets | null;
+  patterns: PatternDetection[] | null;
+}
+
+// Interface for pattern detection
+export interface PatternDetection {
+  name: string;
+  type: 'bullish' | 'bearish' | 'neutral';
+  confidence: number;
+  description: string;
 }
 
 // Calculate Simple Moving Average (SMA)
@@ -347,6 +356,281 @@ export function calculatePriceTargets(
   };
 }
 
+// Pattern recognition functions
+function detectDoubleBottom(prices: number[]): PatternDetection | null {
+  if (prices.length < 50) return null;
+  
+  // Get last 50 prices
+  const recentPrices = prices.slice(-50);
+  const lowestPoints: number[] = [];
+  
+  // Find local minimums
+  for (let i = 2; i < recentPrices.length - 2; i++) {
+    if (recentPrices[i] < recentPrices[i-1] && 
+        recentPrices[i] < recentPrices[i-2] &&
+        recentPrices[i] < recentPrices[i+1] && 
+        recentPrices[i] < recentPrices[i+2]) {
+      lowestPoints.push(i);
+    }
+  }
+  
+  // Need at least 2 bottoms with a peak in between
+  if (lowestPoints.length < 2) return null;
+  
+  // Check for double bottom pattern (two similar lows with a peak in between)
+  for (let i = 0; i < lowestPoints.length - 1; i++) {
+    const firstBottom = lowestPoints[i];
+    const secondBottom = lowestPoints[i+1];
+    
+    // The bottoms should be at least 10 bars apart
+    if (secondBottom - firstBottom < 10) continue;
+    
+    // Check if bottoms are at similar price levels (within 2%)
+    const firstPrice = recentPrices[firstBottom];
+    const secondPrice = recentPrices[secondBottom];
+    const priceDifference = Math.abs(firstPrice - secondPrice) / firstPrice;
+    
+    if (priceDifference <= 0.02) {
+      // Find peak between the bottoms
+      let peakPrice = -Infinity;
+      for (let j = firstBottom + 1; j < secondBottom; j++) {
+        if (recentPrices[j] > peakPrice) {
+          peakPrice = recentPrices[j];
+        }
+      }
+      
+      // Peak should be significantly higher than bottoms
+      if (peakPrice > firstPrice * 1.03 && peakPrice > secondPrice * 1.03) {
+        // Check if price has moved up after the second bottom
+        const currentPrice = recentPrices[recentPrices.length - 1];
+        if (currentPrice > secondPrice) {
+          return {
+            name: 'Double Bottom',
+            type: 'bullish',
+            confidence: 70 + (30 * (1 - priceDifference * 50)), // Higher confidence for closer bottoms
+            description: 'Double bottom pattern detected - potential reversal from downtrend to uptrend'
+          };
+        }
+      }
+    }
+  }
+  
+  return null;
+}
+
+function detectDoubleTop(prices: number[]): PatternDetection | null {
+  if (prices.length < 50) return null;
+  
+  // Get last 50 prices
+  const recentPrices = prices.slice(-50);
+  const highestPoints: number[] = [];
+  
+  // Find local maximums
+  for (let i = 2; i < recentPrices.length - 2; i++) {
+    if (recentPrices[i] > recentPrices[i-1] && 
+        recentPrices[i] > recentPrices[i-2] &&
+        recentPrices[i] > recentPrices[i+1] && 
+        recentPrices[i] > recentPrices[i+2]) {
+      highestPoints.push(i);
+    }
+  }
+  
+  // Need at least 2 tops with a trough in between
+  if (highestPoints.length < 2) return null;
+  
+  // Check for double top pattern (two similar highs with a trough in between)
+  for (let i = 0; i < highestPoints.length - 1; i++) {
+    const firstTop = highestPoints[i];
+    const secondTop = highestPoints[i+1];
+    
+    // The tops should be at least 10 bars apart
+    if (secondTop - firstTop < 10) continue;
+    
+    // Check if tops are at similar price levels (within 2%)
+    const firstPrice = recentPrices[firstTop];
+    const secondPrice = recentPrices[secondTop];
+    const priceDifference = Math.abs(firstPrice - secondPrice) / firstPrice;
+    
+    if (priceDifference <= 0.02) {
+      // Find trough between the tops
+      let troughPrice = Infinity;
+      for (let j = firstTop + 1; j < secondTop; j++) {
+        if (recentPrices[j] < troughPrice) {
+          troughPrice = recentPrices[j];
+        }
+      }
+      
+      // Trough should be significantly lower than tops
+      if (troughPrice < firstPrice * 0.97 && troughPrice < secondPrice * 0.97) {
+        // Check if price has moved down after the second top
+        const currentPrice = recentPrices[recentPrices.length - 1];
+        if (currentPrice < secondPrice) {
+          return {
+            name: 'Double Top',
+            type: 'bearish',
+            confidence: 70 + (30 * (1 - priceDifference * 50)), // Higher confidence for closer tops
+            description: 'Double top pattern detected - potential reversal from uptrend to downtrend'
+          };
+        }
+      }
+    }
+  }
+  
+  return null;
+}
+
+function detectHeadAndShoulders(prices: number[]): PatternDetection | null {
+  if (prices.length < 60) return null;
+  
+  // Get last 60 prices
+  const recentPrices = prices.slice(-60);
+  const highPoints: number[] = [];
+  
+  // Find local maximums
+  for (let i = 2; i < recentPrices.length - 2; i++) {
+    if (recentPrices[i] > recentPrices[i-1] && 
+        recentPrices[i] > recentPrices[i-2] &&
+        recentPrices[i] > recentPrices[i+1] && 
+        recentPrices[i] > recentPrices[i+2]) {
+      highPoints.push(i);
+    }
+  }
+  
+  // Need at least 3 peaks for head and shoulders
+  if (highPoints.length < 3) return null;
+  
+  // Check for head and shoulders pattern
+  for (let i = 0; i < highPoints.length - 2; i++) {
+    const leftShoulder = highPoints[i];
+    const head = highPoints[i+1];
+    const rightShoulder = highPoints[i+2];
+    
+    // The head should be higher than both shoulders
+    if (recentPrices[head] <= recentPrices[leftShoulder] || 
+        recentPrices[head] <= recentPrices[rightShoulder]) {
+      continue;
+    }
+    
+    // The shoulders should be at similar heights (within 5%)
+    const leftShoulderPrice = recentPrices[leftShoulder];
+    const rightShoulderPrice = recentPrices[rightShoulder];
+    const shoulderDifference = Math.abs(leftShoulderPrice - rightShoulderPrice) / leftShoulderPrice;
+    
+    if (shoulderDifference <= 0.05) {
+      // Find the neckline (connect troughs between shoulders and head)
+      let leftTrough = Infinity;
+      for (let j = leftShoulder + 1; j < head; j++) {
+        if (recentPrices[j] < leftTrough) {
+          leftTrough = recentPrices[j];
+        }
+      }
+      
+      let rightTrough = Infinity;
+      for (let j = head + 1; j < rightShoulder; j++) {
+        if (recentPrices[j] < rightTrough) {
+          rightTrough = recentPrices[j];
+        }
+      }
+      
+      // The troughs should be at similar levels to form a neckline
+      const troughDifference = Math.abs(leftTrough - rightTrough) / leftTrough;
+      
+      if (troughDifference <= 0.03) {
+        // Check if price has broken below the neckline after the right shoulder
+        const necklineLevel = (leftTrough + rightTrough) / 2;
+        const currentPrice = recentPrices[recentPrices.length - 1];
+        
+        if (currentPrice < necklineLevel) {
+          return {
+            name: 'Head and Shoulders',
+            type: 'bearish',
+            confidence: 80 - (shoulderDifference * 100) - (troughDifference * 100),
+            description: 'Head and shoulders pattern detected - potential reversal from uptrend to downtrend'
+          };
+        }
+      }
+    }
+  }
+  
+  return null;
+}
+
+function detectInvertedHeadAndShoulders(prices: number[]): PatternDetection | null {
+  if (prices.length < 60) return null;
+  
+  // Get last 60 prices
+  const recentPrices = prices.slice(-60);
+  const lowPoints: number[] = [];
+  
+  // Find local minimums
+  for (let i = 2; i < recentPrices.length - 2; i++) {
+    if (recentPrices[i] < recentPrices[i-1] && 
+        recentPrices[i] < recentPrices[i-2] &&
+        recentPrices[i] < recentPrices[i+1] && 
+        recentPrices[i] < recentPrices[i+2]) {
+      lowPoints.push(i);
+    }
+  }
+  
+  // Need at least 3 lows for inverted head and shoulders
+  if (lowPoints.length < 3) return null;
+  
+  // Check for inverted head and shoulders pattern
+  for (let i = 0; i < lowPoints.length - 2; i++) {
+    const leftShoulder = lowPoints[i];
+    const head = lowPoints[i+1];
+    const rightShoulder = lowPoints[i+2];
+    
+    // The head should be lower than both shoulders
+    if (recentPrices[head] >= recentPrices[leftShoulder] || 
+        recentPrices[head] >= recentPrices[rightShoulder]) {
+      continue;
+    }
+    
+    // The shoulders should be at similar heights (within 5%)
+    const leftShoulderPrice = recentPrices[leftShoulder];
+    const rightShoulderPrice = recentPrices[rightShoulder];
+    const shoulderDifference = Math.abs(leftShoulderPrice - rightShoulderPrice) / leftShoulderPrice;
+    
+    if (shoulderDifference <= 0.05) {
+      // Find the neckline (connect peaks between shoulders and head)
+      let leftPeak = -Infinity;
+      for (let j = leftShoulder + 1; j < head; j++) {
+        if (recentPrices[j] > leftPeak) {
+          leftPeak = recentPrices[j];
+        }
+      }
+      
+      let rightPeak = -Infinity;
+      for (let j = head + 1; j < rightShoulder; j++) {
+        if (recentPrices[j] > rightPeak) {
+          rightPeak = recentPrices[j];
+        }
+      }
+      
+      // The peaks should be at similar levels to form a neckline
+      const peakDifference = Math.abs(leftPeak - rightPeak) / leftPeak;
+      
+      if (peakDifference <= 0.03) {
+        // Check if price has broken above the neckline after the right shoulder
+        const necklineLevel = (leftPeak + rightPeak) / 2;
+        const currentPrice = recentPrices[recentPrices.length - 1];
+        
+        if (currentPrice > necklineLevel) {
+          return {
+            name: 'Inverted Head and Shoulders',
+            type: 'bullish',
+            confidence: 80 - (shoulderDifference * 100) - (peakDifference * 100),
+            description: 'Inverted head and shoulders pattern detected - potential reversal from downtrend to uptrend'
+          };
+        }
+      }
+    }
+  }
+  
+  return null;
+}
+
 // Generate signals based on technical indicators
 export function generateSignals(klineData: KlineData[]): SignalSummary {
   // Extract prices
@@ -365,7 +649,8 @@ export function generateSignals(klineData: KlineData[]): SignalSummary {
         strength: 0,
         message: 'Not enough data to generate reliable signals'
       }],
-      priceTargets: null
+      priceTargets: null,
+      patterns: null
     };
   }
   
@@ -439,6 +724,40 @@ export function generateSignals(klineData: KlineData[]): SignalSummary {
       message: 'Low volume - potential weak movement'
     });
   }
+  
+  // 7. Detect chart patterns
+  const patterns: PatternDetection[] = [];
+  
+  const doubleBottom = detectDoubleBottom(prices);
+  if (doubleBottom) patterns.push(doubleBottom);
+  
+  const doubleTop = detectDoubleTop(prices);
+  if (doubleTop) patterns.push(doubleTop);
+  
+  const headAndShoulders = detectHeadAndShoulders(prices);
+  if (headAndShoulders) patterns.push(headAndShoulders);
+  
+  const invertedHeadAndShoulders = detectInvertedHeadAndShoulders(prices);
+  if (invertedHeadAndShoulders) patterns.push(invertedHeadAndShoulders);
+  
+  // Add pattern-based signals
+  patterns.forEach(pattern => {
+    if (pattern.type === 'bullish') {
+      signals.push({
+        type: 'BUY',
+        indicator: 'Chart Pattern',
+        strength: pattern.confidence,
+        message: `${pattern.name}: ${pattern.description}`
+      });
+    } else if (pattern.type === 'bearish') {
+      signals.push({
+        type: 'SELL',
+        indicator: 'Chart Pattern',
+        strength: pattern.confidence,
+        message: `${pattern.name}: ${pattern.description}`
+      });
+    }
+  });
   
   // Check for BUY conditions per your strict rules
   if (currentRSI > 50 && currentMACD > currentSignal && !isBBContracting && isHighVolume) {
@@ -622,6 +941,7 @@ export function generateSignals(klineData: KlineData[]): SignalSummary {
     overallSignal,
     confidence,
     signals,
-    priceTargets
+    priceTargets,
+    patterns: patterns.length > 0 ? patterns : null
   };
 }

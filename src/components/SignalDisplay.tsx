@@ -1,10 +1,10 @@
 
 import React from 'react';
-import { SignalSummary, TradingSignal } from '@/services/technicalAnalysisService';
+import { SignalSummary, TradingSignal, PatternDetection } from '@/services/technicalAnalysisService';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { ArrowDown, ArrowUp, Minus, AlertTriangle, Target, ShieldAlert } from 'lucide-react';
+import { ArrowDown, ArrowUp, Minus, AlertTriangle, Target, ShieldAlert, TrendingUp } from 'lucide-react';
 
 interface SignalDisplayProps {
   signalData: SignalSummary | null;
@@ -36,7 +36,7 @@ const SignalDisplay: React.FC<SignalDisplayProps> = ({
     );
   }
 
-  const { overallSignal, confidence, signals, priceTargets } = signalData;
+  const { overallSignal, confidence, signals, priceTargets, patterns } = signalData;
   const isBelowThreshold = confidence < confidenceThreshold;
 
   const signalColor = {
@@ -66,6 +66,15 @@ const SignalDisplay: React.FC<SignalDisplayProps> = ({
     HOLD: <Minus className="h-5 w-5" />,
     NEUTRAL: <Minus className="h-5 w-5" />
   };
+
+  // Sort signals to prioritize combined strategy and patterns
+  const sortedSignals = [...signals].sort((a, b) => {
+    if (a.indicator === 'Combined Strategy') return -1;
+    if (b.indicator === 'Combined Strategy') return 1;
+    if (a.indicator === 'Chart Pattern') return -1;
+    if (b.indicator === 'Chart Pattern') return 1;
+    return b.strength - a.strength;
+  });
 
   return (
     <Card className={cn(
@@ -143,6 +152,36 @@ const SignalDisplay: React.FC<SignalDisplayProps> = ({
           </div>
         </div>
         
+        {/* Patterns section */}
+        {patterns && patterns.length > 0 && (
+          <div className="mb-4 border border-crypto-border rounded-lg p-3">
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-sm font-medium flex items-center gap-1">
+                <TrendingUp className="h-4 w-4" />
+                <span>Pattern Recognition</span>
+              </h3>
+              <Badge className={cn(
+                patterns[0].type === 'bullish' ? 'bg-crypto-buy' : 'bg-crypto-sell',
+                'text-white'
+              )}>
+                {patterns[0].type.toUpperCase()}
+              </Badge>
+            </div>
+            
+            <div className="space-y-2">
+              {patterns.map((pattern, index) => (
+                <div key={index} className="text-xs p-2 rounded-md bg-gray-50">
+                  <div className="flex justify-between">
+                    <span className="font-medium">{pattern.name}</span>
+                    <span>{pattern.confidence.toFixed(0)}% confidence</span>
+                  </div>
+                  <p className="mt-1 text-gray-600">{pattern.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
         {/* Price targets section */}
         {priceTargets && (overallSignal === 'BUY' || overallSignal === 'SELL') && (
           <div className="mb-4 border border-crypto-border rounded-lg p-3">
@@ -196,7 +235,7 @@ const SignalDisplay: React.FC<SignalDisplayProps> = ({
         {/* Signal details section */}
         <h3 className="text-sm font-medium text-gray-600 mb-2">Signal Details</h3>
         <div className="space-y-2 max-h-[calc(100vh-26rem)] overflow-y-auto pr-1">
-          {signals.map((signal: TradingSignal, index: number) => (
+          {sortedSignals.map((signal: TradingSignal, index: number) => (
             <div 
               key={index}
               className="p-3 rounded-md bg-crypto-accent border border-crypto-border"

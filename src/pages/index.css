@@ -106,3 +106,36 @@
 .switch-track[data-state="checked"] {
   background-color: #3b82f6 !important;
 }
+
+/* Enhanced trade setup display for targets and stop loss */
+.trade-setup-container {
+  border: 2px solid rgba(79, 70, 229, 0.2);
+  border-radius: 0.5rem;
+  background-color: rgba(79, 70, 229, 0.05);
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.target-value {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.target-label {
+  font-size: 0.75rem;
+  color: #4f46e5;
+  font-weight: 500;
+}
+
+.stoploss-value {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.stoploss-label {
+  font-size: 0.75rem;
+  color: #ef4444;
+  font-weight: 500;
+}

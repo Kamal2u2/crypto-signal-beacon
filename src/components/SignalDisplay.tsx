@@ -153,6 +153,87 @@ const SignalDisplay: React.FC<SignalDisplayProps> = ({
           </div>
         </div>
         
+        {/* Enhanced Price Targets Section - Highlighted prominently at the top */}
+        {priceTargets && (overallSignal === 'BUY' || overallSignal === 'SELL') && (
+          <div className="mb-5 border-2 border-indigo-200 rounded-lg p-4 shadow-md bg-indigo-50">
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-base font-bold flex items-center gap-2 text-indigo-800">
+                <Target className="h-5 w-5 text-indigo-700" />
+                <span>Trade Setup</span>
+              </h3>
+              <Badge className={cn(
+                "font-medium px-2.5 py-1 text-sm",
+                overallSignal === 'BUY' ? 'bg-crypto-buy text-white' : 'bg-crypto-sell text-white'
+              )}>
+                R:R {priceTargets.riskRewardRatio.toFixed(1)}
+              </Badge>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {/* Entry and Stop Loss - Always prominent */}
+              <div className="md:col-span-3 grid grid-cols-2 gap-3 mb-3">
+                <div className="flex flex-col p-3 bg-white rounded-md border border-indigo-200 shadow-sm">
+                  <span className="text-xs text-gray-500 mb-1">Entry Price</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-lg font-bold text-gray-800">${priceTargets.entryPrice.toFixed(2)}</span>
+                    <Badge className="bg-indigo-100 text-indigo-800 hover:bg-indigo-200">
+                      {lastPrice && lastPrice > priceTargets.entryPrice 
+                        ? `${((lastPrice - priceTargets.entryPrice) / priceTargets.entryPrice * 100).toFixed(1)}% above` 
+                        : lastPrice && lastPrice < priceTargets.entryPrice
+                          ? `${((priceTargets.entryPrice - lastPrice) / priceTargets.entryPrice * 100).toFixed(1)}% below`
+                          : 'Current'}
+                    </Badge>
+                  </div>
+                </div>
+                
+                <div className="flex flex-col p-3 bg-white rounded-md border border-crypto-sell shadow-sm">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-crypto-sell font-medium flex items-center">
+                      <ShieldAlert className="h-3 w-3 mr-1" />
+                      Stop Loss
+                    </span>
+                    <span className="text-xs bg-crypto-sell/10 text-crypto-sell px-1.5 py-0.5 rounded">
+                      Risk: {((Math.abs(priceTargets.entryPrice - priceTargets.stopLoss) / priceTargets.entryPrice) * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                  <span className="text-lg font-bold text-gray-800">${priceTargets.stopLoss.toFixed(2)}</span>
+                </div>
+              </div>
+              
+              {/* Targets */}
+              <div className="flex flex-col p-3 bg-white rounded-md border border-crypto-buy shadow-sm">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-xs text-crypto-buy">Target 1</span>
+                  <span className="text-xs bg-crypto-buy/10 text-crypto-buy px-1.5 py-0.5 rounded">
+                    +{((Math.abs(priceTargets.target1 - priceTargets.entryPrice) / priceTargets.entryPrice) * 100).toFixed(1)}%
+                  </span>
+                </div>
+                <span className="text-base font-bold text-gray-800">${priceTargets.target1.toFixed(2)}</span>
+              </div>
+              
+              <div className="flex flex-col p-3 bg-white rounded-md border border-crypto-buy shadow-sm">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-xs text-crypto-buy">Target 2</span>
+                  <span className="text-xs bg-crypto-buy/10 text-crypto-buy px-1.5 py-0.5 rounded">
+                    +{((Math.abs(priceTargets.target2 - priceTargets.entryPrice) / priceTargets.entryPrice) * 100).toFixed(1)}%
+                  </span>
+                </div>
+                <span className="text-base font-bold text-gray-800">${priceTargets.target2.toFixed(2)}</span>
+              </div>
+              
+              <div className="flex flex-col p-3 bg-white rounded-md border border-crypto-buy shadow-sm">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-xs text-crypto-buy">Target 3</span>
+                  <span className="text-xs bg-crypto-buy/10 text-crypto-buy px-1.5 py-0.5 rounded">
+                    +{((Math.abs(priceTargets.target3 - priceTargets.entryPrice) / priceTargets.entryPrice) * 100).toFixed(1)}%
+                  </span>
+                </div>
+                <span className="text-base font-bold text-gray-800">${priceTargets.target3.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+        )}
+        
         {/* Patterns section */}
         {patterns && patterns.length > 0 && (
           <div className="mb-5 border border-gray-200 rounded-lg p-4 shadow-sm bg-white">
@@ -179,59 +260,6 @@ const SignalDisplay: React.FC<SignalDisplayProps> = ({
                   <p className="mt-1.5 text-gray-600 leading-relaxed">{pattern.description}</p>
                 </div>
               ))}
-            </div>
-          </div>
-        )}
-        
-        {/* Price targets section */}
-        {priceTargets && (overallSignal === 'BUY' || overallSignal === 'SELL') && (
-          <div className="mb-5 border border-gray-200 rounded-lg p-4 shadow-sm bg-white">
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="text-sm font-semibold flex items-center gap-1.5 text-gray-800">
-                <Target className="h-4 w-4 text-purple-500" />
-                <span>Price Targets</span>
-              </h3>
-              <Badge className={cn(
-                "font-medium px-2.5 py-1",
-                overallSignal === 'BUY' ? 'bg-crypto-buy text-white' : 'bg-crypto-sell text-white'
-              )}>
-                R:R {priceTargets.riskRewardRatio}
-              </Badge>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="flex justify-between items-center p-2 bg-gray-50 rounded-md">
-                <span className="text-gray-600 font-medium">Entry:</span>
-                <span className="font-bold text-gray-800">${priceTargets.entryPrice.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between items-center p-2 bg-red-50 rounded-md">
-                <span className="flex items-center text-crypto-sell font-medium">
-                  <ShieldAlert className="h-3 w-3 mr-1" />
-                  Stop Loss:
-                </span>
-                <span className="font-bold text-gray-800">${priceTargets.stopLoss.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between items-center p-2 bg-green-50 rounded-md">
-                <span className="text-gray-600 font-medium">Target 1:</span>
-                <span className="font-bold text-gray-800">${priceTargets.target1.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between items-center p-2 bg-green-50 rounded-md">
-                <span className="text-gray-600 font-medium">Target 2:</span>
-                <span className="font-bold text-gray-800">${priceTargets.target2.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between items-center p-2 bg-green-50 rounded-md">
-                <span className="text-gray-600 font-medium">Target 3:</span>
-                <span className="font-bold text-gray-800">${priceTargets.target3.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between items-center p-2 bg-blue-50 rounded-md">
-                <span className="text-gray-600 font-medium">Risk:</span>
-                <span className="font-bold text-gray-800">
-                  {overallSignal === 'BUY' 
-                    ? `${((priceTargets.entryPrice - priceTargets.stopLoss) / priceTargets.entryPrice * 100).toFixed(2)}%`
-                    : `${((priceTargets.stopLoss - priceTargets.entryPrice) / priceTargets.entryPrice * 100).toFixed(2)}%`
-                  }
-                </span>
-              </div>
             </div>
           </div>
         )}

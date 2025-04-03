@@ -71,6 +71,7 @@ let lastKlineData: KlineData[] = [];
 let activeSubscriptions: Set<string> = new Set();
 let priceWebsocket: WebSocket | null = null;
 let activePriceSymbol: string | null = null;
+let priceUpdateCallback: ((price: number) => void) | null = null;
 
 // Track connection state and retry attempts
 let wsRetryCount = 0;
@@ -221,23 +222,23 @@ function retryWebSocketConnection(
   }, delay);
 }
 
-// Function to initialize WebSocket connection for price ticker with improved reliability
+// Completely rewritten initializePriceWebSocket function with better reliability
 export function initializePriceWebSocket(
   symbol: string,
   onPriceUpdate: (price: number) => void
 ): void {
-  if (priceWebsocket && priceWebsocket.readyState === WebSocket.OPEN && activePriceSymbol === symbol) {
-    console.log(`Price WebSocket for ${symbol} already connected and open`);
-    return;
-  }
+  // Save the callback globally for reconnection purposes
+  priceUpdateCallback = onPriceUpdate;
   
+  // Always close existing connections before creating a new one
   if (priceWebsocket) {
-    console.log(`Closing existing price WebSocket before creating new one`);
     closePriceWebSocket();
   }
   
   try {
     const streamName = `${symbol.toLowerCase()}@ticker`;
+    activePriceSymbol = symbol;
+    
     if (isPriceReconnecting) {
       console.log(`Already attempting to reconnect price WebSocket. Skipping new connection request.`);
       return;
@@ -248,28 +249,33 @@ export function initializePriceWebSocket(
     priceConnectionTimeoutId = setTimeout(() => {
       if (priceWebsocket && priceWebsocket.readyState !== WebSocket.OPEN) {
         console.error('Price WebSocket connection timeout');
-        priceWebsocket.close();
-        priceWebsocket = null;
+        closePriceWebSocket();
         
-        // If still not connected after timeout, try again
-        if (!isPriceReconnecting) {
-          retryPriceWebSocketConnection(symbol, onPriceUpdate);
+        // Try again after timeout
+        if (!isPriceReconnecting && activePriceSymbol === symbol) {
+          retryPriceWebSocketConnection();
         }
       }
     }, CONNECTION_TIMEOUT);
     
-    console.log(`Initializing price WebSocket for ${symbol}`);
+    console.log(`Initializing price WebSocket for ${symbol} with stream: ${streamName}`);
     priceWebsocket = new WebSocket(`${BINANCE_WS_BASE_URL}/${streamName}`);
-    activePriceSymbol = symbol;
 
     priceWebsocket.onopen = () => {
-      console.log('Price WebSocket connection established');
+      console.log(`Price WebSocket connection established for ${symbol}`);
       priceWsRetryCount = 0; // Reset retry counter on successful connection
       isPriceReconnecting = false;
       
       if (priceConnectionTimeoutId) {
         clearTimeout(priceConnectionTimeoutId);
         priceConnectionTimeoutId = null;
+      }
+      
+      // Immediately send a dummy message to test the connection
+      try {
+        priceWebsocket?.send(JSON.stringify({ method: "PING" }));
+      } catch (err) {
+        console.error("Failed to send initial ping message:", err);
       }
     };
 
@@ -279,14 +285,13 @@ export function initializePriceWebSocket(
         
         // Handle ping/pong messages
         if (data.result === null) {
-          console.log('Received pong from Binance WebSocket');
           return;
         }
         
         if (data.e === 'ticker') {
           const price = parseFloat(data.c); // Current price
-          if (!isNaN(price) && price > 0) {
-            onPriceUpdate(price);
+          if (!isNaN(price) && price > 0 && priceUpdateCallback) {
+            priceUpdateCallback(price);
           }
         }
       } catch (error) {
@@ -301,8 +306,11 @@ export function initializePriceWebSocket(
         priceConnectionTimeoutId = null;
       }
       
-      if (!isPriceReconnecting) {
-        retryPriceWebSocketConnection(symbol, onPriceUpdate);
+      // Try to reconnect on any error
+      if (!isPriceReconnecting && activePriceSymbol === symbol) {
+        console.log("Price WebSocket error occurred, attempting to reconnect...");
+        closePriceWebSocket();
+        retryPriceWebSocketConnection();
       }
     };
 
@@ -316,7 +324,8 @@ export function initializePriceWebSocket(
       
       // Only attempt to reconnect if not manually closed
       if (activePriceSymbol === symbol && !isPriceReconnecting) {
-        retryPriceWebSocketConnection(symbol, onPriceUpdate);
+        console.log("Price WebSocket closed, attempting to reconnect...");
+        retryPriceWebSocketConnection();
       }
     };
   } catch (error) {
@@ -329,25 +338,23 @@ export function initializePriceWebSocket(
     }
     
     // Still try to reconnect on initialization error
-    if (!isPriceReconnecting) {
-      retryPriceWebSocketConnection(symbol, onPriceUpdate);
+    if (!isPriceReconnecting && activePriceSymbol === symbol) {
+      retryPriceWebSocketConnection();
     }
   }
 }
 
-// Function to retry price WebSocket connection with exponential backoff
-function retryPriceWebSocketConnection(
-  symbol: string,
-  onPriceUpdate: (price: number) => void
-): void {
-  if (isPriceReconnecting) return;
+// Rewritten retry function that uses the globally saved callback
+function retryPriceWebSocketConnection(): void {
+  if (isPriceReconnecting || !activePriceSymbol || !priceUpdateCallback) return;
+  
   isPriceReconnecting = true;
   
   if (priceWsRetryCount >= MAX_RETRY_COUNT) {
     console.error(`Maximum retry attempts (${MAX_RETRY_COUNT}) reached for price WebSocket connection.`);
     toast({
       title: "Price Connection Error",
-      description: "Failed to connect to Binance price feed. Live price updates may be unavailable.",
+      description: "Failed to connect to live price feed. Try refreshing the page.",
       variant: "destructive"
     });
     isPriceReconnecting = false;
@@ -361,51 +368,63 @@ function retryPriceWebSocketConnection(
   console.log(`Retrying price WebSocket connection in ${delay}ms (attempt ${priceWsRetryCount}/${MAX_RETRY_COUNT})...`);
   
   setTimeout(() => {
-    if (activePriceSymbol === symbol) {
-      console.log('Attempting to reconnect price WebSocket...');
-      initializePriceWebSocket(symbol, onPriceUpdate);
+    if (activePriceSymbol && priceUpdateCallback) {
+      console.log(`Attempting to reconnect price WebSocket for ${activePriceSymbol}...`);
+      // Store values locally in case they change during the timeout
+      const symbol = activePriceSymbol;
+      const callback = priceUpdateCallback;
+      
+      // Reinitialize with the same parameters
+      initializePriceWebSocket(symbol, callback);
     } else {
       isPriceReconnecting = false;
     }
   }, delay);
 }
 
-// Function to send ping to keep WebSocket alive
+// Improved ping function for price WebSocket
 export function pingPriceWebSocket(): void {
   if (priceWebsocket && priceWebsocket.readyState === WebSocket.OPEN) {
     try {
-      console.log('Sending ping to price WebSocket to keep it alive');
       priceWebsocket.send(JSON.stringify({ method: "PING" }));
     } catch (error) {
       console.error('Error sending ping to price WebSocket:', error);
       // If we can't send a ping, the connection might be dead, try to reconnect
-      if (activePriceSymbol) {
+      if (activePriceSymbol && priceUpdateCallback) {
+        console.log("Failed to send ping, reconnecting price WebSocket...");
         closePriceWebSocket();
+        initializePriceWebSocket(activePriceSymbol, priceUpdateCallback);
       }
     }
-  } else if (priceWebsocket && priceWebsocket.readyState !== WebSocket.CONNECTING && activePriceSymbol) {
+  } else if (priceWebsocket && priceWebsocket.readyState !== WebSocket.CONNECTING && activePriceSymbol && priceUpdateCallback) {
     // If the WebSocket is not open or connecting, but we have an active symbol, try to reconnect
     console.warn('Price WebSocket not open, attempting to reconnect');
     closePriceWebSocket();
+    initializePriceWebSocket(activePriceSymbol, priceUpdateCallback);
   }
 }
 
-// Function to close WebSocket connection for price ticker with improved cleanup
+// Improved close function for price WebSocket
 export function closePriceWebSocket(): void {
   if (priceWebsocket) {
     try {
       isPriceReconnecting = false;
-      activePriceSymbol = null;
       
       if (priceConnectionTimeoutId) {
         clearTimeout(priceConnectionTimeoutId);
         priceConnectionTimeoutId = null;
       }
       
+      // Save symbol before closing for debugging
+      const symbol = activePriceSymbol;
+      activePriceSymbol = null;
+      
+      console.log(`Closing price WebSocket for ${symbol}`);
       priceWebsocket.close();
       priceWebsocket = null;
     } catch (error) {
       console.error('Error closing price WebSocket:', error);
+      priceWebsocket = null;
     }
   }
 }

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { ArrowUp, ArrowDown } from 'lucide-react';
 
@@ -10,67 +10,39 @@ interface LiveCoinPriceProps {
 }
 
 const LiveCoinPrice: React.FC<LiveCoinPriceProps> = ({ price, symbol, className }) => {
+  const [displayPrice, setDisplayPrice] = useState<number | null>(null);
   const [previousPrice, setPreviousPrice] = useState<number | null>(null);
   const [priceDirection, setPriceDirection] = useState<'up' | 'down' | null>(null);
   const [flashAnimation, setFlashAnimation] = useState(false);
-  const [displayPrice, setDisplayPrice] = useState<number | null>(null);
   
-  // Add debounce mechanism to prevent too frequent UI updates
-  const animationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastUpdateTimeRef = useRef<number>(0);
-  
-  // Update display price whenever we get a new price
+  // Immediately update display price when we get a new price
   useEffect(() => {
     if (price !== null) {
-      setDisplayPrice(price);
-    }
-  }, [price]);
-  
-  // Debounce function for price updates
-  useEffect(() => {
-    // Don't update too frequently - minimum 300ms between updates to prevent lag
-    const now = Date.now();
-    
-    if (displayPrice !== null && previousPrice !== null && now - lastUpdateTimeRef.current > 300) {
-      setPriceDirection(displayPrice > previousPrice ? 'up' : displayPrice < previousPrice ? 'down' : null);
-      setFlashAnimation(true);
-      lastUpdateTimeRef.current = now;
-      
-      // Clear previous timeout if it exists
-      if (animationTimeoutRef.current) {
-        clearTimeout(animationTimeoutRef.current);
+      // First time initialization
+      if (displayPrice === null) {
+        setDisplayPrice(price);
+        setPreviousPrice(price);
+        return;
       }
       
-      // Reset flash animation
-      animationTimeoutRef.current = setTimeout(() => {
-        setFlashAnimation(false);
-        animationTimeoutRef.current = null;
-      }, 1000);
-    }
-    
-    if (displayPrice !== null && previousPrice === null) {
-      setPreviousPrice(displayPrice);
-      lastUpdateTimeRef.current = now;
-    }
-    
-    return () => {
-      if (animationTimeoutRef.current) {
-        clearTimeout(animationTimeoutRef.current);
-      }
-    };
-  }, [displayPrice, previousPrice]);
-  
-  // Update previous price with a slight delay to reduce flickering
-  useEffect(() => {
-    if (displayPrice !== null && displayPrice !== previousPrice) {
-      const delay = setTimeout(() => {
+      // Only update if price actually changed
+      if (price !== displayPrice) {
         setPreviousPrice(displayPrice);
-      }, 500); // Delay update slightly to show direction change
-      
-      return () => clearTimeout(delay);
+        setDisplayPrice(price);
+        setPriceDirection(price > displayPrice ? 'up' : 'down');
+        setFlashAnimation(true);
+        
+        // Reset flash animation after 1 second
+        const timeout = setTimeout(() => {
+          setFlashAnimation(false);
+        }, 1000);
+        
+        return () => clearTimeout(timeout);
+      }
     }
-  }, [displayPrice, previousPrice]);
-  
+  }, [price, displayPrice]);
+
+  // Don't render anything if we don't have a price
   if (displayPrice === null) return null;
   
   return (

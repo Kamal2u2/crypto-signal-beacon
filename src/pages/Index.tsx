@@ -120,11 +120,52 @@ const Index = () => {
     setCurrentPrice(price);
   }, [selectedPair.symbol]);
 
-  // Initial data fetch and WebSocket setup
   useEffect(() => {
     if (!isBacktestMode) {
-      const fetchAndInitialize = async () => {
-        setIsLoading(true);
+      const setupPriceWebSocket = async () => {
+        try {
+          // Get initial price
+          const initialPrice = await fetchCurrentPrice(selectedPair.symbol);
+          setCurrentPrice(initialPrice);
+          
+          // Initialize price WebSocket with a more explicit callback
+          const priceUpdateCallback = (newPrice: number) => {
+            console.log(`Live price update received for ${selectedPair.symbol}: $${newPrice}`);
+            setCurrentPrice(newPrice);
+          };
+          
+          initializePriceWebSocket(
+            selectedPair.symbol,
+            priceUpdateCallback
+          );
+          
+          // Set up regular pinging to keep the connection alive
+          const pingInterval = setInterval(() => {
+            console.log('Pinging price WebSocket to keep it alive');
+            pingPriceWebSocket();
+          }, 10000); // Every 10 seconds
+          
+          return () => {
+            clearInterval(pingInterval);
+            closePriceWebSocket();
+          };
+        } catch (error) {
+          console.error('Error setting up price WebSocket:', error);
+          toast({
+            title: "Price Connection Error",
+            description: "Failed to establish price connection. Try refreshing the page.",
+            variant: "destructive"
+          });
+        }
+      };
+      
+      setupPriceWebSocket();
+    }
+  }, [selectedPair.symbol, isBacktestMode]);
+
+  useEffect(() => {
+    if (!isBacktestMode) {
+      const setupKlineWebSocket = async () => {
         try {
           const data = await fetchKlineData(selectedPair.symbol, selectedInterval);
           setKlineData(data);
@@ -138,46 +179,25 @@ const Index = () => {
             selectedInterval,
             handleKlineUpdate
           );
-          
-          // Get initial price
-          const initialPrice = await fetchCurrentPrice(selectedPair.symbol);
-          setCurrentPrice(initialPrice);
-          
-          // Initialize price WebSocket
-          initializePriceWebSocket(
-            selectedPair.symbol,
-            handlePriceUpdate
-          );
-          
         } catch (error) {
-          console.error('Error initializing data:', error);
-        } finally {
-          setIsLoading(false);
+          console.error('Error initializing kline data:', error);
+          toast({
+            title: "Connection Error",
+            description: "Failed to load chart data. Please try again.",
+            variant: "destructive"
+          });
         }
       };
       
-      fetchAndInitialize();
+      setupKlineWebSocket();
       
       // Cleanup WebSocket on unmount or when pair/interval changes
       return () => {
         closeWebSocket();
-        closePriceWebSocket();
       };
     }
-  }, [selectedPair.symbol, selectedInterval, isBacktestMode, handleKlineUpdate, handlePriceUpdate]);
+  }, [selectedPair.symbol, selectedInterval, isBacktestMode, handleKlineUpdate]);
 
-  // Keep alive ping for price websocket
-  useEffect(() => {
-    const pingInterval = setInterval(() => {
-      pingPriceWebSocket();
-    }, 15000); // Every 15 seconds
-    
-    return () => {
-      clearInterval(pingInterval);
-    };
-  }, []);
-
-  // Update manual refresh to reconnect WebSocket
   const handleRefresh = () => {
     if (!isBacktestMode) {
       closeWebSocket();
@@ -195,9 +215,8 @@ const Index = () => {
     // Close and reopen WebSockets when pair changes
     closeWebSocket();
     closePriceWebSocket();
-    initializeWebSocket(pair.symbol, selectedInterval, handleKlineUpdate);
-    initializePriceWebSocket(pair.symbol, handlePriceUpdate);
     
+    // Instead of immediately reopening here, let the effects handle it
     console.log(`Switching to pair: ${pair.symbol}`);
   };
 

@@ -1,3 +1,4 @@
+
 import * as React from "react"
 import * as RechartsPrimitive from "recharts"
 
@@ -50,7 +51,7 @@ const ChartContainer = React.forwardRef<
         data-chart={chartId}
         ref={ref}
         className={cn(
-          "flex aspect-video justify-center text-xs [&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground [&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border/50 [&_.recharts-curve.recharts-tooltip-cursor]:stroke-border [&_.recharts-dot[stroke='#fff']]:stroke-transparent [&_.recharts-layer]:outline-none [&_.recharts-polar-grid_[stroke='#ccc']]:stroke-border [&_.recharts-radial-bar-background-sector]:fill-muted [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted [&_.recharts-reference-line_[stroke='#ccc']]:stroke-border [&_.recharts-sector[stroke='#fff']]:stroke-transparent [&_.recharts-sector]:outline-none [&_.recharts-surface]:outline-none",
+          "flex aspect-video justify-center text-xs [&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground [&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border/50 [&_.recharts-curve.recharts-tooltip-cursor]:stroke-border [&_.recharts-dot[stroke='#fff']]:stroke-transparent [&_.recharts-layer]:outline-none [&_.recharts-polar-grid_[stroke='#ccc']]:stroke-border [&_.recharts-radial-bar-background-sector]:fill-muted [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted [&_.recharts-reference-line_[stroke='#ccc']]:stroke-border [&_.recharts-sector[stroke='#fff']]:stroke-transparent [&_.recharts-sector]:outline-none [&_.recharts-surface]:outline-none [&_.recharts-scatter]:z-10",
           className
         )}
         {...props}
@@ -88,6 +89,7 @@ ${colorConfig
       itemConfig.color
     return color ? `  --color-${key}: ${color};` : null
   })
+  .filter(Boolean)
   .join("\n")}
 }
 `
@@ -109,6 +111,7 @@ const ChartTooltipContent = React.forwardRef<
       indicator?: "line" | "dot" | "dashed"
       nameKey?: string
       labelKey?: string
+      signalKey?: string
     }
 >(
   (
@@ -126,6 +129,7 @@ const ChartTooltipContent = React.forwardRef<
       color,
       nameKey,
       labelKey,
+      signalKey,
     },
     ref
   ) => {
@@ -173,6 +177,11 @@ const ChartTooltipContent = React.forwardRef<
 
     const nestLabel = payload.length === 1 && indicator !== "dot"
 
+    // Extract signal data if present in payload
+    const signalInfo = signalKey && payload[0].payload?.[signalKey] 
+      ? { type: payload[0].payload[signalKey], shown: true } 
+      : null;
+
     return (
       <div
         ref={ref}
@@ -182,6 +191,20 @@ const ChartTooltipContent = React.forwardRef<
         )}
       >
         {!nestLabel ? tooltipLabel : null}
+        
+        {/* Signal badge if present */}
+        {signalInfo && (
+          <div className="mb-1 flex justify-center">
+            <div className={cn(
+              "text-xs font-bold px-2 py-1 rounded-full",
+              signalInfo.type === 'BUY' ? "bg-green-100 text-green-800 border border-green-300" : 
+              signalInfo.type === 'SELL' ? "bg-red-100 text-red-800 border border-red-300" : ""
+            )}>
+              {signalInfo.type}
+            </div>
+          </div>
+        )}
+        
         <div className="grid gap-1.5">
           {payload.map((item, index) => {
             const key = `${nameKey || item.name || item.dataKey || "value"}`
@@ -236,9 +259,14 @@ const ChartTooltipContent = React.forwardRef<
                           {itemConfig?.label || item.name}
                         </span>
                       </div>
-                      {item.value && (
+                      {item.value !== undefined && (
                         <span className="font-mono font-medium tabular-nums text-foreground">
-                          {item.value.toLocaleString()}
+                          {typeof item.value === 'number' 
+                            ? item.value.toLocaleString(undefined, {
+                                minimumFractionDigits: 0,
+                                maximumFractionDigits: 2
+                              }) 
+                            : item.value}
                         </span>
                       )}
                     </div>

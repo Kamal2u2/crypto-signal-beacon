@@ -43,6 +43,24 @@ export interface BacktestSignal {
   outcome?: 'WIN' | 'LOSS' | 'OPEN';
 }
 
+// Helper function to format date/time consistently
+const formatXAxisTime = (time: number): string => {
+  const date = new Date(time);
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
+// Helper to generate readable tooltip time format
+const formatTooltipTime = (time: number): string => {
+  const date = new Date(time);
+  return date.toLocaleString([], { 
+    month: 'short', 
+    day: 'numeric', 
+    hour: '2-digit', 
+    minute: '2-digit',
+    second: '2-digit'
+  });
+};
+
 const PriceChart: React.FC<PriceChartProps> = ({ 
   data, 
   isPending, 
@@ -123,6 +141,8 @@ const PriceChart: React.FC<PriceChartProps> = ({
     const enhancedData: any = {
       ...item,
       time: item.openTime,
+      date: new Date(item.openTime),
+      formattedTime: formatXAxisTime(item.openTime),
       normalizedVolume: (item.volume / maxVolume) * 100,
       sma20: sma20[dataIndex],
       ema50: ema50[dataIndex],
@@ -144,11 +164,11 @@ const PriceChart: React.FC<PriceChartProps> = ({
   let signalMap: { [key: string]: 'BUY' | 'SELL' } = {};
   
   // Add live signals to the map if available
-  if (signalData && signalData.signals) {
+  if (signalData && signalData.signals && !backtestMode) {
     const lastCandleTime = data[data.length - 1].openTime;
-    signalMap[lastCandleTime.toString()] = signalData.overallSignal === 'BUY' || signalData.overallSignal === 'SELL' 
-      ? signalData.overallSignal 
-      : undefined;
+    if (signalData.overallSignal === 'BUY' || signalData.overallSignal === 'SELL') {
+      signalMap[lastCandleTime.toString()] = signalData.overallSignal;
+    }
   }
   
   // Add backtest signals to the map if available
@@ -157,6 +177,27 @@ const PriceChart: React.FC<PriceChartProps> = ({
       signalMap[signal.time.toString()] = signal.type;
     });
   }
+
+  // Create signal points for scatter plot
+  const signalPoints = Object.keys(signalMap).map(timeKey => {
+    const time = parseInt(timeKey);
+    const dataPoint = data.find(item => item.openTime === time);
+    
+    if (!dataPoint) return null;
+    
+    return {
+      time,
+      date: new Date(time),
+      formattedTime: formatXAxisTime(time),
+      price: dataPoint.close,
+      // For positioning:
+      // BUY signals should appear below the candle, SELL signals above
+      signalY: signalMap[timeKey] === 'BUY' 
+        ? dataPoint.low * 0.995 // Position below the low point
+        : dataPoint.high * 1.005, // Position above the high point
+      signalType: signalMap[timeKey]
+    };
+  }).filter(Boolean);
 
   const handleZoomIn = () => {
     setZoomLevel(prev => Math.max(10, prev - 20)); // Zoom in by reducing visible data
@@ -278,18 +319,19 @@ const PriceChart: React.FC<PriceChartProps> = ({
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" opacity={0.6} />
             <XAxis 
-              dataKey="time" 
-              tickFormatter={(time) => new Date(time).toLocaleTimeString()} 
+              dataKey="formattedTime" 
               tick={{fontSize: 12, fill: "#64748B"}}
               stroke="#94A3B8"
               strokeWidth={1.5}
+              tickCount={6}
+              minTickGap={30}
             />
             <YAxis 
               yAxisId="left" 
               orientation="left" 
               domain={['auto', 'auto']} 
               tick={{fontSize: 12, fill: "#64748B"}}
-              tickFormatter={(value) => value.toFixed(2)}
+              tickFormatter={(value) => value.toFixed(0)}
               stroke="#94A3B8"
               strokeWidth={1.5}
               width={60}
@@ -331,7 +373,10 @@ const PriceChart: React.FC<PriceChartProps> = ({
                 
                 return [parseFloat(value as string).toFixed(2), name];
               }}
-              labelFormatter={(time) => time ? new Date(time).toLocaleString() : 'Unknown time'}
+              labelFormatter={(time) => {
+                const dataPoint = chartData.find(item => item.formattedTime === time);
+                return dataPoint ? formatTooltipTime(dataPoint.time) : 'Unknown time';
+              }}
               contentStyle={{ 
                 backgroundColor: 'rgba(255, 255, 255, 0.95)', 
                 borderRadius: '8px', 
@@ -431,7 +476,7 @@ const PriceChart: React.FC<PriceChartProps> = ({
                 strokeWidth={2}
                 strokeDasharray="5 5"
                 label={{ 
-                  value: `S: ${level.toFixed(2)}`, 
+                  value: `S: ${level.toFixed(0)}`, 
                   position: 'insideBottomLeft',
                   fill: '#22c55e',
                   fontSize: 11,
@@ -449,7 +494,7 @@ const PriceChart: React.FC<PriceChartProps> = ({
                 strokeWidth={2}
                 strokeDasharray="5 5"
                 label={{ 
-                  value: `R: ${level.toFixed(2)}`, 
+                  value: `R: ${level.toFixed(0)}`, 
                   position: 'insideTopLeft',
                   fill: '#ef4444',
                   fontSize: 11,
@@ -458,48 +503,41 @@ const PriceChart: React.FC<PriceChartProps> = ({
               />
             ))}
 
-            {/* Signal markers */}
-            {showSignals && Object.keys(signalMap).length > 0 && (
-              <Scatter 
+            {/* Signal markers using explicitly positioned Scatter */}
+            {showSignals && signalPoints.length > 0 && (
+              <Scatter
                 yAxisId="left"
                 name="Signals"
-                data={chartData.map(point => {
-                  const timeKey = point.time.toString();
-                  if (signalMap[timeKey]) {
-                    return {
-                      ...point,
-                      signalType: signalMap[timeKey],
-                      signalValue: point.close,
-                      // Adjust vertical position of markers
-                      signalYPosition: signalMap[timeKey] === 'BUY' 
-                        ? point.low * 0.998  // Slightly below the candle for BUY
-                        : point.high * 1.002  // Slightly above the candle for SELL
-                    };
-                  }
-                  return null;
-                }).filter(Boolean)}
-                dataKey="time"
-                fill="#8884d8"
-                shape={(props: any) => {
-                  const { cx, cy, signalType, signalYPosition } = props.payload;
-                  // Use adjusted Y position if available
-                  const yCord = signalYPosition ? props.yAxis.scale(signalYPosition) : cy;
+                data={signalPoints}
+                shape={(props) => {
+                  if (!props || !props.payload) return null;
                   
+                  const { cx, cy, payload } = props;
+                  const signalType = payload.signalType;
+                  
+                  // Calculate explicit y-coordinate based on signalY value
+                  const yScale = props.yAxis.scale;
+                  const explicitY = yScale(payload.signalY);
+                  
+                  // SVG for BUY signal (green arrow up)
                   if (signalType === 'BUY') {
                     return (
-                      <svg x={cx - 15} y={yCord - 15} width="30" height="30" viewBox="0 0 30 30">
+                      <svg x={cx - 15} y={explicitY - 15} width="30" height="30" viewBox="0 0 30 30">
                         <circle cx="15" cy="15" r="12" fill="#22c55e" opacity="0.9" />
                         <path d="M15 7 L15 23 M9 13 L15 7 L21 13" stroke="white" strokeWidth="2" fill="none" />
                       </svg>
                     );
-                  } else if (signalType === 'SELL') {
+                  } 
+                  // SVG for SELL signal (red arrow down)
+                  else if (signalType === 'SELL') {
                     return (
-                      <svg x={cx - 15} y={yCord - 15} width="30" height="30" viewBox="0 0 30 30">
+                      <svg x={cx - 15} y={explicitY - 15} width="30" height="30" viewBox="0 0 30 30">
                         <circle cx="15" cy="15" r="12" fill="#ef4444" opacity="0.9" />
                         <path d="M15 7 L15 23 M9 17 L15 23 L21 17" stroke="white" strokeWidth="2" fill="none" />
                       </svg>
                     );
                   }
+                  
                   return null;
                 }}
               />
@@ -531,11 +569,11 @@ const PriceChart: React.FC<PriceChartProps> = ({
             >
               <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" opacity={0.6} />
               <XAxis 
-                dataKey="time" 
-                tickFormatter={(time) => new Date(time).toLocaleTimeString()} 
+                dataKey="formattedTime" 
                 tick={{fontSize: 12, fill: "#64748B"}}
                 height={15}
                 stroke="#94A3B8"
+                minTickGap={30}
               />
               <YAxis 
                 domain={[0, 100]} 
@@ -545,7 +583,10 @@ const PriceChart: React.FC<PriceChartProps> = ({
               />
               <Tooltip 
                 formatter={(value) => [parseFloat(value as string).toFixed(2), 'RSI']}
-                labelFormatter={(time) => time ? new Date(time).toLocaleString() : 'Unknown time'}
+                labelFormatter={(time) => {
+                  const dataPoint = chartData.find(item => item.formattedTime === time);
+                  return dataPoint ? formatTooltipTime(dataPoint.time) : 'Unknown time';
+                }}
                 contentStyle={{ 
                   backgroundColor: 'rgba(255, 255, 255, 0.95)', 
                   borderRadius: '8px', 
@@ -584,11 +625,11 @@ const PriceChart: React.FC<PriceChartProps> = ({
             >
               <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" opacity={0.6} />
               <XAxis 
-                dataKey="time" 
-                tickFormatter={(time) => new Date(time).toLocaleTimeString()} 
+                dataKey="formattedTime" 
                 tick={{fontSize: 12, fill: "#64748B"}}
                 height={15}
                 stroke="#94A3B8"
+                minTickGap={30}
               />
               <YAxis 
                 tick={{fontSize: 12, fill: "#64748B"}}
@@ -597,7 +638,10 @@ const PriceChart: React.FC<PriceChartProps> = ({
               />
               <Tooltip 
                 formatter={(value) => [parseFloat(value as string).toFixed(4), 'MACD']}
-                labelFormatter={(time) => time ? new Date(time).toLocaleString() : 'Unknown time'}
+                labelFormatter={(time) => {
+                  const dataPoint = chartData.find(item => item.formattedTime === time);
+                  return dataPoint ? formatTooltipTime(dataPoint.time) : 'Unknown time';
+                }}
                 contentStyle={{ 
                   backgroundColor: 'rgba(255, 255, 255, 0.95)', 
                   borderRadius: '8px', 

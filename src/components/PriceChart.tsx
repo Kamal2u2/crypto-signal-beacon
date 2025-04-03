@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -16,7 +15,8 @@ import {
   Line, 
   Legend, 
   ReferenceLine, 
-  Scatter 
+  Scatter,
+  Cell
 } from 'recharts';
 import { KlineData } from '@/services/binanceService';
 import { Skeleton } from '@/components/ui/skeleton';

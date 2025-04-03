@@ -1,4 +1,5 @@
 
+
 /* Increase chart size - optimized for maximum window */
 .crypto-chart-container {
   height: calc(100vh - 250px); /* Dynamic height based on viewport */
@@ -48,6 +49,16 @@
 
 .recharts-tooltip-wrapper {
   z-index: 10 !important;
+}
+
+/* Signal markers must be above all other chart elements */
+.recharts-layer.recharts-scatter {
+  z-index: 100 !important;
+}
+
+/* Signal points should be more prominent */
+.recharts-symbols {
+  filter: drop-shadow(0px 2px 4px rgba(0, 0, 0, 0.25)) !important;
 }
 
 /* Fix dropdown positioning and enhance visibility */
@@ -190,3 +201,30 @@
     min-height: 400px;
   }
 }
+
+/* Custom tooltip styling for better visibility */
+.recharts-tooltip-wrapper .recharts-default-tooltip {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
+  padding: 10px !important;
+}
+
+/* Ensure tooltip has proper z-index */
+.recharts-tooltip-wrapper {
+  z-index: 1000 !important;
+}
+
+/* Better visibility for chart tick labels */
+.recharts-cartesian-axis-tick-value {
+  font-size: 12px !important;
+  fill: #4b5563 !important;
+}
+
+/* Explicitly handle width in container */
+.chart-content-wrapper {
+  width: 100% !important;
+  height: 100% !important;
+}
+

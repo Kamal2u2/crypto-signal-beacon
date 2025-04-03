@@ -537,15 +537,25 @@ export async function fetchAllCoinPairs(): Promise<CoinPair[]> {
 export async function fetchKlineData(
   symbol: string, 
   interval: TimeInterval, 
-  limit: number = 100
+  limit: number = 100,
+  startTime?: number,
+  endTime?: number
 ): Promise<KlineData[]> {
   try {
     const dynamicLimit = limit || getDataLimitForTimeframe(interval);
     
     console.log(`Fetching ${dynamicLimit} data points for ${symbol} at ${interval} interval`);
     
-    const now = Date.now();
-    const url = `${BINANCE_API_BASE_URL}/klines?symbol=${symbol}&interval=${interval}&limit=${dynamicLimit}`;
+    // Build URL with optional startTime and endTime parameters
+    let url = `${BINANCE_API_BASE_URL}/klines?symbol=${symbol}&interval=${interval}&limit=${dynamicLimit}`;
+    
+    if (startTime) {
+      url += `&startTime=${startTime}`;
+    }
+    
+    if (endTime) {
+      url += `&endTime=${endTime}`;
+    }
     
     const response = await fetch(url);
     

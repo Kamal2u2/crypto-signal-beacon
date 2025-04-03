@@ -11,7 +11,6 @@ import { COIN_PAIRS, CoinPair, TimeInterval, fetchAllCoinPairs } from '@/service
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from '@/components/ui/command';
-import ThemeToggle from './ThemeToggle';
 
 interface ControlPanelProps {
   selectedPair: CoinPair;
@@ -69,7 +68,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
     <Card className="control-panel-card bg-card">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Trading Configuration</CardTitle>
-        <ThemeToggle />
       </CardHeader>
       <CardContent className="grid gap-4">
         {/* Coin Pair Selection with Search */}

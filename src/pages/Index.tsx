@@ -271,36 +271,75 @@ const Index = () => {
     setBacktestResults(null);
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
       console.log("Running backtest with settings:", settings);
       
-      const data = await fetchKlineData(settings.pair.symbol, settings.interval, 100);
+      // Convert date range to timestamps
+      const fromTimestamp = settings.dateRange.from.getTime();
+      const toTimestamp = settings.dateRange.to ? settings.dateRange.to.getTime() : Date.now();
       
-      if (data.length > 0) {
-        setKlineData(data);
-        
-        const mockSignals = generateMockBacktestSignals(data, settings);
-        const mockPerformance = calculateMockPerformance(mockSignals, settings);
-        
-        const results: BacktestResults = {
-          signals: mockSignals,
-          performance: mockPerformance
-        };
-        
-        setBacktestResults(results);
-        
+      // Calculate time difference
+      const timeDiff = toTimestamp - fromTimestamp;
+      const daysDiff = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+      
+      // Limit the backtest to max 90 days to avoid excessive API calls
+      if (daysDiff > 90) {
         toast({
-          title: "Backtest Completed",
-          description: `${mockSignals.length} signals generated with ${mockPerformance.winRate.toFixed(1)}% win rate`,
-        });
-      } else {
-        toast({
-          title: "Backtest Failed",
-          description: "Could not retrieve historical data for backtest",
+          title: "Date Range Too Large",
+          description: "Backtest is limited to 90 days maximum. Please select a smaller date range.",
           variant: "destructive"
         });
+        setIsRunningBacktest(false);
+        return;
       }
+      
+      // Fetch historical data from Binance for the specified time period
+      toast({
+        title: "Fetching Historical Data",
+        description: `Loading ${settings.pair.label} data for backtest...`,
+      });
+      
+      const data = await fetchKlineData(
+        settings.pair.symbol, 
+        settings.interval, 
+        500,
+        fromTimestamp,
+        toTimestamp
+      );
+      
+      if (data.length === 0) {
+        toast({
+          title: "No Data Available",
+          description: "Could not retrieve historical data for the selected period",
+          variant: "destructive"
+        });
+        setIsRunningBacktest(false);
+        return;
+      }
+      
+      // Set the kline data for the chart
+      setKlineData(data);
+      
+      // Process the data and generate trading signals
+      toast({
+        title: "Generating Signals",
+        description: "Analyzing price data and generating trading signals...",
+      });
+      
+      // Process the signals with our technical analysis
+      const backtestSignals = await processBacktestData(data, settings);
+      const backtestPerformance = calculateBacktestPerformance(backtestSignals, settings);
+      
+      const results: BacktestResults = {
+        signals: backtestSignals,
+        performance: backtestPerformance
+      };
+      
+      setBacktestResults(results);
+      
+      toast({
+        title: "Backtest Completed",
+        description: `${backtestSignals.length} signals analyzed with ${backtestPerformance.winRate.toFixed(1)}% win rate`,
+      });
     } catch (error) {
       console.error("Backtest error:", error);
       toast({
@@ -313,52 +352,180 @@ const Index = () => {
     }
   };
 
-  const generateMockBacktestSignals = (data: KlineData[], settings: BacktestSettings) => {
+  // Process backtest data to generate signals
+  const processBacktestData = async (data: KlineData[], settings: BacktestSettings) => {
     const signals: BacktestResults['signals'] = [];
     
-    for (let i = 10; i < data.length - 20; i += Math.floor(Math.random() * 10) + 5) {
-      const type = Math.random() > 0.5 ? 'BUY' : 'SELL';
-      const price = data[i].close;
-      const time = data[i].openTime;
+    // Initialize variables for tracking position state
+    let inPosition = false;
+    let entryPrice = 0;
+    let entryTime = 0;
+    let positionType: 'BUY' | 'SELL' | null = null;
+    
+    // We'll use a sliding window approach to simulate real-time trading
+    // For each point in time, we'll only use the data available up to that point
+    // to make trading decisions, simulating how a trader would experience it
+    for (let i = 30; i < data.length; i++) {
+      // Get the data up to the current candle (to avoid look-ahead bias)
+      const historicalData = data.slice(0, i);
       
-      if (type === 'BUY' && i + 10 < data.length) {
-        const futurePrice = data[i + 10].close;
-        const profitPercent = ((futurePrice - price) / price) * 100;
-        const outcome = profitPercent > 0 ? 'WIN' : 'LOSS';
-        
-        signals.push({
-          time,
-          price,
-          type,
-          profit: futurePrice - price,
-          profitPercent,
-          outcome
-        });
-      } 
-      else if (type === 'SELL' && i + 10 < data.length) {
-        const futurePrice = data[i + 10].close;
-        const profitPercent = ((price - futurePrice) / price) * 100;
-        const outcome = profitPercent > 0 ? 'WIN' : 'LOSS';
-        
-        signals.push({
-          time,
-          price,
-          type,
-          profit: price - futurePrice,
-          profitPercent,
-          outcome
-        });
+      // Generate signals based on our technical analysis
+      const signalData = generateSignals(historicalData);
+      
+      const currentCandle = data[i];
+      const currentTime = currentCandle.openTime;
+      const currentPrice = currentCandle.close;
+      
+      // Check if we should generate a new signal at this point
+      if (!inPosition) {
+        // Check for entry signal (only if we're not already in a position)
+        if (signalData.overallSignal === 'BUY' && signalData.confidence >= 60) {
+          inPosition = true;
+          entryPrice = currentPrice;
+          entryTime = currentTime;
+          positionType = 'BUY';
+        } else if (signalData.overallSignal === 'SELL' && signalData.confidence >= 60) {
+          inPosition = true;
+          entryPrice = currentPrice;
+          entryTime = currentTime;
+          positionType = 'SELL';
+        }
+      } else {
+        // If we're in a position, check for exit conditions
+        if (positionType === 'BUY') {
+          // For BUY positions, we could exit if:
+          // 1. We get a SELL signal
+          // 2. Stop loss is hit (configurable percentage below entry)
+          // 3. Take profit is hit (configurable percentage above entry)
+          
+          // Check for stop loss (default 2%)
+          const stopLossPrice = entryPrice * 0.98;
+          // Check for take profit (default 4%)
+          const takeProfitPrice = entryPrice * 1.04;
+          
+          let exitReason = '';
+          let profitPercent = 0;
+          
+          if (settings.useStopLoss && currentPrice <= stopLossPrice) {
+            // Stop loss hit
+            profitPercent = ((currentPrice - entryPrice) / entryPrice) * 100;
+            exitReason = 'Stop loss';
+          } else if (settings.useTakeProfit && currentPrice >= takeProfitPrice) {
+            // Take profit hit
+            profitPercent = ((currentPrice - entryPrice) / entryPrice) * 100;
+            exitReason = 'Take profit';
+          } else if (signalData.overallSignal === 'SELL' && signalData.confidence >= 60) {
+            // Exit on opposite signal
+            profitPercent = ((currentPrice - entryPrice) / entryPrice) * 100;
+            exitReason = 'Signal reversal';
+          } else if (i === data.length - 1) {
+            // Exit at end of data if still in position
+            profitPercent = ((currentPrice - entryPrice) / entryPrice) * 100;
+            exitReason = 'End of period';
+          } else {
+            // No exit condition met yet
+            continue;
+          }
+          
+          // Add the completed trade to signals
+          signals.push({
+            time: entryTime,
+            price: entryPrice,
+            type: 'BUY',
+            exitTime: currentTime,
+            exitPrice: currentPrice,
+            profit: currentPrice - entryPrice,
+            profitPercent: profitPercent,
+            outcome: profitPercent > 0 ? 'WIN' : 'LOSS',
+            exitReason
+          });
+          
+          // Reset position tracking
+          inPosition = false;
+          entryPrice = 0;
+          entryTime = 0;
+          positionType = null;
+          
+        } else if (positionType === 'SELL') {
+          // For SELL positions (short selling), we could exit if:
+          // 1. We get a BUY signal
+          // 2. Stop loss is hit (configurable percentage above entry)
+          // 3. Take profit is hit (configurable percentage below entry)
+          
+          // Check for stop loss (default 2% above entry for shorts)
+          const stopLossPrice = entryPrice * 1.02;
+          // Check for take profit (default 4% below entry for shorts)
+          const takeProfitPrice = entryPrice * 0.96;
+          
+          let exitReason = '';
+          let profitPercent = 0;
+          
+          if (settings.useStopLoss && currentPrice >= stopLossPrice) {
+            // Stop loss hit
+            profitPercent = ((entryPrice - currentPrice) / entryPrice) * 100;
+            exitReason = 'Stop loss';
+          } else if (settings.useTakeProfit && currentPrice <= takeProfitPrice) {
+            // Take profit hit
+            profitPercent = ((entryPrice - currentPrice) / entryPrice) * 100;
+            exitReason = 'Take profit';
+          } else if (signalData.overallSignal === 'BUY' && signalData.confidence >= 60) {
+            // Exit on opposite signal
+            profitPercent = ((entryPrice - currentPrice) / entryPrice) * 100;
+            exitReason = 'Signal reversal';
+          } else if (i === data.length - 1) {
+            // Exit at end of data if still in position
+            profitPercent = ((entryPrice - currentPrice) / entryPrice) * 100;
+            exitReason = 'End of period';
+          } else {
+            // No exit condition met yet
+            continue;
+          }
+          
+          // Add the completed trade to signals
+          signals.push({
+            time: entryTime,
+            price: entryPrice,
+            type: 'SELL',
+            exitTime: currentTime,
+            exitPrice: currentPrice,
+            profit: entryPrice - currentPrice,
+            profitPercent: profitPercent,
+            outcome: profitPercent > 0 ? 'WIN' : 'LOSS',
+            exitReason
+          });
+          
+          // Reset position tracking
+          inPosition = false;
+          entryPrice = 0;
+          entryTime = 0;
+          positionType = null;
+        }
       }
     }
     
     return signals;
   };
 
-  const calculateMockPerformance = (signals: BacktestResults['signals'], settings: BacktestSettings) => {
+  const calculateBacktestPerformance = (signals: BacktestResults['signals'], settings: BacktestSettings) => {
+    // If no signals were generated, return default performance metrics
+    if (signals.length === 0) {
+      return {
+        totalTrades: 0,
+        winningTrades: 0,
+        losingTrades: 0,
+        winRate: 0,
+        profitFactor: 0,
+        netProfit: 0,
+        maxDrawdown: 0,
+        averageProfit: 0,
+        averageLoss: 0
+      };
+    }
+    
     const winningTrades = signals.filter(s => s.outcome === 'WIN').length;
     const losingTrades = signals.filter(s => s.outcome === 'LOSS').length;
     const totalTrades = signals.length;
-    const winRate = (winningTrades / totalTrades) * 100;
+    const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0;
     
     const profits = signals.filter(s => s.outcome === 'WIN').map(s => s.profitPercent || 0);
     const losses = signals.filter(s => s.outcome === 'LOSS').map(s => s.profitPercent || 0);
@@ -371,20 +538,36 @@ const Index = () => {
     const averageProfit = profits.length > 0 ? totalProfit / profits.length : 0;
     const averageLoss = losses.length > 0 ? losses.reduce((sum, val) => sum + val, 0) / losses.length : 0;
     
+    // Calculate drawdown
     let maxDrawdown = 0;
-    let cumProfit = 0;
-    let peakProfit = 0;
+    let peakCapital = settings.initialCapital;
+    let currentCapital = settings.initialCapital;
     
-    signals.forEach(signal => {
-      if (signal.profitPercent) {
-        cumProfit += signal.profitPercent;
-        peakProfit = Math.max(peakProfit, cumProfit);
-        const drawdown = peakProfit - cumProfit;
-        maxDrawdown = Math.max(maxDrawdown, drawdown);
+    // Sort signals by time to simulate chronological trades
+    const sortedSignals = [...signals].sort((a, b) => a.time - b.time);
+    
+    sortedSignals.forEach(signal => {
+      // Apply position sizing to each trade
+      const positionSize = currentCapital * (settings.positionSize / 100);
+      const profitLoss = positionSize * (signal.profitPercent || 0) / 100;
+      
+      // Update capital after trade
+      currentCapital += profitLoss;
+      
+      // Update peak capital if new high
+      if (currentCapital > peakCapital) {
+        peakCapital = currentCapital;
+      }
+      
+      // Calculate drawdown from peak
+      const drawdown = ((peakCapital - currentCapital) / peakCapital) * 100;
+      if (drawdown > maxDrawdown) {
+        maxDrawdown = drawdown;
       }
     });
     
-    const netProfit = signals.reduce((sum, signal) => sum + (signal.profitPercent || 0), 0);
+    // Calculate net profit percentage from initial capital
+    const netProfit = ((currentCapital - settings.initialCapital) / settings.initialCapital) * 100;
     
     return {
       totalTrades,

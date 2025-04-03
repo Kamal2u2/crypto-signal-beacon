@@ -7,12 +7,17 @@ import { DatePickerWithRange } from '@/components/ui/date-range-picker';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CoinPair, TimeInterval } from '@/services/binanceService';
+import { CoinPair, TimeInterval, fetchKlineData, COIN_PAIRS } from '@/services/binanceService';
 import { BacktestResults } from './PriceChart';
-import { Loader2, Clock, PlayCircle, TrendingUp, RefreshCw, Ban } from 'lucide-react';
+import { Loader2, Clock, PlayCircle, TrendingUp, RefreshCw, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
-import { addDays, format, isSameDay } from 'date-fns';
+import { addDays, format, subDays } from 'date-fns';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from '@/components/ui/command';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { generateSignals } from '@/services/technicalAnalysisService';
+import { toast } from '@/components/ui/use-toast';
 
 interface DateRange {
   from: Date;
@@ -47,7 +52,7 @@ const BacktestPanel: React.FC<BacktestPanelProps> = ({
 }) => {
   // Default to last 30 days
   const today = new Date();
-  const thirtyDaysAgo = addDays(today, -30);
+  const thirtyDaysAgo = subDays(today, 30);
   
   const [dateRange, setDateRange] = useState<DateRange>({ 
     from: thirtyDaysAgo,
@@ -59,10 +64,24 @@ const BacktestPanel: React.FC<BacktestPanelProps> = ({
   const [useStopLoss, setUseStopLoss] = useState<boolean>(true);
   const [useTakeProfit, setUseTakeProfit] = useState<boolean>(true);
   const [strategy, setStrategy] = useState<'default' | 'macd' | 'rsi' | 'combined'>('default');
+  
+  // State for coin pair selection
+  const [backtestPair, setBacktestPair] = useState<CoinPair>(selectedPair);
+  const [allCoinPairs, setAllCoinPairs] = useState<CoinPair[]>(COIN_PAIRS);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [openCoinSearch, setOpenCoinSearch] = useState(false);
+  
+  // Filtered coin pairs based on search term
+  const filteredPairs = searchTerm 
+    ? allCoinPairs.filter(pair => 
+        pair.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        pair.label.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    : allCoinPairs.slice(0, 50); // Limit initial display to prevent lag
 
   const handleRunBacktest = async () => {
     const settings: BacktestSettings = {
-      pair: selectedPair,
+      pair: backtestPair,
       interval: selectedInterval,
       dateRange,
       initialCapital,
@@ -95,13 +114,60 @@ const BacktestPanel: React.FC<BacktestPanelProps> = ({
         </div>
       </CardHeader>
       <CardContent className="pt-4 space-y-4">
+        {/* Coin Pair Selection */}
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">Coin Pair</Label>
+          <Popover open={openCoinSearch} onOpenChange={setOpenCoinSearch}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                className="w-full justify-between bg-background border-input"
+              >
+                {backtestPair.label}
+                <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[300px] p-0 bg-popover" align="start">
+              <Command className="bg-transparent">
+                <CommandInput 
+                  placeholder="Search coin pair..." 
+                  value={searchTerm}
+                  onValueChange={setSearchTerm}
+                  className="h-9"
+                />
+                <CommandList className="command-list">
+                  <CommandEmpty>No coin pairs found.</CommandEmpty>
+                  <CommandGroup>
+                    <ScrollArea className="h-[300px]">
+                      {filteredPairs.map((pair) => (
+                        <CommandItem
+                          key={pair.symbol}
+                          value={pair.symbol}
+                          onSelect={() => {
+                            setBacktestPair(pair);
+                            setOpenCoinSearch(false);
+                            setSearchTerm('');
+                          }}
+                          className="cursor-pointer hover:bg-muted"
+                        >
+                          {pair.label}
+                        </CommandItem>
+                      ))}
+                    </ScrollArea>
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+        </div>
+      
         <div className="space-y-2">
           <Label className="text-sm font-medium">Date Range</Label>
-          <div className="flex items-center justify-between text-sm p-3 bg-gray-50 rounded-md">
-            <span>{formatDateDisplay(dateRange.from)}</span>
-            <span className="text-gray-500">to</span>
-            <span>{dateRange.to ? formatDateDisplay(dateRange.to) : 'Present'}</span>
-          </div>
+          <DatePickerWithRange 
+            value={dateRange} 
+            onChange={setDateRange} 
+          />
           <div className="text-xs text-gray-500 mt-1">
             {dateRange.from && dateRange.to ? 
               `${Math.round((dateRange.to.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24))} days selected` : 

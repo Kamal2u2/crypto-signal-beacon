@@ -271,19 +271,23 @@ export function initializePriceWebSocket(
         clearTimeout(priceConnectionTimeoutId);
         priceConnectionTimeoutId = null;
       }
-      
-      // Send a ping to make sure the connection is active
-      if (priceWebsocket && priceWebsocket.readyState === WebSocket.OPEN) {
-        priceWebsocket.send(JSON.stringify({ method: "PING" }));
-      }
     };
 
     priceWebsocket.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
+        
+        // Handle ping/pong messages
+        if (data.result === null) {
+          console.log('Received pong from Binance WebSocket');
+          return;
+        }
+        
         if (data.e === 'ticker') {
           const price = parseFloat(data.c); // Current price
-          onPriceUpdate(price);
+          if (!isNaN(price) && price > 0) {
+            onPriceUpdate(price);
+          }
         }
       } catch (error) {
         console.error('Error processing price WebSocket message:', error);
@@ -370,10 +374,19 @@ function retryPriceWebSocketConnection(
 export function pingPriceWebSocket(): void {
   if (priceWebsocket && priceWebsocket.readyState === WebSocket.OPEN) {
     try {
+      console.log('Sending ping to price WebSocket to keep it alive');
       priceWebsocket.send(JSON.stringify({ method: "PING" }));
     } catch (error) {
       console.error('Error sending ping to price WebSocket:', error);
+      // If we can't send a ping, the connection might be dead, try to reconnect
+      if (activePriceSymbol) {
+        closePriceWebSocket();
+      }
     }
+  } else if (priceWebsocket && priceWebsocket.readyState !== WebSocket.CONNECTING && activePriceSymbol) {
+    // If the WebSocket is not open or connecting, but we have an active symbol, try to reconnect
+    console.warn('Price WebSocket not open, attempting to reconnect');
+    closePriceWebSocket();
   }
 }
 

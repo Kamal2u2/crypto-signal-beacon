@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
@@ -21,7 +20,8 @@ import {
   initializePriceWebSocket,
   closeWebSocket,
   closePriceWebSocket,
-  updateKlineData
+  updateKlineData,
+  pingPriceWebSocket
 } from '@/services/binanceService';
 import { 
   generateSignals, 
@@ -116,8 +116,9 @@ const Index = () => {
   ]);
 
   const handlePriceUpdate = useCallback((price: number) => {
+    console.log(`Price update received: ${price} for ${selectedPair.symbol}`);
     setCurrentPrice(price);
-  }, []);
+  }, [selectedPair.symbol]);
 
   // Initial data fetch and WebSocket setup
   useEffect(() => {
@@ -138,15 +139,15 @@ const Index = () => {
             handleKlineUpdate
           );
           
+          // Get initial price
+          const initialPrice = await fetchCurrentPrice(selectedPair.symbol);
+          setCurrentPrice(initialPrice);
+          
           // Initialize price WebSocket
           initializePriceWebSocket(
             selectedPair.symbol,
             handlePriceUpdate
           );
-          
-          // Get initial price
-          const initialPrice = await fetchCurrentPrice(selectedPair.symbol);
-          setCurrentPrice(initialPrice);
           
         } catch (error) {
           console.error('Error initializing data:', error);
@@ -165,12 +166,15 @@ const Index = () => {
     }
   }, [selectedPair.symbol, selectedInterval, isBacktestMode, handleKlineUpdate, handlePriceUpdate]);
 
-  // Remove the auto-refresh effect since we're using WebSocket now
+  // Keep alive ping for price websocket
   useEffect(() => {
-    if (refreshTimerRef.current) {
-      clearInterval(refreshTimerRef.current);
-      refreshTimerRef.current = null;
-    }
+    const pingInterval = setInterval(() => {
+      pingPriceWebSocket();
+    }, 15000); // Every 15 seconds
+    
+    return () => {
+      clearInterval(pingInterval);
+    };
   }, []);
 
   // Update manual refresh to reconnect WebSocket
@@ -187,6 +191,12 @@ const Index = () => {
     setSelectedPair(pair);
     setLastSignalType(null);
     setBacktestResults(null);
+    
+    // Close and reopen WebSockets when pair changes
+    closeWebSocket();
+    closePriceWebSocket();
+    initializeWebSocket(pair.symbol, selectedInterval, handleKlineUpdate);
+    initializePriceWebSocket(pair.symbol, handlePriceUpdate);
     
     console.log(`Switching to pair: ${pair.symbol}`);
   };

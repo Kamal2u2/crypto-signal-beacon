@@ -13,18 +13,26 @@ const LiveCoinPrice: React.FC<LiveCoinPriceProps> = ({ price, symbol, className 
   const [previousPrice, setPreviousPrice] = useState<number | null>(null);
   const [priceDirection, setPriceDirection] = useState<'up' | 'down' | null>(null);
   const [flashAnimation, setFlashAnimation] = useState(false);
+  const [displayPrice, setDisplayPrice] = useState<number | null>(null);
   
   // Add debounce mechanism to prevent too frequent UI updates
   const animationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastUpdateTimeRef = useRef<number>(0);
+  
+  // Update display price whenever we get a new price
+  useEffect(() => {
+    if (price !== null) {
+      setDisplayPrice(price);
+    }
+  }, [price]);
   
   // Debounce function for price updates
   useEffect(() => {
     // Don't update too frequently - minimum 300ms between updates to prevent lag
     const now = Date.now();
     
-    if (price !== null && previousPrice !== null && now - lastUpdateTimeRef.current > 300) {
-      setPriceDirection(price > previousPrice ? 'up' : price < previousPrice ? 'down' : null);
+    if (displayPrice !== null && previousPrice !== null && now - lastUpdateTimeRef.current > 300) {
+      setPriceDirection(displayPrice > previousPrice ? 'up' : displayPrice < previousPrice ? 'down' : null);
       setFlashAnimation(true);
       lastUpdateTimeRef.current = now;
       
@@ -40,8 +48,8 @@ const LiveCoinPrice: React.FC<LiveCoinPriceProps> = ({ price, symbol, className 
       }, 1000);
     }
     
-    if (price !== null && previousPrice === null) {
-      setPreviousPrice(price);
+    if (displayPrice !== null && previousPrice === null) {
+      setPreviousPrice(displayPrice);
       lastUpdateTimeRef.current = now;
     }
     
@@ -50,20 +58,20 @@ const LiveCoinPrice: React.FC<LiveCoinPriceProps> = ({ price, symbol, className 
         clearTimeout(animationTimeoutRef.current);
       }
     };
-  }, [price, previousPrice]);
+  }, [displayPrice, previousPrice]);
   
   // Update previous price with a slight delay to reduce flickering
   useEffect(() => {
-    if (price !== null && price !== previousPrice) {
+    if (displayPrice !== null && displayPrice !== previousPrice) {
       const delay = setTimeout(() => {
-        setPreviousPrice(price);
+        setPreviousPrice(displayPrice);
       }, 500); // Delay update slightly to show direction change
       
       return () => clearTimeout(delay);
     }
-  }, [price, previousPrice]);
+  }, [displayPrice, previousPrice]);
   
-  if (price === null) return null;
+  if (displayPrice === null) return null;
   
   return (
     <div 
@@ -82,7 +90,7 @@ const LiveCoinPrice: React.FC<LiveCoinPriceProps> = ({ price, symbol, className 
             priceDirection === 'up' && "text-green-600",
             priceDirection === 'down' && "text-red-600"
           )}>
-            ${price.toFixed(2)}
+            ${displayPrice.toFixed(2)}
           </span>
           {priceDirection && (
             <span className={cn(

@@ -1,4 +1,3 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -156,5 +155,28 @@
   
   .indicator-card {
     @apply border border-border rounded-lg p-3 bg-card shadow-sm hover:shadow-md transition-shadow;
+  }
+  
+  .select-content,
+  .command-list,
+  .popover-content {
+    @apply bg-white border border-gray-200 shadow-lg rounded-lg;
+  }
+  
+  .form-input,
+  .form-select {
+    @apply border-gray-300 focus:border-indigo-500 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 rounded-md transition-colors;
+  }
+  
+  .enhanced-card {
+    @apply rounded-xl shadow-md hover:shadow-lg transition-all duration-300 border border-gray-200;
+  }
+  
+  .gradient-header {
+    @apply bg-gradient-to-r from-indigo-50 to-blue-50;
+  }
+  
+  .signal-indicator {
+    @apply rounded-full p-2 flex items-center justify-center transition-all;
   }
 }

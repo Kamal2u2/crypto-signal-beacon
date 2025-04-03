@@ -4,7 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CoinPair, TimeInterval, COIN_PAIRS } from '@/services/binanceService';
-import { Clock, TrendingUp, BarChart3, LineChart } from 'lucide-react';
+import { BarChart3, Clock, LineChart, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -60,42 +60,42 @@ const IndicatorsPanel: React.FC<IndicatorsPanelProps> = ({
     : allCoinPairs.slice(0, 50); // Limit initial display to prevent lag
 
   return (
-    <Card className="shadow-md border border-gray-200">
-      <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-t-xl border-b">
+    <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden">
+      <CardHeader className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-t-xl border-b pb-4 pt-5">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+          <CardTitle className="text-lg font-semibold text-indigo-900 flex items-center gap-2">
             <BarChart3 className="h-5 w-5 text-indigo-600" />
             Technical Indicators
           </CardTitle>
-          <Badge className="bg-indigo-100 text-indigo-800 px-2.5 py-1">
+          <Badge className="bg-indigo-100 text-indigo-800 px-2.5 py-1 font-medium">
             {indicatorPair.label}
           </Badge>
         </div>
       </CardHeader>
-      <CardContent className="pt-4 space-y-4">
+      <CardContent className="pt-5 pb-4 px-5 space-y-5">
         {/* Coin Pair Selection */}
-        <div className="space-y-2">
-          <Label className="text-sm font-medium">Coin Pair</Label>
+        <div className="space-y-2.5">
+          <Label className="text-sm font-medium text-gray-700">Coin Pair</Label>
           <Popover open={openCoinSearch} onOpenChange={setOpenCoinSearch}>
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
                 role="combobox"
-                className="w-full justify-between bg-background border-input"
+                className="w-full justify-between bg-white border-gray-300 hover:bg-gray-50 hover:border-gray-400 transition-colors font-normal"
               >
                 {indicatorPair.label}
-                <TrendingUp className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                <TrendingUp className="ml-2 h-4 w-4 shrink-0 opacity-70" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[300px] p-0 bg-popover" align="start">
+            <PopoverContent className="w-[300px] p-0 bg-white shadow-xl border-gray-200" align="start">
               <Command className="bg-transparent">
                 <CommandInput 
                   placeholder="Search coin pair..." 
                   value={searchTerm}
                   onValueChange={setSearchTerm}
-                  className="h-9"
+                  className="h-10 border-0 focus-visible:ring-0 text-gray-800"
                 />
-                <CommandList className="command-list">
+                <CommandList className="max-h-[300px] overflow-auto">
                   <CommandEmpty>No coin pairs found.</CommandEmpty>
                   <CommandGroup>
                     <ScrollArea className="h-[300px]">
@@ -108,7 +108,7 @@ const IndicatorsPanel: React.FC<IndicatorsPanelProps> = ({
                             setOpenCoinSearch(false);
                             setSearchTerm('');
                           }}
-                          className="cursor-pointer hover:bg-muted"
+                          className="cursor-pointer hover:bg-gray-50 flex items-center py-2.5"
                         >
                           {pair.label}
                         </CommandItem>
@@ -122,37 +122,64 @@ const IndicatorsPanel: React.FC<IndicatorsPanelProps> = ({
         </div>
         
         {/* Time Interval Selection */}
-        <div className="space-y-2">
-          <Label className="text-sm font-medium">Time Frame</Label>
+        <div className="space-y-2.5">
+          <Label className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+            <Clock className="h-3.5 w-3.5 text-gray-500" />
+            Time Frame
+          </Label>
           <Select 
             value={indicatorInterval} 
             onValueChange={(value) => setIndicatorInterval(value as TimeInterval)}
           >
-            <SelectTrigger className="w-full">
+            <SelectTrigger className="w-full bg-white border-gray-300 hover:border-gray-400 transition-colors">
               <SelectValue placeholder="Select time frame" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="bg-white border-gray-200 shadow-lg">
               {timeIntervals.map((interval) => (
-                <SelectItem key={interval.value} value={interval.value}>
+                <SelectItem key={interval.value} value={interval.value} className="hover:bg-gray-50">
                   {interval.label}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-gray-500 italic pl-1">
             Select the candle time frame for indicator analysis
           </p>
         </div>
         
         {/* Indicator Categories */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid grid-cols-3 mb-2">
-            <TabsTrigger value="momentum">Momentum</TabsTrigger>
-            <TabsTrigger value="trend">Trend</TabsTrigger>
-            <TabsTrigger value="volatility">Volatility</TabsTrigger>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full mt-2">
+          <TabsList className="grid grid-cols-3 mb-4 bg-gray-100 p-1 rounded-lg">
+            <TabsTrigger 
+              value="momentum" 
+              className={cn(
+                "rounded-md transition-all", 
+                activeTab === "momentum" ? "bg-white shadow-sm text-indigo-700" : "text-gray-600 hover:text-gray-800"
+              )}
+            >
+              Momentum
+            </TabsTrigger>
+            <TabsTrigger 
+              value="trend" 
+              className={cn(
+                "rounded-md transition-all", 
+                activeTab === "trend" ? "bg-white shadow-sm text-indigo-700" : "text-gray-600 hover:text-gray-800"
+              )}
+            >
+              Trend
+            </TabsTrigger>
+            <TabsTrigger 
+              value="volatility" 
+              className={cn(
+                "rounded-md transition-all", 
+                activeTab === "volatility" ? "bg-white shadow-sm text-indigo-700" : "text-gray-600 hover:text-gray-800"
+              )}
+            >
+              Volatility
+            </TabsTrigger>
           </TabsList>
           
-          <TabsContent value="momentum" className="space-y-3">
+          <TabsContent value="momentum" className="space-y-3 mt-0">
             <IndicatorCard 
               name="RSI (14)" 
               value="58.32" 
@@ -173,7 +200,7 @@ const IndicatorsPanel: React.FC<IndicatorsPanelProps> = ({
             />
           </TabsContent>
           
-          <TabsContent value="trend" className="space-y-3">
+          <TabsContent value="trend" className="space-y-3 mt-0">
             <IndicatorCard 
               name="MA 50/200" 
               value="Bullish Cross" 
@@ -194,7 +221,7 @@ const IndicatorsPanel: React.FC<IndicatorsPanelProps> = ({
             />
           </TabsContent>
           
-          <TabsContent value="volatility" className="space-y-3">
+          <TabsContent value="volatility" className="space-y-3 mt-0">
             <IndicatorCard 
               name="Bollinger Bands" 
               value="Upper Contact" 
@@ -216,7 +243,7 @@ const IndicatorsPanel: React.FC<IndicatorsPanelProps> = ({
           </TabsContent>
         </Tabs>
         
-        <Button className="w-full mt-2 bg-indigo-600 hover:bg-indigo-700">
+        <Button className="w-full mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-sm">
           <LineChart className="mr-2 h-4 w-4" />
           Apply Indicators to Chart
         </Button>
@@ -246,25 +273,25 @@ const IndicatorCard = ({ name, value, status, description }: {
   };
 
   return (
-    <div className={cn("p-3 rounded-lg border", getStatusColor(status))}>
-      <div className="flex justify-between items-center mb-1">
-        <h3 className="font-medium text-sm">{name}</h3>
+    <div className={cn("p-3 rounded-lg border shadow-sm hover:shadow-md transition-all duration-200", getStatusColor(status))}>
+      <div className="flex justify-between items-center mb-1.5">
+        <h3 className="font-medium text-gray-800">{name}</h3>
         <Badge className={cn(
-          "capitalize",
-          status === 'bullish' && "bg-crypto-buy",
-          status === 'bearish' && "bg-crypto-sell",
-          status === 'neutral' && "bg-gray-500",
-          status === 'overbought' && "bg-amber-500",
-          status === 'oversold' && "bg-blue-500",
-          status === 'high' && "bg-purple-500",
-          status === 'low' && "bg-green-500",
-          status === 'moderate' && "bg-gray-500"
+          "capitalize rounded-full text-xs font-semibold px-2.5 shadow-sm",
+          status === 'bullish' && "bg-crypto-buy text-white",
+          status === 'bearish' && "bg-crypto-sell text-white",
+          status === 'neutral' && "bg-gray-500 text-white",
+          status === 'overbought' && "bg-amber-500 text-white",
+          status === 'oversold' && "bg-blue-500 text-white",
+          status === 'high' && "bg-purple-500 text-white",
+          status === 'low' && "bg-green-500 text-white",
+          status === 'moderate' && "bg-gray-500 text-white"
         )}>
           {status}
         </Badge>
       </div>
-      <div className="text-lg font-semibold">{value}</div>
-      <p className="text-xs mt-1 text-gray-600">{description}</p>
+      <div className="text-lg font-semibold text-gray-900">{value}</div>
+      <p className="text-xs mt-1.5 text-gray-600 leading-relaxed">{description}</p>
     </div>
   );
 };

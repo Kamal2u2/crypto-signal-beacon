@@ -142,9 +142,9 @@ const Index = () => {
             const now = Date.now();
             const timeSinceLastUpdate = now - lastPriceUpdateRef.current;
             
-            // If no price update for 15 seconds, manually fetch a new price
+            // If no price update for 5 seconds, manually fetch a new price
             // and try to reconnect the WebSocket
-            if (timeSinceLastUpdate > 15000) {
+            if (timeSinceLastUpdate > 5000) {
               console.log(`No price updates for ${Math.round(timeSinceLastUpdate/1000)}s, manually fetching price`);
               
               // Fetch a fresh price
@@ -161,7 +161,7 @@ const Index = () => {
               closePriceWebSocket();
               initializePriceWebSocket(selectedPair.symbol, handlePriceUpdate);
             }
-          }, 5000); // Check every 5 seconds
+          }, 2000); // Check every 2 seconds
           
           return () => {
             clearInterval(checkPriceUpdates);

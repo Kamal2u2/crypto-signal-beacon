@@ -90,7 +90,7 @@ const CONNECTION_TIMEOUT = 10000; // 10 seconds
 
 // Price WebSocket heartbeat management
 let priceHeartbeatInterval: NodeJS.Timeout | null = null;
-const HEARTBEAT_INTERVAL = 5000; // 5 seconds
+const HEARTBEAT_INTERVAL = 3000; // Reduced from 5s to 3s
 
 // Function to initialize WebSocket connection for kline data
 export function initializeWebSocket(
@@ -296,6 +296,7 @@ export function initializePriceWebSocket(
         
         // Handle ping/pong messages
         if (data.result === null) {
+          console.log("Received pong response from price WebSocket");
           return;
         }
         
@@ -622,5 +623,20 @@ export async function fetchCurrentPrice(symbol: string): Promise<number | null> 
   } catch (error) {
     console.error('Error fetching current price:', error);
     return null;
+  }
+}
+
+// Additional utility function to manually trigger a price update
+export async function forceUpdatePrice(symbol: string, callback: (price: number) => void): Promise<boolean> {
+  try {
+    const price = await fetchCurrentPrice(symbol);
+    if (price !== null) {
+      callback(price);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error("Error in force update price:", error);
+    return false;
   }
 }

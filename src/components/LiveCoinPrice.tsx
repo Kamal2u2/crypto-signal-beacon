@@ -131,7 +131,7 @@ const LiveCoinPrice: React.FC<LiveCoinPriceProps> = ({ price, symbol, className 
               )}
             </span>
           )}
-          {lastUpdateTime && new Date().getTime() - lastUpdateTime.getTime() > 30000 && (
+          {lastUpdateTime && new Date().getTime() - lastUpdateTime.getTime() > 10000 && (
             <span className="ml-2 text-amber-500 animate-pulse">
               <RefreshCw className="h-4 w-4" />
             </span>

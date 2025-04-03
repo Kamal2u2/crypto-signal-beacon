@@ -3,11 +3,9 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { Input } from '@/components/ui/input';
-import { RefreshCw, Clock, Search, X } from 'lucide-react';
+import { RefreshCw, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { COIN_PAIRS, CoinPair, TimeInterval, fetchAllCoinPairs } from '@/services/binanceService';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -32,10 +30,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   setSelectedPair,
   selectedInterval,
   setSelectedInterval,
-  refreshInterval,
-  setRefreshInterval,
-  isAutoRefreshEnabled,
-  setIsAutoRefreshEnabled,
   onRefresh,
   isLoading
 }) => {
@@ -69,20 +63,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         pair.label.toLowerCase().includes(searchTerm.toLowerCase())
       )
     : allCoinPairs.slice(0, 50); // Limit initial display to prevent lag
-
-  // Function to format refresh interval as HH:MM:SS
-  const formatInterval = (interval: number): string => {
-    const seconds = Math.floor(interval / 1000);
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const remainingSeconds = seconds % 60;
-
-    const formattedHours = String(hours).padStart(2, '0');
-    const formattedMinutes = String(minutes).padStart(2, '0');
-    const formattedSeconds = String(remainingSeconds).padStart(2, '0');
-
-    return `${formattedHours}:${formattedMinutes}:${formattedSeconds}`;
-  };
 
   return (
     <Card className="control-panel-card bg-white">
@@ -165,57 +145,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         </div>
 
         <Separator />
-
-        {/* Auto-Refresh Configuration */}
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label htmlFor="auto-refresh">Auto-Refresh</Label>
-            <p className="text-sm text-muted-foreground">
-              Update data automatically
-            </p>
-          </div>
-          <Switch
-            id="auto-refresh"
-            checked={isAutoRefreshEnabled}
-            onCheckedChange={setIsAutoRefreshEnabled}
-          />
-        </div>
-
-        {/* Refresh Interval Selection */}
-        {isAutoRefreshEnabled && (
-          <div className="flex items-center space-x-2">
-            <Label htmlFor="refresh-interval">Refresh Interval</Label>
-            <Select
-              value={String(refreshInterval)}
-              onValueChange={(value) => setRefreshInterval(Number(value))}
-            >
-              <SelectTrigger id="refresh-interval" className="w-[180px] bg-white">
-                <SelectValue placeholder="Select Interval" />
-              </SelectTrigger>
-              <SelectContent className="bg-white border border-gray-200 shadow-md">
-                <SelectItem value="5000">5 Seconds</SelectItem>
-                <SelectItem value="10000">10 Seconds</SelectItem>
-                <SelectItem value="15000">15 Seconds</SelectItem>
-                <SelectItem value="30000">30 Seconds</SelectItem>
-                <SelectItem value="60000">1 Minute</SelectItem>
-                <SelectItem value="120000">2 Minutes</SelectItem>
-                <SelectItem value="300000">5 Minutes</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
-        <Separator />
-
-        {/* Display Refresh Interval */}
-        {isAutoRefreshEnabled && (
-          <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-            <Clock className="h-4 w-4" />
-            <span>
-              Data refreshes every {formatInterval(refreshInterval)}
-            </span>
-          </div>
-        )}
 
         {/* Manual Refresh Button */}
         <Button onClick={onRefresh} disabled={isLoading} className="bg-blue-600 hover:bg-blue-700">

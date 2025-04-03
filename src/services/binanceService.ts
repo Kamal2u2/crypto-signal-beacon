@@ -1,4 +1,3 @@
-
 import { toast } from "@/components/ui/use-toast";
 
 // Base URL for Binance API
@@ -64,6 +63,96 @@ export function getDataLimitForTimeframe(interval: TimeInterval): number {
   }
 }
 
+// WebSocket base URL for Binance
+const BINANCE_WS_BASE_URL = 'wss://stream.binance.com:9443/ws';
+
+let websocket: WebSocket | null = null;
+let lastKlineData: KlineData[] = [];
+let activeSubscriptions: Set<string> = new Set();
+
+// Function to initialize WebSocket connection
+export function initializeWebSocket(
+  symbol: string, 
+  interval: TimeInterval,
+  onKlineUpdate: (kline: KlineData) => void
+): void {
+  if (websocket) {
+    // Close existing connection if any
+    closeWebSocket();
+  }
+
+  const streamName = `${symbol.toLowerCase()}@kline_${interval}`;
+  websocket = new WebSocket(`${BINANCE_WS_BASE_URL}/${streamName}`);
+
+  websocket.onopen = () => {
+    console.log('WebSocket connection established');
+    activeSubscriptions.add(streamName);
+  };
+
+  websocket.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      if (data.e === 'kline') {
+        const kline = transformWebSocketKline(data.k);
+        onKlineUpdate(kline);
+      }
+    } catch (error) {
+      console.error('Error processing WebSocket message:', error);
+    }
+  };
+
+  websocket.onerror = (error) => {
+    console.error('WebSocket error:', error);
+    toast({
+      title: "WebSocket Error",
+      description: "Connection error occurred. Attempting to reconnect...",
+      variant: "destructive"
+    });
+    // Attempt to reconnect after 5 seconds
+    setTimeout(() => {
+      if (activeSubscriptions.has(streamName)) {
+        initializeWebSocket(symbol, interval, onKlineUpdate);
+      }
+    }, 5000);
+  };
+
+  websocket.onclose = () => {
+    console.log('WebSocket connection closed');
+    // Attempt to reconnect if this was an unexpected closure
+    if (activeSubscriptions.has(streamName)) {
+      setTimeout(() => {
+        initializeWebSocket(symbol, interval, onKlineUpdate);
+      }, 5000);
+    }
+  };
+}
+
+// Function to close WebSocket connection
+export function closeWebSocket(): void {
+  if (websocket) {
+    activeSubscriptions.clear();
+    websocket.close();
+    websocket = null;
+  }
+}
+
+// Transform WebSocket kline data to our KlineData format
+function transformWebSocketKline(wsKline: any): KlineData {
+  return {
+    openTime: wsKline.t,
+    open: parseFloat(wsKline.o),
+    high: parseFloat(wsKline.h),
+    low: parseFloat(wsKline.l),
+    close: parseFloat(wsKline.c),
+    volume: parseFloat(wsKline.v),
+    closeTime: wsKline.T,
+    quoteAssetVolume: parseFloat(wsKline.q),
+    numberOfTrades: wsKline.n,
+    takerBuyBaseAssetVolume: parseFloat(wsKline.V),
+    takerBuyQuoteAssetVolume: parseFloat(wsKline.Q)
+  };
+}
+
 // Function to fetch all available trading pairs from Binance
 export async function fetchAllCoinPairs(): Promise<CoinPair[]> {
   try {
@@ -106,12 +195,10 @@ export async function fetchKlineData(
   limit: number = 100
 ): Promise<KlineData[]> {
   try {
-    // Determine if we need more data based on the interval
     const dynamicLimit = limit || getDataLimitForTimeframe(interval);
     
     console.log(`Fetching ${dynamicLimit} data points for ${symbol} at ${interval} interval`);
     
-    // Add endTime parameter to ensure we get the most recent data
     const now = Date.now();
     const url = `${BINANCE_API_BASE_URL}/klines?symbol=${symbol}&interval=${interval}&limit=${dynamicLimit}`;
     
@@ -123,8 +210,6 @@ export async function fetchKlineData(
     
     const data = await response.json();
     
-    console.log(`Received ${data.length} data points from Binance`);
-    
     if (data.length === 0) {
       toast({
         title: "No data available",
@@ -134,8 +219,7 @@ export async function fetchKlineData(
       return [];
     }
     
-    // Transform the response data into our KlineData format
-    return data.map((item: any[]): KlineData => ({
+    lastKlineData = data.map((item: any[]): KlineData => ({
       openTime: item[0],
       open: parseFloat(item[1]),
       high: parseFloat(item[2]),
@@ -148,6 +232,8 @@ export async function fetchKlineData(
       takerBuyBaseAssetVolume: parseFloat(item[9]),
       takerBuyQuoteAssetVolume: parseFloat(item[10])
     }));
+    
+    return lastKlineData;
   } catch (error) {
     console.error('Error fetching kline data:', error);
     toast({
@@ -155,8 +241,27 @@ export async function fetchKlineData(
       description: error instanceof Error ? error.message : "An unknown error occurred",
       variant: "destructive"
     });
-    return [];
+    return lastKlineData;
   }
+}
+
+// Update or append new kline data
+export function updateKlineData(newKline: KlineData): KlineData[] {
+  if (lastKlineData.length === 0) return [newKline];
+  
+  const index = lastKlineData.findIndex(k => k.openTime === newKline.openTime);
+  
+  if (index !== -1) {
+    lastKlineData[index] = newKline;
+  } else {
+    lastKlineData.push(newKline);
+    // Keep the array size consistent
+    if (lastKlineData.length > 1000) {
+      lastKlineData.shift();
+    }
+  }
+  
+  return [...lastKlineData];
 }
 
 // Get current price for a symbol

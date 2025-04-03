@@ -14,7 +14,10 @@ import {
   TimeInterval, 
   fetchKlineData,
   fetchCurrentPrice,
-  KlineData
+  KlineData,
+  initializeWebSocket,
+  closeWebSocket,
+  updateKlineData
 } from '@/services/binanceService';
 import { 
   generateSignals, 
@@ -61,122 +64,101 @@ const Index = () => {
   
   const debugCounterRef = useRef<number>(0);
 
-  const fetchData = useCallback(async () => {
-    setIsLoading(true);
-    debugCounterRef.current += 1;
-    const cycleNumber = debugCounterRef.current;
-    
-    try {
-      console.log(`[Cycle ${cycleNumber}] Fetching data for ${selectedPair.symbol} at ${selectedInterval} interval`);
+  const handleKlineUpdate = useCallback((newKline: KlineData) => {
+    setKlineData(prevData => {
+      const updatedData = updateKlineData(newKline);
       
-      const data = await fetchKlineData(selectedPair.symbol, selectedInterval, 100);
+      // Generate new signals with the updated data
+      const newSignals = generateSignals(updatedData);
+      setSignalData(newSignals);
       
-      if (data.length > 0) {
-        setKlineData(data);
-        
-        const signals = generateSignals(data);
-        setSignalData(signals);
-        
-        debugSignalSystem(signals, data);
-        
-        const isSignalValid = signals.overallSignal !== 'NEUTRAL' && 
-                             signals.overallSignal !== 'HOLD' && 
-                             signals.confidence >= confidenceThreshold;
-        
-        if (isAudioInitialized && alertsEnabled && isSignalValid && signals.overallSignal !== lastSignalType) {
-          if (signals.overallSignal === 'BUY' || signals.overallSignal === 'SELL') {
-            playSignalSound(signals.overallSignal, alertVolume);
-            
-            if (notificationsEnabled) {
-              sendSignalNotification(
-                signals.overallSignal, 
-                selectedPair.label, 
-                signals.confidence
-              );
-            }
-            
-            toast({
-              title: `${signals.overallSignal} Signal Detected`,
-              description: `${selectedPair.label} - Confidence: ${signals.confidence.toFixed(0)}%`,
-              variant: signals.overallSignal === 'BUY' ? 'default' : 'destructive',
-            });
+      // Check for new valid signals
+      const isSignalValid = newSignals.overallSignal !== 'NEUTRAL' && 
+                           newSignals.overallSignal !== 'HOLD' && 
+                           newSignals.confidence >= confidenceThreshold;
+      
+      if (isAudioInitialized && alertsEnabled && isSignalValid && newSignals.overallSignal !== lastSignalType) {
+        if (newSignals.overallSignal === 'BUY' || newSignals.overallSignal === 'SELL') {
+          playSignalSound(newSignals.overallSignal, alertVolume);
+          
+          if (notificationsEnabled) {
+            sendSignalNotification(
+              newSignals.overallSignal, 
+              selectedPair.label, 
+              newSignals.confidence
+            );
           }
-          setLastSignalType(signals.overallSignal);
+          
+          toast({
+            title: `${newSignals.overallSignal} Signal Detected`,
+            description: `${selectedPair.label} - Confidence: ${newSignals.confidence.toFixed(0)}%`,
+            variant: newSignals.overallSignal === 'BUY' ? 'default' : 'destructive',
+          });
+          
+          setLastSignalType(newSignals.overallSignal);
         }
-        
-        console.log(`[Cycle ${cycleNumber}] Signal: ${signals.overallSignal}, Confidence: ${signals.confidence.toFixed(0)}%, Threshold: ${confidenceThreshold}%`);
-        
-        const price = await fetchCurrentPrice(selectedPair.symbol);
-        setCurrentPrice(price);
-      } else {
-        toast({
-          title: "No data available",
-          description: `Could not retrieve data for ${selectedPair.label}`,
-          variant: "destructive"
-        });
       }
-    } catch (error) {
-      console.error(`[Cycle ${cycleNumber}] Error fetching data:`, error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch data from Binance API",
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [selectedPair, selectedInterval, isAudioInitialized, lastSignalType, alertsEnabled, alertVolume, confidenceThreshold, notificationsEnabled]);
-
-  useEffect(() => {
-    fetchData();
-    
-    const initAudio = () => {
-      initializeAudio();
-      setIsAudioInitialized(true);
-      document.removeEventListener('click', initAudio);
       
-      const hasPermission = requestNotificationPermission();
-      setNotificationsEnabled(hasPermission);
-    };
-    
-    document.addEventListener('click', initAudio);
-    
-    return () => {
-      document.removeEventListener('click', initAudio);
-    };
-  }, [fetchData]);
+      return updatedData;
+    });
+  }, [
+    selectedPair.label,
+    confidenceThreshold,
+    isAudioInitialized,
+    alertsEnabled,
+    alertVolume,
+    notificationsEnabled,
+    lastSignalType
+  ]);
 
-  useEffect(() => {
-    if (isAutoRefreshEnabled) {
-      refreshTimerRef.current = setInterval(fetchData, refreshInterval);
-      
-      toast({
-        title: "Auto-refresh enabled",
-        description: `Data will refresh every ${refreshInterval / 1000} seconds`
-      });
-    } else {
-      if (refreshTimerRef.current) {
-        clearInterval(refreshTimerRef.current);
-        refreshTimerRef.current = null;
-      }
-    }
-    
-    return () => {
-      if (refreshTimerRef.current) {
-        clearInterval(refreshTimerRef.current);
-      }
-    };
-  }, [isAutoRefreshEnabled, refreshInterval, fetchData]);
-  
+  // Initial data fetch and WebSocket setup
   useEffect(() => {
     if (!isBacktestMode) {
-      fetchData();
+      const fetchAndInitialize = async () => {
+        setIsLoading(true);
+        try {
+          const data = await fetchKlineData(selectedPair.symbol, selectedInterval);
+          setKlineData(data);
+          
+          const signals = generateSignals(data);
+          setSignalData(signals);
+          
+          // Initialize WebSocket after getting initial data
+          initializeWebSocket(
+            selectedPair.symbol,
+            selectedInterval,
+            handleKlineUpdate
+          );
+          
+        } catch (error) {
+          console.error('Error initializing data:', error);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      
+      fetchAndInitialize();
+      
+      // Cleanup WebSocket on unmount or when pair/interval changes
+      return () => {
+        closeWebSocket();
+      };
     }
-  }, [selectedPair, selectedInterval, fetchData, isBacktestMode]);
+  }, [selectedPair.symbol, selectedInterval, isBacktestMode, handleKlineUpdate]);
 
+  // Remove the auto-refresh effect since we're using WebSocket now
+  useEffect(() => {
+    if (refreshTimerRef.current) {
+      clearInterval(refreshTimerRef.current);
+      refreshTimerRef.current = null;
+    }
+  }, []);
+
+  // Update manual refresh to reconnect WebSocket
   const handleRefresh = () => {
     if (!isBacktestMode) {
-      fetchData();
+      closeWebSocket();
+      initializeWebSocket(selectedPair.symbol, selectedInterval, handleKlineUpdate);
     }
   };
 
@@ -350,6 +332,91 @@ const Index = () => {
   const toggleFullscreenChart = () => {
     setFullscreenChart(!fullscreenChart);
   };
+
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    debugCounterRef.current += 1;
+    const cycleNumber = debugCounterRef.current;
+    
+    try {
+      console.log(`[Cycle ${cycleNumber}] Fetching data for ${selectedPair.symbol} at ${selectedInterval} interval`);
+      
+      const data = await fetchKlineData(selectedPair.symbol, selectedInterval, 100);
+      
+      if (data.length > 0) {
+        setKlineData(data);
+        
+        const signals = generateSignals(data);
+        setSignalData(signals);
+        
+        debugSignalSystem(signals, data);
+        
+        const isSignalValid = signals.overallSignal !== 'NEUTRAL' && 
+                             signals.overallSignal !== 'HOLD' && 
+                             signals.confidence >= confidenceThreshold;
+        
+        if (isAudioInitialized && alertsEnabled && isSignalValid && signals.overallSignal !== lastSignalType) {
+          if (signals.overallSignal === 'BUY' || signals.overallSignal === 'SELL') {
+            playSignalSound(signals.overallSignal, alertVolume);
+            
+            if (notificationsEnabled) {
+              sendSignalNotification(
+                signals.overallSignal, 
+                selectedPair.label, 
+                signals.confidence
+              );
+            }
+            
+            toast({
+              title: `${signals.overallSignal} Signal Detected`,
+              description: `${selectedPair.label} - Confidence: ${signals.confidence.toFixed(0)}%`,
+              variant: signals.overallSignal === 'BUY' ? 'default' : 'destructive',
+            });
+          }
+          setLastSignalType(signals.overallSignal);
+        }
+        
+        console.log(`[Cycle ${cycleNumber}] Signal: ${signals.overallSignal}, Confidence: ${signals.confidence.toFixed(0)}%, Threshold: ${confidenceThreshold}%`);
+        
+        const price = await fetchCurrentPrice(selectedPair.symbol);
+        setCurrentPrice(price);
+      } else {
+        toast({
+          title: "No data available",
+          description: `Could not retrieve data for ${selectedPair.label}`,
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error(`[Cycle ${cycleNumber}] Error fetching data:`, error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch data from Binance API",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedPair, selectedInterval, isAudioInitialized, lastSignalType, alertsEnabled, alertVolume, confidenceThreshold, notificationsEnabled]);
+
+  useEffect(() => {
+    fetchData();
+    
+    const initAudio = () => {
+      initializeAudio();
+      setIsAudioInitialized(true);
+      document.removeEventListener('click', initAudio);
+      
+      const hasPermission = requestNotificationPermission();
+      setNotificationsEnabled(hasPermission);
+    };
+    
+    document.addEventListener('click', initAudio);
+    
+    return () => {
+      document.removeEventListener('click', initAudio);
+    };
+  }, [fetchData]);
 
   return (
     <div className="min-h-screen bg-crypto-primary text-foreground">

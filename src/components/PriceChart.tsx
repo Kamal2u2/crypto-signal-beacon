@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -813,9 +814,9 @@ const PriceChart: React.FC<PriceChartProps> = ({
                     radius={[2, 2, 0, 0]}
                   >
                     {chartData.map((entry, index) => (
-                      <rect
-                        key={`histogram-${index}`}
-                        fill={entry.histogram >= 0 ? "#22c55e" : "#ef4444"}
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={entry.histogram >= 0 ? "#22c55e" : "#ef4444"} 
                       />
                     ))}
                   </Bar>

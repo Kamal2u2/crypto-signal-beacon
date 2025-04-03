@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -251,9 +250,7 @@ const PriceChart: React.FC<PriceChartProps> = ({
       upper: bollingerBands.upper[dataIndex],
       middle: bollingerBands.middle[dataIndex],
       lower: bollingerBands.lower[dataIndex],
-      // Add change color based on price movement
       priceColor: item.close > item.open ? "#22c55e" : item.close < item.open ? "#ef4444" : "#8B5CF6",
-      // Calculate price change percentage for display
       changePercent: item.open > 0 ? ((item.close - item.open) / item.open) * 100 : 0
     };
     
@@ -449,7 +446,6 @@ const PriceChart: React.FC<PriceChartProps> = ({
                     <stop offset="95%" stopColor="#0EA5E9" stopOpacity={0.2}/>
                   </linearGradient>
                   
-                  {/* Add gradients for candle-style display */}
                   <linearGradient id="upCandle" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#22c55e" stopOpacity={0.8}/>
                     <stop offset="95%" stopColor="#22c55e" stopOpacity={0.2}/>
@@ -496,7 +492,6 @@ const PriceChart: React.FC<PriceChartProps> = ({
                 
                 {chartData.map((entry, index) => (
                   <React.Fragment key={`candle-${index}`}>
-                    {/* Vertical line (wick) from high to low */}
                     <Line
                       yAxisId="left"
                       data={[entry]}
@@ -509,10 +504,9 @@ const PriceChart: React.FC<PriceChartProps> = ({
                       isAnimationActive={false}
                     />
                     
-                    {/* Price Labels */}
                     {showPriceLabels && index === chartData.length - 1 && (
                       <text
-                        x={chartData.length * 50} // Adjust based on chart width
+                        x={chartData.length * 50}
                         y={entry.close > entry.open 
                           ? yDomain[0] + (entry.close - yDomain[0]) * 0.95 
                           : yDomain[0] + (entry.close - yDomain[0]) * 1.05}
@@ -814,7 +808,7 @@ const PriceChart: React.FC<PriceChartProps> = ({
                   />
                   <Bar 
                     dataKey="histogram" 
-                    fill={["#22c55e", "#ef4444"]}
+                    fill="#22c55e"
                     name="Histogram"
                     radius={[2, 2, 0, 0]}
                   >

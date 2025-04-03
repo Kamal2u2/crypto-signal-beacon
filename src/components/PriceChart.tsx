@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -127,6 +128,13 @@ const PriceChart: React.FC<PriceChartProps> = ({
   const visibleDataCount = Math.max(Math.floor(dataLength * zoomFactor), 10);
   const zoomedData = data.slice(Math.max(0, dataLength - visibleDataCount), dataLength);
   
+  // Ensure we have valid min/max values for chart scaling
+  let minPrice = Math.min(...zoomedData.map(item => item.low)) * 0.995;
+  let maxPrice = Math.max(...zoomedData.map(item => item.high)) * 1.005;
+  
+  // Fix domain calculation to prevent chart scaling issues
+  const yDomain = [minPrice, maxPrice];
+  
   const chartData = zoomedData.map((item, index) => {
     const dataIndex = Math.max(0, dataLength - visibleDataCount) + index;
     
@@ -191,6 +199,9 @@ const PriceChart: React.FC<PriceChartProps> = ({
   const handleZoomOut = () => {
     setZoomLevel(prev => Math.min(100, prev + 20));
   };
+
+  // Convert signal points to an array format compatible with the chart
+  const signalData2 = showSignals ? signalPoints : [];
 
   return (
     <Card className="chart-container shadow-lg h-full">
@@ -313,7 +324,7 @@ const PriceChart: React.FC<PriceChartProps> = ({
                 <YAxis 
                   yAxisId="left" 
                   orientation="left" 
-                  domain={['auto', 'auto']} 
+                  domain={yDomain} 
                   tick={{fontSize: 12, fill: "#64748B"}}
                   tickFormatter={(value) => value.toFixed(0)}
                   stroke="#94A3B8"
@@ -368,6 +379,8 @@ const PriceChart: React.FC<PriceChartProps> = ({
                     boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
                   }}
                 />
+                
+                {/* Use Area component instead of Line for price data */}
                 <Area 
                   yAxisId="left" 
                   type="monotone" 
@@ -377,6 +390,7 @@ const PriceChart: React.FC<PriceChartProps> = ({
                   fill="url(#colorPrice)" 
                   name="Price"
                   animationDuration={500}
+                  isAnimationActive={false} // Disable animation to fix rendering issues on signals
                 />
                 
                 {showBollinger && (
@@ -390,6 +404,7 @@ const PriceChart: React.FC<PriceChartProps> = ({
                       name="Upper Band"
                       strokeDasharray="3 3"
                       strokeWidth={2}
+                      isAnimationActive={false}
                     />
                     <Line 
                       yAxisId="left" 
@@ -399,6 +414,7 @@ const PriceChart: React.FC<PriceChartProps> = ({
                       dot={false} 
                       name="Middle Band"
                       strokeWidth={2}
+                      isAnimationActive={false}
                     />
                     <Line 
                       yAxisId="left" 
@@ -409,6 +425,7 @@ const PriceChart: React.FC<PriceChartProps> = ({
                       name="Lower Band"
                       strokeDasharray="3 3"
                       strokeWidth={2}
+                      isAnimationActive={false}
                     />
                   </>
                 )}
@@ -423,6 +440,7 @@ const PriceChart: React.FC<PriceChartProps> = ({
                       dot={false} 
                       name="SMA 20"
                       strokeWidth={2}
+                      isAnimationActive={false}
                     />
                     <Line 
                       yAxisId="left" 
@@ -432,6 +450,7 @@ const PriceChart: React.FC<PriceChartProps> = ({
                       dot={false} 
                       name="EMA 50"
                       strokeWidth={2}
+                      isAnimationActive={false}
                     />
                   </>
                 )}
@@ -445,6 +464,7 @@ const PriceChart: React.FC<PriceChartProps> = ({
                     name="Volume"
                     animationDuration={500}
                     radius={[2, 2, 0, 0]}
+                    isAnimationActive={false}
                   />
                 )}
                 

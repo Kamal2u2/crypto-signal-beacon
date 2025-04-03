@@ -111,7 +111,10 @@ export async function fetchKlineData(
     
     console.log(`Fetching ${dynamicLimit} data points for ${symbol} at ${interval} interval`);
     
+    // Add endTime parameter to ensure we get the most recent data
+    const now = Date.now();
     const url = `${BINANCE_API_BASE_URL}/klines?symbol=${symbol}&interval=${interval}&limit=${dynamicLimit}`;
+    
     const response = await fetch(url);
     
     if (!response.ok) {

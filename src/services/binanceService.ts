@@ -1,10 +1,11 @@
+
 import { toast } from "@/components/ui/use-toast";
 
 // Base URL for Binance API
 const BINANCE_API_BASE_URL = 'https://api.binance.com/api/v3';
 
 // Valid time intervals supported by Binance
-export type TimeInterval = '1m' | '3m' | '5m' | '15m' | '30m' | '1h' | '4h' | '1d';
+export type TimeInterval = '1m' | '3m' | '5m' | '15m' | '30m' | '1h' | '2h' | '4h' | '6h' | '8h' | '12h' | '1d' | '3d' | '1w' | '1M';
 
 // CoinPair type for supported trading pairs
 export type CoinPair = {
@@ -54,10 +55,24 @@ export function getDataLimitForTimeframe(interval: TimeInterval): number {
       return 480; // Approximately 10 days of 30-minute data
     case '1h':
       return 720; // Approximately 30 days of hourly data
+    case '2h':
+      return 600; // Approximately 50 days of 2-hour data
     case '4h':
       return 500; // Approximately 83 days of 4-hour data
+    case '6h':
+      return 400; // Approximately 100 days of 6-hour data
+    case '8h':
+      return 360; // Approximately 120 days of 8-hour data
+    case '12h':
+      return 300; // Approximately 150 days of 12-hour data
     case '1d':
       return 365; // Approximately 1 year of daily data
+    case '3d':
+      return 200; // Approximately 600 days of 3-day data
+    case '1w':
+      return 100; // Approximately 2 years of weekly data
+    case '1M':
+      return 60;  // Approximately 5 years of monthly data
     default:
       return 100; // Default fallback
   }

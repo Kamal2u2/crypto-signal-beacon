@@ -71,6 +71,26 @@ const BacktestPanel: React.FC<BacktestPanelProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [openCoinSearch, setOpenCoinSearch] = useState(false);
   
+  // State for time interval selection
+  const [backtestInterval, setBacktestInterval] = useState<TimeInterval>(selectedInterval);
+  const timeIntervals: { value: TimeInterval; label: string }[] = [
+    { value: '1m', label: '1 Minute' },
+    { value: '3m', label: '3 Minutes' },
+    { value: '5m', label: '5 Minutes' },
+    { value: '15m', label: '15 Minutes' },
+    { value: '30m', label: '30 Minutes' },
+    { value: '1h', label: '1 Hour' },
+    { value: '2h', label: '2 Hours' },
+    { value: '4h', label: '4 Hours' },
+    { value: '6h', label: '6 Hours' },
+    { value: '8h', label: '8 Hours' },
+    { value: '12h', label: '12 Hours' },
+    { value: '1d', label: '1 Day' },
+    { value: '3d', label: '3 Days' },
+    { value: '1w', label: '1 Week' },
+    { value: '1M', label: '1 Month' },
+  ];
+  
   // Filtered coin pairs based on search term
   const filteredPairs = searchTerm 
     ? allCoinPairs.filter(pair => 
@@ -82,7 +102,7 @@ const BacktestPanel: React.FC<BacktestPanelProps> = ({
   const handleRunBacktest = async () => {
     const settings: BacktestSettings = {
       pair: backtestPair,
-      interval: selectedInterval,
+      interval: backtestInterval,
       dateRange,
       initialCapital,
       useStopLoss,
@@ -160,6 +180,29 @@ const BacktestPanel: React.FC<BacktestPanelProps> = ({
               </Command>
             </PopoverContent>
           </Popover>
+        </div>
+        
+        {/* Time Interval Selection */}
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">Time Frame</Label>
+          <Select 
+            value={backtestInterval} 
+            onValueChange={(value) => setBacktestInterval(value as TimeInterval)}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select time frame" />
+            </SelectTrigger>
+            <SelectContent>
+              {timeIntervals.map((interval) => (
+                <SelectItem key={interval.value} value={interval.value}>
+                  {interval.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Select the candle time frame for backtesting
+          </p>
         </div>
       
         <div className="space-y-2">

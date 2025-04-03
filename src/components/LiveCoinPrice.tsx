@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { ArrowUp, ArrowDown } from 'lucide-react';
 
@@ -14,29 +14,54 @@ const LiveCoinPrice: React.FC<LiveCoinPriceProps> = ({ price, symbol, className 
   const [priceDirection, setPriceDirection] = useState<'up' | 'down' | null>(null);
   const [flashAnimation, setFlashAnimation] = useState(false);
   
+  // Add debounce mechanism to prevent too frequent UI updates
+  const animationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastUpdateTimeRef = useRef<number>(0);
+  
+  // Debounce function for price updates
   useEffect(() => {
-    if (price !== null && previousPrice !== null) {
+    // Don't update too frequently - minimum 300ms between updates to prevent lag
+    const now = Date.now();
+    
+    if (price !== null && previousPrice !== null && now - lastUpdateTimeRef.current > 300) {
       setPriceDirection(price > previousPrice ? 'up' : price < previousPrice ? 'down' : null);
       setFlashAnimation(true);
+      lastUpdateTimeRef.current = now;
+      
+      // Clear previous timeout if it exists
+      if (animationTimeoutRef.current) {
+        clearTimeout(animationTimeoutRef.current);
+      }
       
       // Reset flash animation
-      const timer = setTimeout(() => {
+      animationTimeoutRef.current = setTimeout(() => {
         setFlashAnimation(false);
+        animationTimeoutRef.current = null;
       }, 1000);
-      
-      return () => clearTimeout(timer);
     }
     
     if (price !== null && previousPrice === null) {
       setPreviousPrice(price);
+      lastUpdateTimeRef.current = now;
     }
+    
+    return () => {
+      if (animationTimeoutRef.current) {
+        clearTimeout(animationTimeoutRef.current);
+      }
+    };
   }, [price, previousPrice]);
   
+  // Update previous price with a slight delay to reduce flickering
   useEffect(() => {
     if (price !== null && price !== previousPrice) {
-      setPreviousPrice(price);
+      const delay = setTimeout(() => {
+        setPreviousPrice(price);
+      }, 500); // Delay update slightly to show direction change
+      
+      return () => clearTimeout(delay);
     }
-  }, [price]);
+  }, [price, previousPrice]);
   
   if (price === null) return null;
   

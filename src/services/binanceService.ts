@@ -72,127 +72,348 @@ let activeSubscriptions: Set<string> = new Set();
 let priceWebsocket: WebSocket | null = null;
 let activePriceSymbol: string | null = null;
 
+// Track connection state and retry attempts
+let wsRetryCount = 0;
+let priceWsRetryCount = 0;
+const MAX_RETRY_COUNT = 5;
+const RETRY_DELAY = 2000; // Start with 2 seconds
+let isReconnecting = false;
+let isPriceReconnecting = false;
+
+// Connection timeout tracking
+let connectionTimeoutId: NodeJS.Timeout | null = null;
+let priceConnectionTimeoutId: NodeJS.Timeout | null = null;
+const CONNECTION_TIMEOUT = 10000; // 10 seconds
+
 // Function to initialize WebSocket connection for kline data
 export function initializeWebSocket(
   symbol: string, 
   interval: TimeInterval,
   onKlineUpdate: (kline: KlineData) => void
 ): void {
-  if (websocket) {
+  if (websocket && websocket.readyState === WebSocket.OPEN) {
     closeWebSocket();
   }
 
-  const streamName = `${symbol.toLowerCase()}@kline_${interval}`;
-  websocket = new WebSocket(`${BINANCE_WS_BASE_URL}/${streamName}`);
-
-  websocket.onopen = () => {
-    console.log('WebSocket connection established');
-    activeSubscriptions.add(streamName);
-  };
-
-  websocket.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      if (data.e === 'kline') {
-        const kline = transformWebSocketKline(data.k);
-        onKlineUpdate(kline);
-      }
-    } catch (error) {
-      console.error('Error processing WebSocket message:', error);
+  try {
+    const streamName = `${symbol.toLowerCase()}@kline_${interval}`;
+    if (isReconnecting) {
+      console.log(`Already attempting to reconnect kline WebSocket. Skipping new connection request.`);
+      return;
     }
-  };
-
-  websocket.onerror = (error) => {
-    console.error('WebSocket error:', error);
-    toast({
-      title: "WebSocket Error",
-      description: "Connection error occurred. Attempting to reconnect...",
-      variant: "destructive"
-    });
-    setTimeout(() => {
-      if (activeSubscriptions.has(streamName)) {
-        initializeWebSocket(symbol, interval, onKlineUpdate);
+    
+    // Set timeout for connection establishment
+    if (connectionTimeoutId) clearTimeout(connectionTimeoutId);
+    connectionTimeoutId = setTimeout(() => {
+      if (websocket && websocket.readyState !== WebSocket.OPEN) {
+        console.error('WebSocket connection timeout');
+        websocket.close();
+        websocket = null;
+        
+        // If still not connected after timeout, try again
+        if (!isReconnecting) {
+          retryWebSocketConnection(symbol, interval, onKlineUpdate);
+        }
       }
-    }, 5000);
-  };
+    }, CONNECTION_TIMEOUT);
+    
+    console.log(`Initializing kline WebSocket for ${symbol} at ${interval} interval`);
+    websocket = new WebSocket(`${BINANCE_WS_BASE_URL}/${streamName}`);
+    
+    websocket.onopen = () => {
+      console.log('Kline WebSocket connection established');
+      activeSubscriptions.add(streamName);
+      wsRetryCount = 0; // Reset retry counter on successful connection
+      isReconnecting = false;
+      
+      if (connectionTimeoutId) {
+        clearTimeout(connectionTimeoutId);
+        connectionTimeoutId = null;
+      }
+    };
 
-  websocket.onclose = () => {
-    console.log('WebSocket connection closed');
-    if (activeSubscriptions.has(streamName)) {
-      setTimeout(() => {
-        initializeWebSocket(symbol, interval, onKlineUpdate);
-      }, 5000);
+    websocket.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.e === 'kline') {
+          const kline = transformWebSocketKline(data.k);
+          onKlineUpdate(kline);
+        }
+      } catch (error) {
+        console.error('Error processing WebSocket message:', error);
+      }
+    };
+
+    websocket.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      if (connectionTimeoutId) {
+        clearTimeout(connectionTimeoutId);
+        connectionTimeoutId = null;
+      }
+      
+      if (!isReconnecting) {
+        retryWebSocketConnection(symbol, interval, onKlineUpdate);
+      }
+    };
+
+    websocket.onclose = (event) => {
+      console.log(`WebSocket connection closed. Code: ${event.code}, Reason: ${event.reason}`);
+      
+      if (connectionTimeoutId) {
+        clearTimeout(connectionTimeoutId);
+        connectionTimeoutId = null;
+      }
+      
+      // Only attempt to reconnect if it was a valid stream and not manually closed
+      if (activeSubscriptions.has(streamName) && !isReconnecting) {
+        retryWebSocketConnection(symbol, interval, onKlineUpdate);
+      }
+    };
+  } catch (error) {
+    console.error('Error initializing WebSocket:', error);
+    isReconnecting = false;
+    
+    if (connectionTimeoutId) {
+      clearTimeout(connectionTimeoutId);
+      connectionTimeoutId = null;
     }
-  };
+    
+    // Still try to reconnect on initialization error
+    if (!isReconnecting) {
+      retryWebSocketConnection(symbol, interval, onKlineUpdate);
+    }
+  }
 }
 
-// Function to initialize WebSocket connection for price ticker
+// Function to retry WebSocket connection with exponential backoff
+function retryWebSocketConnection(
+  symbol: string,
+  interval: TimeInterval,
+  onKlineUpdate: (kline: KlineData) => void
+): void {
+  if (isReconnecting) return;
+  isReconnecting = true;
+  
+  if (wsRetryCount >= MAX_RETRY_COUNT) {
+    console.error(`Maximum retry attempts (${MAX_RETRY_COUNT}) reached for WebSocket connection.`);
+    toast({
+      title: "Connection Error",
+      description: "Failed to connect to Binance. Please check your internet connection and refresh the page.",
+      variant: "destructive"
+    });
+    isReconnecting = false;
+    return;
+  }
+  
+  // Calculate delay with exponential backoff (2^n * base_delay)
+  const delay = Math.min(30000, RETRY_DELAY * Math.pow(2, wsRetryCount));
+  wsRetryCount++;
+  
+  console.log(`Retrying WebSocket connection in ${delay}ms (attempt ${wsRetryCount}/${MAX_RETRY_COUNT})...`);
+  
+  setTimeout(() => {
+    if (activeSubscriptions.size > 0) {
+      console.log('Attempting to reconnect WebSocket...');
+      initializeWebSocket(symbol, interval, onKlineUpdate);
+    } else {
+      isReconnecting = false;
+    }
+  }, delay);
+}
+
+// Function to initialize WebSocket connection for price ticker with improved reliability
 export function initializePriceWebSocket(
   symbol: string,
   onPriceUpdate: (price: number) => void
 ): void {
-  if (priceWebsocket && activePriceSymbol === symbol) {
+  if (priceWebsocket && priceWebsocket.readyState === WebSocket.OPEN && activePriceSymbol === symbol) {
+    console.log(`Price WebSocket for ${symbol} already connected and open`);
     return;
   }
   
   if (priceWebsocket) {
+    console.log(`Closing existing price WebSocket before creating new one`);
     closePriceWebSocket();
   }
   
-  const streamName = `${symbol.toLowerCase()}@ticker`;
-  priceWebsocket = new WebSocket(`${BINANCE_WS_BASE_URL}/${streamName}`);
-  activePriceSymbol = symbol;
-
-  priceWebsocket.onopen = () => {
-    console.log('Price WebSocket connection established');
-  };
-
-  priceWebsocket.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      if (data.e === 'ticker') {
-        const price = parseFloat(data.c); // Current price
-        onPriceUpdate(price);
-      }
-    } catch (error) {
-      console.error('Error processing price WebSocket message:', error);
+  try {
+    const streamName = `${symbol.toLowerCase()}@ticker`;
+    if (isPriceReconnecting) {
+      console.log(`Already attempting to reconnect price WebSocket. Skipping new connection request.`);
+      return;
     }
-  };
-
-  priceWebsocket.onerror = (error) => {
-    console.error('Price WebSocket error:', error);
-    setTimeout(() => {
-      if (activePriceSymbol === symbol) {
-        initializePriceWebSocket(symbol, onPriceUpdate);
+    
+    // Set timeout for connection establishment
+    if (priceConnectionTimeoutId) clearTimeout(priceConnectionTimeoutId);
+    priceConnectionTimeoutId = setTimeout(() => {
+      if (priceWebsocket && priceWebsocket.readyState !== WebSocket.OPEN) {
+        console.error('Price WebSocket connection timeout');
+        priceWebsocket.close();
+        priceWebsocket = null;
+        
+        // If still not connected after timeout, try again
+        if (!isPriceReconnecting) {
+          retryPriceWebSocketConnection(symbol, onPriceUpdate);
+        }
       }
-    }, 5000);
-  };
+    }, CONNECTION_TIMEOUT);
+    
+    console.log(`Initializing price WebSocket for ${symbol}`);
+    priceWebsocket = new WebSocket(`${BINANCE_WS_BASE_URL}/${streamName}`);
+    activePriceSymbol = symbol;
 
-  priceWebsocket.onclose = () => {
-    console.log('Price WebSocket connection closed');
-    if (activePriceSymbol === symbol) {
-      setTimeout(() => {
-        initializePriceWebSocket(symbol, onPriceUpdate);
-      }, 5000);
+    priceWebsocket.onopen = () => {
+      console.log('Price WebSocket connection established');
+      priceWsRetryCount = 0; // Reset retry counter on successful connection
+      isPriceReconnecting = false;
+      
+      if (priceConnectionTimeoutId) {
+        clearTimeout(priceConnectionTimeoutId);
+        priceConnectionTimeoutId = null;
+      }
+      
+      // Send a ping to make sure the connection is active
+      if (priceWebsocket && priceWebsocket.readyState === WebSocket.OPEN) {
+        priceWebsocket.send(JSON.stringify({ method: "PING" }));
+      }
+    };
+
+    priceWebsocket.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.e === 'ticker') {
+          const price = parseFloat(data.c); // Current price
+          onPriceUpdate(price);
+        }
+      } catch (error) {
+        console.error('Error processing price WebSocket message:', error);
+      }
+    };
+
+    priceWebsocket.onerror = (error) => {
+      console.error('Price WebSocket error:', error);
+      if (priceConnectionTimeoutId) {
+        clearTimeout(priceConnectionTimeoutId);
+        priceConnectionTimeoutId = null;
+      }
+      
+      if (!isPriceReconnecting) {
+        retryPriceWebSocketConnection(symbol, onPriceUpdate);
+      }
+    };
+
+    priceWebsocket.onclose = (event) => {
+      console.log(`Price WebSocket connection closed. Code: ${event.code}, Reason: ${event.reason}`);
+      
+      if (priceConnectionTimeoutId) {
+        clearTimeout(priceConnectionTimeoutId);
+        priceConnectionTimeoutId = null;
+      }
+      
+      // Only attempt to reconnect if not manually closed
+      if (activePriceSymbol === symbol && !isPriceReconnecting) {
+        retryPriceWebSocketConnection(symbol, onPriceUpdate);
+      }
+    };
+  } catch (error) {
+    console.error('Error initializing price WebSocket:', error);
+    isPriceReconnecting = false;
+    
+    if (priceConnectionTimeoutId) {
+      clearTimeout(priceConnectionTimeoutId);
+      priceConnectionTimeoutId = null;
     }
-  };
-}
-
-// Function to close WebSocket connection for price ticker
-export function closePriceWebSocket(): void {
-  if (priceWebsocket) {
-    priceWebsocket.close();
-    priceWebsocket = null;
-    activePriceSymbol = null;
+    
+    // Still try to reconnect on initialization error
+    if (!isPriceReconnecting) {
+      retryPriceWebSocketConnection(symbol, onPriceUpdate);
+    }
   }
 }
 
-// Function to close WebSocket connection
+// Function to retry price WebSocket connection with exponential backoff
+function retryPriceWebSocketConnection(
+  symbol: string,
+  onPriceUpdate: (price: number) => void
+): void {
+  if (isPriceReconnecting) return;
+  isPriceReconnecting = true;
+  
+  if (priceWsRetryCount >= MAX_RETRY_COUNT) {
+    console.error(`Maximum retry attempts (${MAX_RETRY_COUNT}) reached for price WebSocket connection.`);
+    toast({
+      title: "Price Connection Error",
+      description: "Failed to connect to Binance price feed. Live price updates may be unavailable.",
+      variant: "destructive"
+    });
+    isPriceReconnecting = false;
+    return;
+  }
+  
+  // Calculate delay with exponential backoff (2^n * base_delay)
+  const delay = Math.min(30000, RETRY_DELAY * Math.pow(2, priceWsRetryCount));
+  priceWsRetryCount++;
+  
+  console.log(`Retrying price WebSocket connection in ${delay}ms (attempt ${priceWsRetryCount}/${MAX_RETRY_COUNT})...`);
+  
+  setTimeout(() => {
+    if (activePriceSymbol === symbol) {
+      console.log('Attempting to reconnect price WebSocket...');
+      initializePriceWebSocket(symbol, onPriceUpdate);
+    } else {
+      isPriceReconnecting = false;
+    }
+  }, delay);
+}
+
+// Function to send ping to keep WebSocket alive
+export function pingPriceWebSocket(): void {
+  if (priceWebsocket && priceWebsocket.readyState === WebSocket.OPEN) {
+    try {
+      priceWebsocket.send(JSON.stringify({ method: "PING" }));
+    } catch (error) {
+      console.error('Error sending ping to price WebSocket:', error);
+    }
+  }
+}
+
+// Function to close WebSocket connection for price ticker with improved cleanup
+export function closePriceWebSocket(): void {
+  if (priceWebsocket) {
+    try {
+      isPriceReconnecting = false;
+      activePriceSymbol = null;
+      
+      if (priceConnectionTimeoutId) {
+        clearTimeout(priceConnectionTimeoutId);
+        priceConnectionTimeoutId = null;
+      }
+      
+      priceWebsocket.close();
+      priceWebsocket = null;
+    } catch (error) {
+      console.error('Error closing price WebSocket:', error);
+    }
+  }
+}
+
+// Function to close WebSocket connection with improved cleanup
 export function closeWebSocket(): void {
   if (websocket) {
-    activeSubscriptions.clear();
-    websocket.close();
-    websocket = null;
+    try {
+      isReconnecting = false;
+      activeSubscriptions.clear();
+      
+      if (connectionTimeoutId) {
+        clearTimeout(connectionTimeoutId);
+        connectionTimeoutId = null;
+      }
+      
+      websocket.close();
+      websocket = null;
+    } catch (error) {
+      console.error('Error closing WebSocket:', error);
+    }
   }
 }
 

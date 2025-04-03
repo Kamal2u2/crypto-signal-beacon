@@ -2,25 +2,62 @@
 import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid, BarChart, Bar, ComposedChart, Line, Legend, ReferenceLine } from 'recharts';
+import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid, BarChart, Bar, ComposedChart, Line, Legend, ReferenceLine, Scatter } from 'recharts';
 import { KlineData } from '@/services/binanceService';
 import { Skeleton } from '@/components/ui/skeleton';
-import { InfoIcon, ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from 'lucide-react';
+import { InfoIcon, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, BarChart3, Clock, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 import { calculateSMA, calculateEMA, calculateRSI, calculateMACD, calculateBollingerBands, findSupportResistanceLevels } from '@/services/technicalAnalysisService';
+import { SignalSummary, TradingSignal } from '@/services/technicalAnalysisService';
+import { Badge } from '@/components/ui/badge';
 
 interface PriceChartProps {
   data: KlineData[];
   isPending: boolean;
   symbol: string;
+  signalData?: SignalSummary | null;
+  backtestMode?: boolean;
+  backtestResults?: BacktestResults | null;
 }
 
-const PriceChart: React.FC<PriceChartProps> = ({ data, isPending, symbol }) => {
+export interface BacktestResults {
+  signals: BacktestSignal[];
+  performance: {
+    totalTrades: number;
+    winningTrades: number;
+    losingTrades: number;
+    winRate: number;
+    profitFactor: number;
+    netProfit: number;
+    maxDrawdown: number;
+    averageProfit: number;
+    averageLoss: number;
+  };
+}
+
+export interface BacktestSignal {
+  time: number;
+  price: number;
+  type: 'BUY' | 'SELL';
+  profit?: number;
+  profitPercent?: number;
+  outcome?: 'WIN' | 'LOSS' | 'OPEN';
+}
+
+const PriceChart: React.FC<PriceChartProps> = ({ 
+  data, 
+  isPending, 
+  symbol, 
+  signalData, 
+  backtestMode = false,
+  backtestResults = null
+}) => {
   const [showMA, setShowMA] = useState(true);
   const [showBollinger, setShowBollinger] = useState(false);
   const [showVolume, setShowVolume] = useState(true);
   const [showRSI, setShowRSI] = useState(false);
   const [showMACD, setShowMACD] = useState(false);
   const [showSupportResistance, setShowSupportResistance] = useState(true);
+  const [showSignals, setShowSignals] = useState(true);
   const [zoomLevel, setZoomLevel] = useState(100); // 100% means show all data
   
   if (isPending) {
@@ -102,6 +139,25 @@ const PriceChart: React.FC<PriceChartProps> = ({ data, isPending, symbol }) => {
     return enhancedData;
   });
 
+  // Add signals to the chart data if available
+  // This will be used to show signal markers directly on the chart
+  let signalMap: { [key: string]: 'BUY' | 'SELL' } = {};
+  
+  // Add live signals to the map if available
+  if (signalData && signalData.signals) {
+    const lastCandleTime = data[data.length - 1].openTime;
+    signalMap[lastCandleTime.toString()] = signalData.overallSignal === 'BUY' || signalData.overallSignal === 'SELL' 
+      ? signalData.overallSignal 
+      : undefined;
+  }
+  
+  // Add backtest signals to the map if available
+  if (backtestMode && backtestResults && backtestResults.signals) {
+    backtestResults.signals.forEach(signal => {
+      signalMap[signal.time.toString()] = signal.type;
+    });
+  }
+
   const handleZoomIn = () => {
     setZoomLevel(prev => Math.max(10, prev - 20)); // Zoom in by reducing visible data
   };
@@ -114,9 +170,16 @@ const PriceChart: React.FC<PriceChartProps> = ({ data, isPending, symbol }) => {
     <Card className="chart-container shadow-lg">
       <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-t-xl border-b">
         <div className="flex justify-between items-center">
-          <CardTitle className="text-lg font-semibold text-gray-800">
-            Price Chart
-          </CardTitle>
+          <div className="flex items-center gap-2">
+            <CardTitle className="text-lg font-semibold text-gray-800">
+              Price Chart
+            </CardTitle>
+            {backtestMode && (
+              <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300">
+                Backtest Mode
+              </Badge>
+            )}
+          </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <button 
@@ -178,6 +241,13 @@ const PriceChart: React.FC<PriceChartProps> = ({ data, isPending, symbol }) => {
               >
                 S/R
               </button>
+              <button 
+                className={cn("px-2.5 py-1.5 text-xs rounded-md font-medium transition-colors shadow-sm", 
+                  showSignals ? "bg-blue-500 text-white" : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200")}
+                onClick={() => setShowSignals(!showSignals)}
+              >
+                Signals
+              </button>
             </div>
           </div>
         </div>
@@ -187,13 +257,13 @@ const PriceChart: React.FC<PriceChartProps> = ({ data, isPending, symbol }) => {
           {/* Main price chart */}
           <ComposedChart
             width={500}
-            height={300}
+            height={400} // Increased height for better visualization
             data={chartData}
             margin={{
               top: 20,
-              right: 20,
+              right: 30, // Increased right margin to accommodate signals
               bottom: 20,
-              left: 20,
+              left: 30, // Increased left margin
             }}
           >
             <defs>
@@ -387,6 +457,53 @@ const PriceChart: React.FC<PriceChartProps> = ({ data, isPending, symbol }) => {
                 }}
               />
             ))}
+
+            {/* Signal markers */}
+            {showSignals && Object.keys(signalMap).length > 0 && (
+              <Scatter 
+                yAxisId="left"
+                name="Signals"
+                data={chartData.map(point => {
+                  const timeKey = point.time.toString();
+                  if (signalMap[timeKey]) {
+                    return {
+                      ...point,
+                      signalType: signalMap[timeKey],
+                      signalValue: point.close,
+                      // Adjust vertical position of markers
+                      signalYPosition: signalMap[timeKey] === 'BUY' 
+                        ? point.low * 0.998  // Slightly below the candle for BUY
+                        : point.high * 1.002  // Slightly above the candle for SELL
+                    };
+                  }
+                  return null;
+                }).filter(Boolean)}
+                dataKey="time"
+                fill="#8884d8"
+                shape={(props: any) => {
+                  const { cx, cy, signalType, signalYPosition } = props.payload;
+                  // Use adjusted Y position if available
+                  const yCord = signalYPosition ? props.yAxis.scale(signalYPosition) : cy;
+                  
+                  if (signalType === 'BUY') {
+                    return (
+                      <svg x={cx - 15} y={yCord - 15} width="30" height="30" viewBox="0 0 30 30">
+                        <circle cx="15" cy="15" r="12" fill="#22c55e" opacity="0.9" />
+                        <path d="M15 7 L15 23 M9 13 L15 7 L21 13" stroke="white" strokeWidth="2" fill="none" />
+                      </svg>
+                    );
+                  } else if (signalType === 'SELL') {
+                    return (
+                      <svg x={cx - 15} y={yCord - 15} width="30" height="30" viewBox="0 0 30 30">
+                        <circle cx="15" cy="15" r="12" fill="#ef4444" opacity="0.9" />
+                        <path d="M15 7 L15 23 M9 17 L15 23 L21 17" stroke="white" strokeWidth="2" fill="none" />
+                      </svg>
+                    );
+                  }
+                  return null;
+                }}
+              />
+            )}
             
             <Legend 
               verticalAlign="top" 
@@ -514,6 +631,77 @@ const PriceChart: React.FC<PriceChartProps> = ({ data, isPending, symbol }) => {
               />
               <ReferenceLine y={0} stroke="#64748b" strokeDasharray="3 3" strokeWidth={1.5} />
             </ComposedChart>
+          )}
+          
+          {/* Backtest Results Section */}
+          {backtestMode && backtestResults && (
+            <div className="mt-2 p-4 border border-indigo-200 rounded-lg bg-indigo-50">
+              <h3 className="text-base font-bold mb-3 text-indigo-800 flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-indigo-700" />
+                <span>Backtest Performance</span>
+              </h3>
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="bg-white p-3 rounded-md border border-indigo-100 shadow-sm">
+                  <span className="text-xs text-gray-500">Win Rate</span>
+                  <p className="text-lg font-bold text-gray-800">
+                    {backtestResults.performance.winRate.toFixed(1)}%
+                  </p>
+                </div>
+                
+                <div className="bg-white p-3 rounded-md border border-indigo-100 shadow-sm">
+                  <span className="text-xs text-gray-500">Profit Factor</span>
+                  <p className="text-lg font-bold text-gray-800">
+                    {backtestResults.performance.profitFactor.toFixed(2)}
+                  </p>
+                </div>
+                
+                <div className="bg-white p-3 rounded-md border border-indigo-100 shadow-sm">
+                  <span className="text-xs text-gray-500">Net Profit</span>
+                  <p className={cn(
+                    "text-lg font-bold",
+                    backtestResults.performance.netProfit >= 0 ? "text-crypto-buy" : "text-crypto-sell"
+                  )}>
+                    {backtestResults.performance.netProfit >= 0 ? "+" : ""}{backtestResults.performance.netProfit.toFixed(2)}%
+                  </p>
+                </div>
+                
+                <div className="bg-white p-3 rounded-md border border-indigo-100 shadow-sm">
+                  <span className="text-xs text-gray-500">Max Drawdown</span>
+                  <p className="text-lg font-bold text-crypto-sell">
+                    {backtestResults.performance.maxDrawdown.toFixed(2)}%
+                  </p>
+                </div>
+                
+                <div className="bg-white p-3 rounded-md border border-indigo-100 shadow-sm">
+                  <span className="text-xs text-gray-500">Total Trades</span>
+                  <p className="text-lg font-bold text-gray-800">
+                    {backtestResults.performance.totalTrades}
+                  </p>
+                </div>
+                
+                <div className="bg-white p-3 rounded-md border border-indigo-100 shadow-sm">
+                  <span className="text-xs text-gray-500">Winning Trades</span>
+                  <p className="text-lg font-bold text-crypto-buy">
+                    {backtestResults.performance.winningTrades}
+                  </p>
+                </div>
+                
+                <div className="bg-white p-3 rounded-md border border-indigo-100 shadow-sm">
+                  <span className="text-xs text-gray-500">Losing Trades</span>
+                  <p className="text-lg font-bold text-crypto-sell">
+                    {backtestResults.performance.losingTrades}
+                  </p>
+                </div>
+                
+                <div className="bg-white p-3 rounded-md border border-indigo-100 shadow-sm">
+                  <span className="text-xs text-gray-500">Avg Profit/Loss</span>
+                  <p className="text-lg font-bold text-gray-800">
+                    +{backtestResults.performance.averageProfit.toFixed(2)}% / -{Math.abs(backtestResults.performance.averageLoss).toFixed(2)}%
+                  </p>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       </CardContent>

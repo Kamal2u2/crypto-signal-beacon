@@ -1,9 +1,8 @@
 
-/* Increase chart size */
+/* Increase chart size - optimized for maximum window */
 .crypto-chart-container {
-  height: 80vh;
-  min-height: 500px;
-  max-height: 900px;
+  height: calc(100vh - 250px); /* Dynamic height based on viewport */
+  min-height: 600px;
   width: 100%;
   margin: 0 auto;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
@@ -11,12 +10,29 @@
   border: 1px solid rgba(0, 0, 0, 0.1);
   overflow: hidden;
   background-color: white;
+  position: relative; /* For proper sizing of child elements */
+}
+
+/* Fix for responsive chart rendering */
+.crypto-chart-container .recharts-responsive-container {
+  height: 100% !important;
+  width: 100% !important;
 }
 
 .crypto-chart-container [class^="recharts-"] text {
   font-size: 14px !important;
   fill: #4b5563 !important;
   font-weight: 500;
+}
+
+/* Add highlight for signal markers on the chart */
+.crypto-chart-container svg circle.signal-marker {
+  filter: drop-shadow(0px 2px 4px rgba(0, 0, 0, 0.2));
+  transition: r 0.2s ease-in-out;
+}
+
+.crypto-chart-container svg circle.signal-marker:hover {
+  r: 14; /* Slightly larger on hover */
 }
 
 /* Improve visibility of chart elements */
@@ -138,4 +154,39 @@
   font-size: 0.75rem;
   color: #ef4444;
   font-weight: 500;
+}
+
+/* Backtest mode styling */
+.backtest-panel {
+  background-color: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.backtest-result-positive {
+  color: #22c55e;
+}
+
+.backtest-result-negative {
+  color: #ef4444;
+}
+
+/* Fullscreen view for charts */
+.crypto-chart-fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 50;
+  background-color: white;
+  padding: 1rem;
+}
+
+/* Responsive adjustments for smaller screens */
+@media (max-width: 768px) {
+  .crypto-chart-container {
+    height: 500px;
+    min-height: 400px;
+  }
 }

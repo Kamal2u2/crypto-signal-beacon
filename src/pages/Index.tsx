@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
@@ -426,85 +425,85 @@ const Index = () => {
             // No exit condition met yet
             continue;
           }
-          
-          // Add the completed trade to signals
-          signals.push({
-            time: entryTime,
-            price: entryPrice,
-            type: 'BUY',
-            exitTime: currentTime,
-            exitPrice: currentPrice,
-            profit: currentPrice - entryPrice,
-            profitPercent: profitPercent,
-            outcome: profitPercent > 0 ? 'WIN' : 'LOSS',
-            exitReason
-          });
-          
-          // Reset position tracking
-          inPosition = false;
-          entryPrice = 0;
-          entryTime = 0;
-          positionType = null;
-          
-        } else if (positionType === 'SELL') {
-          // For SELL positions (short selling), we could exit if:
-          // 1. We get a BUY signal
-          // 2. Stop loss is hit (configurable percentage above entry)
-          // 3. Take profit is hit (configurable percentage below entry)
-          
-          // Check for stop loss (default 2% above entry for shorts)
-          const stopLossPrice = entryPrice * 1.02;
-          // Check for take profit (default 4% below entry for shorts)
-          const takeProfitPrice = entryPrice * 0.96;
-          
-          let exitReason = '';
-          let profitPercent = 0;
-          
-          if (settings.useStopLoss && currentPrice >= stopLossPrice) {
-            // Stop loss hit
-            profitPercent = ((entryPrice - currentPrice) / entryPrice) * 100;
-            exitReason = 'Stop loss';
-          } else if (settings.useTakeProfit && currentPrice <= takeProfitPrice) {
-            // Take profit hit
-            profitPercent = ((entryPrice - currentPrice) / entryPrice) * 100;
-            exitReason = 'Take profit';
-          } else if (signalData.overallSignal === 'BUY' && signalData.confidence >= 60) {
-            // Exit on opposite signal
-            profitPercent = ((entryPrice - currentPrice) / entryPrice) * 100;
-            exitReason = 'Signal reversal';
-          } else if (i === data.length - 1) {
-            // Exit at end of data if still in position
-            profitPercent = ((entryPrice - currentPrice) / entryPrice) * 100;
-            exitReason = 'End of period';
-          } else {
-            // No exit condition met yet
-            continue;
-          }
-          
-          // Add the completed trade to signals
-          signals.push({
-            time: entryTime,
-            price: entryPrice,
-            type: 'SELL',
-            exitTime: currentTime,
-            exitPrice: currentPrice,
-            profit: entryPrice - currentPrice,
-            profitPercent: profitPercent,
-            outcome: profitPercent > 0 ? 'WIN' : 'LOSS',
-            exitReason
-          });
-          
-          // Reset position tracking
-          inPosition = false;
-          entryPrice = 0;
-          entryTime = 0;
-          positionType = null;
+        
+        // Add the completed trade to signals
+        signals.push({
+          time: entryTime,
+          price: entryPrice,
+          type: 'BUY',
+          exitTime: currentTime,
+          exitPrice: currentPrice,
+          profit: currentPrice - entryPrice,
+          profitPercent: profitPercent,
+          outcome: profitPercent > 0 ? 'WIN' : 'LOSS',
+          exitReason
+        });
+        
+        // Reset position tracking
+        inPosition = false;
+        entryPrice = 0;
+        entryTime = 0;
+        positionType = null;
+        
+      } else if (positionType === 'SELL') {
+        // For SELL positions (short selling), we could exit if:
+        // 1. We get a BUY signal
+        // 2. Stop loss is hit (configurable percentage above entry)
+        // 3. Take profit is hit (configurable percentage below entry)
+        
+        // Check for stop loss (default 2% above entry for shorts)
+        const stopLossPrice = entryPrice * 1.02;
+        // Check for take profit (default 4% below entry for shorts)
+        const takeProfitPrice = entryPrice * 0.96;
+        
+        let exitReason = '';
+        let profitPercent = 0;
+        
+        if (settings.useStopLoss && currentPrice >= stopLossPrice) {
+          // Stop loss hit
+          profitPercent = ((entryPrice - currentPrice) / entryPrice) * 100;
+          exitReason = 'Stop loss';
+        } else if (settings.useTakeProfit && currentPrice <= takeProfitPrice) {
+          // Take profit hit
+          profitPercent = ((entryPrice - currentPrice) / entryPrice) * 100;
+          exitReason = 'Take profit';
+        } else if (signalData.overallSignal === 'BUY' && signalData.confidence >= 60) {
+          // Exit on opposite signal
+          profitPercent = ((entryPrice - currentPrice) / entryPrice) * 100;
+          exitReason = 'Signal reversal';
+        } else if (i === data.length - 1) {
+          // Exit at end of data if still in position
+          profitPercent = ((entryPrice - currentPrice) / entryPrice) * 100;
+          exitReason = 'End of period';
+        } else {
+          // No exit condition met yet
+          continue;
         }
+        
+        // Add the completed trade to signals
+        signals.push({
+          time: entryTime,
+          price: entryPrice,
+          type: 'SELL',
+          exitTime: currentTime,
+          exitPrice: currentPrice,
+          profit: entryPrice - currentPrice,
+          profitPercent: profitPercent,
+          outcome: profitPercent > 0 ? 'WIN' : 'LOSS',
+          exitReason
+        });
+        
+        // Reset position tracking
+        inPosition = false;
+        entryPrice = 0;
+        entryTime = 0;
+        positionType = null;
       }
     }
-    
-    return signals;
-  };
+  }
+  
+  return signals;
+};
 
   const calculateBacktestPerformance = (signals: BacktestResults['signals'], settings: BacktestSettings) => {
     // If no signals were generated, return default performance metrics
@@ -866,57 +865,4 @@ const Index = () => {
               </div>
             )}
             
-            <div className="relative flex-grow min-h-0 h-full">
-              <Button
-                size="sm"
-                variant="outline"
-                className="absolute top-2 right-2 z-10"
-                onClick={toggleFullscreenChart}
-              >
-                {fullscreenChart ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-              </Button>
-            
-              <div className="crypto-chart-container h-full">
-                <PriceChart 
-                  data={klineData}
-                  isPending={isLoading}
-                  symbol={selectedPair.symbol}
-                  signalData={!isBacktestMode ? signalData : null}
-                  backtestMode={isBacktestMode}
-                  backtestResults={backtestResults}
-                />
-              </div>
-            </div>
-            
-            {!fullscreenChart && !isBacktestMode && (
-              <div className="mt-6">
-                <SignalDisplay 
-                  signalData={signalData}
-                  symbol={selectedPair.label}
-                  lastPrice={currentPrice}
-                  confidenceThreshold={confidenceThreshold}
-                />
-              </div>
-            )}
-          </div>
-        </div>
-      </main>
-      
-      <footer className={cn(
-        "mt-12 py-6 border-t border-border bg-secondary/50 dark:bg-secondary/10",
-        fullscreenChart && "hidden"
-      )}>
-        <div className="container text-center">
-          <p className="text-sm text-muted-foreground">
-            Crypto Signal by Kamal — Advanced trading signals with real-time data
-          </p>
-          <p className="text-xs text-muted-foreground/70 mt-1">
-            Disclaimer: This tool is for educational purposes only. Always do your own research before making trading decisions.
-          </p>
-        </div>
-      </footer>
-    </div>
-  );
-};
-
-export default Index;
+            <div className="relative flex-grow min

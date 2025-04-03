@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -38,9 +37,12 @@ export interface BacktestSignal {
   time: number;
   price: number;
   type: 'BUY' | 'SELL';
+  exitTime?: number;
+  exitPrice?: number;
   profit?: number;
   profitPercent?: number;
   outcome?: 'WIN' | 'LOSS' | 'OPEN';
+  exitReason?: string;
 }
 
 const formatXAxisTime = (time: number): string => {
@@ -128,11 +130,9 @@ const PriceChart: React.FC<PriceChartProps> = ({
   const visibleDataCount = Math.max(Math.floor(dataLength * zoomFactor), 10);
   const zoomedData = data.slice(Math.max(0, dataLength - visibleDataCount), dataLength);
   
-  // Ensure we have valid min/max values for chart scaling
   let minPrice = Math.min(...zoomedData.map(item => item.low)) * 0.995;
   let maxPrice = Math.max(...zoomedData.map(item => item.high)) * 1.005;
   
-  // Fix domain calculation to prevent chart scaling issues
   const yDomain = [minPrice, maxPrice];
   
   const chartData = zoomedData.map((item, index) => {
@@ -200,7 +200,6 @@ const PriceChart: React.FC<PriceChartProps> = ({
     setZoomLevel(prev => Math.min(100, prev + 20));
   };
 
-  // Convert signal points to an array format compatible with the chart
   const signalData2 = showSignals ? signalPoints : [];
 
   return (
@@ -380,7 +379,6 @@ const PriceChart: React.FC<PriceChartProps> = ({
                   }}
                 />
                 
-                {/* Use Area component instead of Line for price data */}
                 <Area 
                   yAxisId="left" 
                   type="monotone" 
@@ -390,7 +388,7 @@ const PriceChart: React.FC<PriceChartProps> = ({
                   fill="url(#colorPrice)" 
                   name="Price"
                   animationDuration={500}
-                  isAnimationActive={false} // Disable animation to fix rendering issues on signals
+                  isAnimationActive={false}
                 />
                 
                 {showBollinger && (

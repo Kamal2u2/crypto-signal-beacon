@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
-import { ArrowUp, ArrowDown, Minus, Maximize2, Minimize2 } from 'lucide-react';
+import { ArrowUp, ArrowDown, Minus, Maximize2, Minimize2, LayoutDashboard } from 'lucide-react';
 import ControlPanel from '@/components/ControlPanel';
 import PriceChart from '@/components/PriceChart';
 import SignalDisplay from '@/components/SignalDisplay';
@@ -359,171 +358,117 @@ const Index = () => {
       </header>
       
       <main className={cn(
-        "container py-8 space-y-6",
+        "container py-8",
         fullscreenChart && "h-screen overflow-hidden"
       )}>
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          <div className="lg:col-span-1">
-            <Tabs defaultValue="controls">
-              <TabsList className="w-full grid grid-cols-2">
-                <TabsTrigger value="controls">Trading Controls</TabsTrigger>
-                <TabsTrigger value="indicators">Indicators</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="controls" className="mt-4">
-                <ControlPanel 
-                  selectedPair={selectedPair}
-                  setSelectedPair={handlePairChange}
-                  selectedInterval={selectedInterval}
-                  setSelectedInterval={setSelectedInterval}
-                  refreshInterval={refreshInterval}
-                  setRefreshInterval={setRefreshInterval}
-                  isAutoRefreshEnabled={isAutoRefreshEnabled}
-                  setIsAutoRefreshEnabled={setIsAutoRefreshEnabled}
-                  onRefresh={handleRefresh}
-                  isLoading={isLoading}
-                />
-                
-                <div className="mt-6">
-                  <ConfidenceControl
-                    confidenceThreshold={confidenceThreshold}
-                    setConfidenceThreshold={setConfidenceThreshold}
-                    alertVolume={alertVolume}
-                    setAlertVolume={setAlertVolume}
-                    alertsEnabled={alertsEnabled}
-                    setAlertsEnabled={setAlertsEnabled}
-                  />
-                </div>
-              </TabsContent>
-              
-              <TabsContent value="indicators" className="mt-4">
-                <IndicatorsPanel
-                  selectedPair={selectedPair}
-                  selectedInterval={selectedInterval}
-                />
-              </TabsContent>
-            </Tabs>
-            
-            {/* News Panel for selected coin */}
-            <div className="mt-6">
-              <NewsPanel coinSymbol={selectedPair.symbol} />
-            </div>
-          </div>
+        <div className="flex flex-col md:flex-row gap-4 mb-6">
+          <LiveCoinPrice 
+            price={currentPrice} 
+            symbol={selectedPair.label}
+            className="glass-card rounded-lg shadow-md border border-border flex-grow md:flex-grow-0"
+          />
           
-          <div className={cn(
-            "lg:col-span-3 flex flex-col",
-            fullscreenChart && "fixed inset-0 z-50 bg-background p-4 overflow-auto"
-          )}>
-            <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-              {/* Live price display */}
-              <LiveCoinPrice 
-                price={currentPrice} 
-                symbol={selectedPair.label}
-                className="glass-card rounded-lg shadow-md border border-border"
-              />
-              
-              {/* Signal card */}
-              {signalData && (
+          {signalData && (
+            <div className={cn(
+              "glass-card p-4 flex flex-wrap items-center gap-4 rounded-lg shadow-md border flex-grow",
+              {
+                'border-crypto-buy border-2': signalData.overallSignal === 'BUY',
+                'border-crypto-sell border-2': signalData.overallSignal === 'SELL',
+                'border-crypto-hold border-2': signalData.overallSignal === 'HOLD',
+                'border-border': signalData.overallSignal === 'NEUTRAL',
+                'opacity-70': signalData.confidence < confidenceThreshold
+              }
+            )}>
+              <div className="flex items-center gap-3">
                 <div className={cn(
-                  "glass-card p-4 flex flex-wrap items-center justify-between gap-4 rounded-lg shadow-md border flex-grow",
+                  "p-3 rounded-full",
                   {
-                    'border-crypto-buy': signalData.overallSignal === 'BUY',
-                    'border-crypto-sell': signalData.overallSignal === 'SELL',
-                    'border-crypto-hold': signalData.overallSignal === 'HOLD',
-                    'border-border': signalData.overallSignal === 'NEUTRAL',
-                    'opacity-70': signalData.confidence < confidenceThreshold
+                    'bg-crypto-buy text-white': signalData.overallSignal === 'BUY',
+                    'bg-crypto-sell text-white': signalData.overallSignal === 'SELL',
+                    'bg-crypto-hold text-white': signalData.overallSignal === 'HOLD',
+                    'bg-gray-400 dark:bg-gray-600 text-white': signalData.overallSignal === 'NEUTRAL'
                   }
                 )}>
-                  <div className="flex items-center gap-3">
-                    <div className={cn(
-                      "p-3 rounded-full",
-                      {
-                        'bg-crypto-buy text-white': signalData.overallSignal === 'BUY',
-                        'bg-crypto-sell text-white': signalData.overallSignal === 'SELL',
-                        'bg-crypto-hold text-white': signalData.overallSignal === 'HOLD',
-                        'bg-gray-400 dark:bg-gray-600 text-white': signalData.overallSignal === 'NEUTRAL'
-                      }
-                    )}>
-                      {signalData.overallSignal === 'BUY' && <ArrowUp className="h-6 w-6" />}
-                      {signalData.overallSignal === 'SELL' && <ArrowDown className="h-6 w-6" />}
-                      {(signalData.overallSignal === 'HOLD' || signalData.overallSignal === 'NEUTRAL') && <Minus className="h-6 w-6" />}
-                    </div>
-                    
-                    <div>
-                      <h2 className={cn(
-                        "text-xl font-bold",
-                        {
-                          'text-crypto-buy': signalData.overallSignal === 'BUY',
-                          'text-crypto-sell': signalData.overallSignal === 'SELL',
-                          'text-crypto-hold': signalData.overallSignal === 'HOLD',
-                          'text-muted-foreground': signalData.overallSignal === 'NEUTRAL'
-                        }
-                      )}>
-                        {signalData.overallSignal} {selectedPair.label}
-                      </h2>
-                      <p className="text-sm text-muted-foreground">
-                        {signalData.confidence.toFixed(0)}% confidence 
-                        {signalData.confidence < confidenceThreshold && (
-                          <span className="text-crypto-sell ml-2">(Below threshold)</span>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  {signalData.priceTargets && (signalData.overallSignal === 'BUY' || signalData.overallSignal === 'SELL') && (
-                    <div className="flex flex-wrap gap-4">
-                      <div className="flex flex-col">
-                        <span className="text-xs text-muted-foreground">Entry</span>
-                        <span className="font-medium">${signalData.priceTargets.entryPrice.toFixed(2)}</span>
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-xs text-crypto-sell">Stop Loss</span>
-                        <span className="font-medium">${signalData.priceTargets.stopLoss.toFixed(2)}</span>
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-xs text-crypto-buy">Target 1</span>
-                        <span className="font-medium">${signalData.priceTargets.target1.toFixed(2)}</span>
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-xs text-crypto-buy">Target 2</span>
-                        <span className="font-medium">${signalData.priceTargets.target2.toFixed(2)}</span>
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-xs text-crypto-buy">Target 3</span>
-                        <span className="font-medium">${signalData.priceTargets.target3.toFixed(2)}</span>
-                      </div>
-                    </div>
-                  )}
+                  {signalData.overallSignal === 'BUY' && <ArrowUp className="h-6 w-6" />}
+                  {signalData.overallSignal === 'SELL' && <ArrowDown className="h-6 w-6" />}
+                  {(signalData.overallSignal === 'HOLD' || signalData.overallSignal === 'NEUTRAL') && <Minus className="h-6 w-6" />}
                 </div>
-              )}
-            </div>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 relative min-h-[500px]">
-                <div className="absolute inset-0">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="absolute top-2 right-2 z-10"
-                    onClick={toggleFullscreenChart}
-                  >
-                    {fullscreenChart ? (
-                      <Minimize2 className="h-4 w-4" />
-                    ) : (
-                      <Maximize2 className="h-4 w-4" />
+                
+                <div>
+                  <h2 className={cn(
+                    "text-xl font-bold",
+                    {
+                      'text-crypto-buy': signalData.overallSignal === 'BUY',
+                      'text-crypto-sell': signalData.overallSignal === 'SELL',
+                      'text-crypto-hold': signalData.overallSignal === 'HOLD',
+                      'text-muted-foreground': signalData.overallSignal === 'NEUTRAL'
+                    }
+                  )}>
+                    {signalData.overallSignal} {selectedPair.label}
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    {signalData.confidence.toFixed(0)}% confidence 
+                    {signalData.confidence < confidenceThreshold && (
+                      <span className="text-crypto-sell ml-2">(Below threshold)</span>
                     )}
-                  </Button>
-                  
-                  <PriceChart
-                    data={klineData}
-                    isPending={isLoading}
-                    symbol={selectedPair.label}
-                    signalData={signalData}
-                  />
+                  </p>
                 </div>
               </div>
               
-              <div className="lg:col-span-1">
+              {signalData.priceTargets && (signalData.overallSignal === 'BUY' || signalData.overallSignal === 'SELL') && (
+                <div className="flex flex-wrap gap-4 mt-2 md:mt-0 ml-0 md:ml-auto">
+                  <div className="flex flex-col">
+                    <span className="text-xs text-muted-foreground">Entry</span>
+                    <span className="font-medium">${signalData.priceTargets.entryPrice.toFixed(2)}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs text-crypto-sell">Stop Loss</span>
+                    <span className="font-medium">${signalData.priceTargets.stopLoss.toFixed(2)}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs text-crypto-buy">Target 1</span>
+                    <span className="font-medium">${signalData.priceTargets.target1.toFixed(2)}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs text-crypto-buy">Target 2</span>
+                    <span className="font-medium">${signalData.priceTargets.target2.toFixed(2)}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs text-crypto-buy">Target 3</span>
+                    <span className="font-medium">${signalData.priceTargets.target3.toFixed(2)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+          <div className="xl:col-span-3 order-2 xl:order-1">
+            <div className="relative min-h-[500px] glass-card rounded-xl shadow-lg mb-6 overflow-hidden">
+              <Button
+                variant="outline"
+                size="sm"
+                className="absolute top-2 right-2 z-10 bg-background/80 backdrop-blur-sm"
+                onClick={toggleFullscreenChart}
+              >
+                {fullscreenChart ? (
+                  <Minimize2 className="h-4 w-4" />
+                ) : (
+                  <Maximize2 className="h-4 w-4" />
+                )}
+              </Button>
+              
+              <PriceChart
+                data={klineData}
+                isPending={isLoading}
+                symbol={selectedPair.label}
+                signalData={signalData}
+              />
+            </div>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="order-2 lg:order-1">
                 <SignalDisplay
                   signalData={signalData}
                   symbol={selectedPair.label}
@@ -531,6 +476,62 @@ const Index = () => {
                   confidenceThreshold={confidenceThreshold}
                 />
               </div>
+              
+              <div className="order-1 lg:order-2">
+                <div className="glass-card rounded-xl shadow-lg">
+                  <div className="p-4 border-b bg-secondary/10 rounded-t-xl flex items-center">
+                    <LayoutDashboard className="h-5 w-5 mr-2 text-muted-foreground" />
+                    <h3 className="text-lg font-semibold">News & Updates</h3>
+                  </div>
+                  <div className="p-0">
+                    <NewsPanel coinSymbol={selectedPair.symbol} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="xl:col-span-1 order-1 xl:order-2">
+            <div className="glass-card rounded-xl shadow-lg sticky top-4">
+              <Tabs defaultValue="controls" className="w-full">
+                <TabsList className="w-full grid grid-cols-2 rounded-t-xl border-b">
+                  <TabsTrigger value="controls">Trading Controls</TabsTrigger>
+                  <TabsTrigger value="indicators">Indicators</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="controls" className="p-4">
+                  <ControlPanel 
+                    selectedPair={selectedPair}
+                    setSelectedPair={handlePairChange}
+                    selectedInterval={selectedInterval}
+                    setSelectedInterval={setSelectedInterval}
+                    refreshInterval={refreshInterval}
+                    setRefreshInterval={setRefreshInterval}
+                    isAutoRefreshEnabled={isAutoRefreshEnabled}
+                    setIsAutoRefreshEnabled={setIsAutoRefreshEnabled}
+                    onRefresh={handleRefresh}
+                    isLoading={isLoading}
+                  />
+                  
+                  <div className="mt-4">
+                    <ConfidenceControl
+                      confidenceThreshold={confidenceThreshold}
+                      setConfidenceThreshold={setConfidenceThreshold}
+                      alertVolume={alertVolume}
+                      setAlertVolume={setAlertVolume}
+                      alertsEnabled={alertsEnabled}
+                      setAlertsEnabled={setAlertsEnabled}
+                    />
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="indicators" className="p-4">
+                  <IndicatorsPanel
+                    selectedPair={selectedPair}
+                    selectedInterval={selectedInterval}
+                  />
+                </TabsContent>
+              </Tabs>
             </div>
           </div>
         </div>

@@ -67,6 +67,8 @@ const Index = () => {
   const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(false);
   
   const debugCounterRef = useRef<number>(0);
+  
+  const lastPriceUpdateRef = useRef<number>(Date.now());
 
   const handleKlineUpdate = useCallback((newKline: KlineData) => {
     setKlineData(prevData => {
@@ -116,8 +118,9 @@ const Index = () => {
   ]);
 
   const handlePriceUpdate = useCallback((price: number) => {
-    console.log(`Price update received: ${price} for ${selectedPair.symbol}`);
+    console.log(`Price update received in Index: ${price} for ${selectedPair.symbol}`);
     setCurrentPrice(price);
+    lastPriceUpdateRef.current = Date.now();
   }, [selectedPair.symbol]);
 
   useEffect(() => {
@@ -128,25 +131,40 @@ const Index = () => {
           const initialPrice = await fetchCurrentPrice(selectedPair.symbol);
           setCurrentPrice(initialPrice);
           
-          // Initialize price WebSocket with a more explicit callback
-          const priceUpdateCallback = (newPrice: number) => {
-            console.log(`Live price update received for ${selectedPair.symbol}: $${newPrice}`);
-            setCurrentPrice(newPrice);
-          };
-          
+          // Initialize price WebSocket with explicit callback
           initializePriceWebSocket(
             selectedPair.symbol,
-            priceUpdateCallback
+            handlePriceUpdate
           );
           
-          // Set up regular pinging to keep the connection alive
-          const pingInterval = setInterval(() => {
-            console.log('Pinging price WebSocket to keep it alive');
-            pingPriceWebSocket();
-          }, 10000); // Every 10 seconds
+          // Set up a backup timer to check if we're getting updates
+          const checkPriceUpdates = setInterval(() => {
+            const now = Date.now();
+            const timeSinceLastUpdate = now - lastPriceUpdateRef.current;
+            
+            // If no price update for 15 seconds, manually fetch a new price
+            // and try to reconnect the WebSocket
+            if (timeSinceLastUpdate > 15000) {
+              console.log(`No price updates for ${Math.round(timeSinceLastUpdate/1000)}s, manually fetching price`);
+              
+              // Fetch a fresh price
+              fetchCurrentPrice(selectedPair.symbol)
+                .then(price => {
+                  if (price !== null) {
+                    setCurrentPrice(price);
+                    lastPriceUpdateRef.current = now;
+                  }
+                })
+                .catch(err => console.error("Error fetching fallback price:", err));
+              
+              // Try to reconnect the WebSocket
+              closePriceWebSocket();
+              initializePriceWebSocket(selectedPair.symbol, handlePriceUpdate);
+            }
+          }, 5000); // Check every 5 seconds
           
           return () => {
-            clearInterval(pingInterval);
+            clearInterval(checkPriceUpdates);
             closePriceWebSocket();
           };
         } catch (error) {
@@ -161,7 +179,7 @@ const Index = () => {
       
       setupPriceWebSocket();
     }
-  }, [selectedPair.symbol, isBacktestMode]);
+  }, [selectedPair.symbol, isBacktestMode, handlePriceUpdate]);
 
   useEffect(() => {
     if (!isBacktestMode) {

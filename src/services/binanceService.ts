@@ -69,6 +69,8 @@ const BINANCE_WS_BASE_URL = 'wss://stream.binance.com:9443/ws';
 let websocket: WebSocket | null = null;
 let lastKlineData: KlineData[] = [];
 let activeSubscriptions: Set<string> = new Set();
+
+// Price WebSocket management 
 let priceWebsocket: WebSocket | null = null;
 let activePriceSymbol: string | null = null;
 let priceUpdateCallback: ((price: number) => void) | null = null;
@@ -85,6 +87,10 @@ let isPriceReconnecting = false;
 let connectionTimeoutId: NodeJS.Timeout | null = null;
 let priceConnectionTimeoutId: NodeJS.Timeout | null = null;
 const CONNECTION_TIMEOUT = 10000; // 10 seconds
+
+// Price WebSocket heartbeat management
+let priceHeartbeatInterval: NodeJS.Timeout | null = null;
+const HEARTBEAT_INTERVAL = 5000; // 5 seconds
 
 // Function to initialize WebSocket connection for kline data
 export function initializeWebSocket(
@@ -222,7 +228,7 @@ function retryWebSocketConnection(
   }, delay);
 }
 
-// Completely rewritten initializePriceWebSocket function with better reliability
+// Completely rewritten initializePriceWebSocket function for better reliability
 export function initializePriceWebSocket(
   symbol: string,
   onPriceUpdate: (price: number) => void
@@ -271,12 +277,17 @@ export function initializePriceWebSocket(
         priceConnectionTimeoutId = null;
       }
       
-      // Immediately send a dummy message to test the connection
-      try {
-        priceWebsocket?.send(JSON.stringify({ method: "PING" }));
-      } catch (err) {
-        console.error("Failed to send initial ping message:", err);
+      // Set up heartbeat interval to keep the connection alive
+      if (priceHeartbeatInterval) {
+        clearInterval(priceHeartbeatInterval);
       }
+      
+      priceHeartbeatInterval = setInterval(() => {
+        sendPriceHeartbeat();
+      }, HEARTBEAT_INTERVAL);
+      
+      // Immediately send a heartbeat to test the connection
+      sendPriceHeartbeat();
     };
 
     priceWebsocket.onmessage = (event) => {
@@ -291,6 +302,7 @@ export function initializePriceWebSocket(
         if (data.e === 'ticker') {
           const price = parseFloat(data.c); // Current price
           if (!isNaN(price) && price > 0 && priceUpdateCallback) {
+            console.log(`Price update from WebSocket: ${symbol} = $${price}`);
             priceUpdateCallback(price);
           }
         }
@@ -322,6 +334,11 @@ export function initializePriceWebSocket(
         priceConnectionTimeoutId = null;
       }
       
+      if (priceHeartbeatInterval) {
+        clearInterval(priceHeartbeatInterval);
+        priceHeartbeatInterval = null;
+      }
+      
       // Only attempt to reconnect if not manually closed
       if (activePriceSymbol === symbol && !isPriceReconnecting) {
         console.log("Price WebSocket closed, attempting to reconnect...");
@@ -344,7 +361,33 @@ export function initializePriceWebSocket(
   }
 }
 
-// Rewritten retry function that uses the globally saved callback
+// Send a heartbeat to the price WebSocket
+function sendPriceHeartbeat(): void {
+  if (priceWebsocket && priceWebsocket.readyState === WebSocket.OPEN) {
+    try {
+      // Send a ping message
+      const pingMessage = JSON.stringify({ method: "PING", id: Date.now() });
+      priceWebsocket.send(pingMessage);
+      console.log("Price WebSocket heartbeat sent");
+    } catch (error) {
+      console.error('Error sending heartbeat to price WebSocket:', error);
+      
+      // If sending fails, the connection might be broken
+      if (activePriceSymbol && priceUpdateCallback) {
+        closePriceWebSocket();
+        retryPriceWebSocketConnection();
+      }
+    }
+  } else if (priceWebsocket && priceWebsocket.readyState !== WebSocket.CONNECTING && 
+            activePriceSymbol && priceUpdateCallback) {
+    // If the WebSocket is not open or connecting, try to reconnect
+    console.warn('Price WebSocket not open during heartbeat, attempting to reconnect');
+    closePriceWebSocket();
+    retryPriceWebSocketConnection();
+  }
+}
+
+// Function to retry WebSocket connection with exponential backoff
 function retryPriceWebSocketConnection(): void {
   if (isPriceReconnecting || !activePriceSymbol || !priceUpdateCallback) return;
   
@@ -382,26 +425,10 @@ function retryPriceWebSocketConnection(): void {
   }, delay);
 }
 
-// Improved ping function for price WebSocket
+// The pingPriceWebSocket function is now replaced by our automatic heartbeat mechanism
 export function pingPriceWebSocket(): void {
-  if (priceWebsocket && priceWebsocket.readyState === WebSocket.OPEN) {
-    try {
-      priceWebsocket.send(JSON.stringify({ method: "PING" }));
-    } catch (error) {
-      console.error('Error sending ping to price WebSocket:', error);
-      // If we can't send a ping, the connection might be dead, try to reconnect
-      if (activePriceSymbol && priceUpdateCallback) {
-        console.log("Failed to send ping, reconnecting price WebSocket...");
-        closePriceWebSocket();
-        initializePriceWebSocket(activePriceSymbol, priceUpdateCallback);
-      }
-    }
-  } else if (priceWebsocket && priceWebsocket.readyState !== WebSocket.CONNECTING && activePriceSymbol && priceUpdateCallback) {
-    // If the WebSocket is not open or connecting, but we have an active symbol, try to reconnect
-    console.warn('Price WebSocket not open, attempting to reconnect');
-    closePriceWebSocket();
-    initializePriceWebSocket(activePriceSymbol, priceUpdateCallback);
-  }
+  // This is now just a manual trigger for the heartbeat
+  sendPriceHeartbeat();
 }
 
 // Improved close function for price WebSocket
@@ -413,6 +440,11 @@ export function closePriceWebSocket(): void {
       if (priceConnectionTimeoutId) {
         clearTimeout(priceConnectionTimeoutId);
         priceConnectionTimeoutId = null;
+      }
+      
+      if (priceHeartbeatInterval) {
+        clearInterval(priceHeartbeatInterval);
+        priceHeartbeatInterval = null;
       }
       
       // Save symbol before closing for debugging

@@ -443,6 +443,9 @@ export const generateSignals = (klineData: KlineData[]): SignalSummary => {
   const vwap = calculateVWAP(highPrices, lowPrices, closePrices, volumes);
   const adx = calculateADX(highPrices, lowPrices, closePrices);
   
+  // Calculate support/resistance levels
+  const supportResistanceLevels = findSupportResistanceLevels(highPrices, lowPrices, closePrices);
+  
   // Initialize signals object
   const signals: {[key: string]: IndicatorSignal} = {};
   

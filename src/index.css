@@ -36,6 +36,36 @@
     --radius: 0.75rem;
   }
 
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 6.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 6.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 48%;
+  }
+
   .signal-buy {
     @apply bg-crypto-buy bg-opacity-20 text-crypto-buy font-semibold;
   }
@@ -49,7 +79,7 @@
   }
   
   .signal-neutral {
-    @apply bg-gray-200 text-gray-700 font-semibold;
+    @apply bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 font-semibold;
   }
 }
 
@@ -59,7 +89,7 @@
   }
 
   body {
-    @apply bg-gradient-to-br from-white to-gray-50 text-foreground;
+    @apply bg-background text-foreground transition-colors duration-300;
   }
   
   h1, h2, h3, h4, h5, h6 {
@@ -81,7 +111,7 @@
 
 @layer components {
   .glass-card {
-    @apply bg-white/90 border border-crypto-border shadow-card backdrop-blur-sm hover:shadow-card-hover transition-shadow duration-300;
+    @apply bg-card/90 border border-border shadow-card backdrop-blur-sm hover:shadow-card-hover transition-shadow duration-300;
   }
   
   .chart-container {
@@ -97,15 +127,15 @@
   }
   
   .card-header {
-    @apply bg-gradient-to-r from-gray-50 to-gray-100 rounded-t-xl border-b p-4;
+    @apply bg-gradient-to-r from-secondary to-secondary/70 dark:from-secondary/30 dark:to-secondary/20 rounded-t-xl border-b p-4;
   }
   
   .data-label {
-    @apply text-sm font-medium text-gray-500;
+    @apply text-sm font-medium text-muted-foreground;
   }
   
   .data-value {
-    @apply font-semibold text-gray-800;
+    @apply font-semibold text-foreground;
   }
   
   .badge-buy {
@@ -125,6 +155,6 @@
   }
   
   .indicator-card {
-    @apply border border-gray-100 rounded-lg p-3 bg-white shadow-sm hover:shadow-md transition-shadow;
+    @apply border border-border rounded-lg p-3 bg-card shadow-sm hover:shadow-md transition-shadow;
   }
 }

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
@@ -8,6 +9,7 @@ import SignalDisplay from '@/components/SignalDisplay';
 import ConfidenceControl from '@/components/ConfidenceControl';
 import BacktestPanel, { BacktestSettings } from '@/components/BacktestPanel';
 import LiveCoinPrice from '@/components/LiveCoinPrice';
+import NewsPanel from '@/components/NewsPanel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   CoinPair, 
@@ -487,13 +489,13 @@ const Index = () => {
   }, [fetchData]);
 
   return (
-    <div className="min-h-screen bg-crypto-primary text-foreground">
-      <header className="w-full py-6 border-b border-crypto-border bg-gradient-to-r from-blue-50 to-indigo-50">
+    <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
+      <header className="w-full py-6 border-b border-border bg-gradient-to-r from-secondary to-secondary/50 dark:from-secondary/20 dark:to-secondary/10">
         <div className="container">
-          <h1 className="text-3xl font-bold text-center text-gray-800">
+          <h1 className="text-3xl font-bold text-center text-foreground">
             Crypto Signal by Kamal
           </h1>
-          <p className="text-center text-gray-600 mt-2">
+          <p className="text-center text-muted-foreground mt-2">
             Real-time cryptocurrency trading signals powered by advanced technical analysis
           </p>
           <div className="flex justify-center mt-2">
@@ -501,8 +503,8 @@ const Index = () => {
               className={cn(
                 "text-xs px-3 py-1 rounded-full transition-colors",
                 notificationsEnabled 
-                  ? "bg-green-100 text-green-700 border border-green-300" 
-                  : "bg-gray-100 text-gray-600 border border-gray-300 hover:bg-blue-50"
+                  ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border border-green-300 dark:border-green-800" 
+                  : "bg-secondary text-muted-foreground border border-border hover:bg-primary/10"
               )}
               onClick={() => {
                 const hasPermission = requestNotificationPermission();
@@ -525,8 +527,8 @@ const Index = () => {
               className={cn(
                 "text-xs px-3 py-1 rounded-full transition-colors ml-2",
                 isBacktestMode 
-                  ? "bg-amber-100 text-amber-700 border border-amber-300" 
-                  : "bg-gray-100 text-gray-600 border border-gray-300 hover:bg-blue-50"
+                  ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-300 dark:border-amber-800" 
+                  : "bg-secondary text-muted-foreground border border-border hover:bg-primary/10"
               )}
               onClick={handleBacktestModeToggle}
             >
@@ -584,11 +586,16 @@ const Index = () => {
                 />
               </TabsContent>
             </Tabs>
+            
+            {/* News Panel for selected coin */}
+            <div className="mt-6">
+              <NewsPanel coinSymbol={selectedPair.symbol} />
+            </div>
           </div>
           
           <div className={cn(
             "lg:col-span-3 flex flex-col",
-            fullscreenChart && "fixed inset-0 z-50 bg-white p-4 overflow-auto"
+            fullscreenChart && "fixed inset-0 z-50 bg-background p-4 overflow-auto"
           )}>
             {!isBacktestMode && (
               <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
@@ -596,18 +603,18 @@ const Index = () => {
                 <LiveCoinPrice 
                   price={currentPrice} 
                   symbol={selectedPair.label}
-                  className="glass-card bg-white rounded-lg shadow-md border border-gray-200"
+                  className="glass-card rounded-lg shadow-md border border-border"
                 />
                 
                 {/* Signal card */}
                 {signalData && (
                   <div className={cn(
-                    "glass-card p-4 flex flex-wrap items-center justify-between gap-4 bg-white rounded-lg shadow-md border flex-grow",
+                    "glass-card p-4 flex flex-wrap items-center justify-between gap-4 rounded-lg shadow-md border flex-grow",
                     {
                       'border-crypto-buy': signalData.overallSignal === 'BUY',
                       'border-crypto-sell': signalData.overallSignal === 'SELL',
                       'border-crypto-hold': signalData.overallSignal === 'HOLD',
-                      'border-gray-300': signalData.overallSignal === 'NEUTRAL',
+                      'border-border': signalData.overallSignal === 'NEUTRAL',
                       'opacity-70': signalData.confidence < confidenceThreshold
                     }
                   )}>
@@ -618,7 +625,7 @@ const Index = () => {
                           'bg-crypto-buy text-white': signalData.overallSignal === 'BUY',
                           'bg-crypto-sell text-white': signalData.overallSignal === 'SELL',
                           'bg-crypto-hold text-white': signalData.overallSignal === 'HOLD',
-                          'bg-gray-400 text-white': signalData.overallSignal === 'NEUTRAL'
+                          'bg-gray-400 dark:bg-gray-600 text-white': signalData.overallSignal === 'NEUTRAL'
                         }
                       )}>
                         {signalData.overallSignal === 'BUY' && <ArrowUp className="h-6 w-6" />}
@@ -633,12 +640,12 @@ const Index = () => {
                             'text-crypto-buy': signalData.overallSignal === 'BUY',
                             'text-crypto-sell': signalData.overallSignal === 'SELL',
                             'text-crypto-hold': signalData.overallSignal === 'HOLD',
-                            'text-gray-600': signalData.overallSignal === 'NEUTRAL'
+                            'text-muted-foreground': signalData.overallSignal === 'NEUTRAL'
                           }
                         )}>
                           {signalData.overallSignal} {selectedPair.label}
                         </h2>
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm text-muted-foreground">
                           {signalData.confidence.toFixed(0)}% confidence 
                           {signalData.confidence < confidenceThreshold && (
                             <span className="text-crypto-sell ml-2">(Below threshold)</span>
@@ -650,7 +657,7 @@ const Index = () => {
                     {signalData.priceTargets && (signalData.overallSignal === 'BUY' || signalData.overallSignal === 'SELL') && (
                       <div className="flex flex-wrap gap-4">
                         <div className="flex flex-col">
-                          <span className="text-xs text-gray-500">Entry</span>
+                          <span className="text-xs text-muted-foreground">Entry</span>
                           <span className="font-medium">${signalData.priceTargets.entryPrice.toFixed(2)}</span>
                         </div>
                         <div className="flex flex-col">
@@ -713,14 +720,14 @@ const Index = () => {
       </main>
       
       <footer className={cn(
-        "mt-12 py-6 border-t border-crypto-border bg-crypto-accent",
+        "mt-12 py-6 border-t border-border bg-secondary/50 dark:bg-secondary/10",
         fullscreenChart && "hidden"
       )}>
         <div className="container text-center">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-muted-foreground">
             Crypto Signal by Kamal — Advanced trading signals with real-time data
           </p>
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-xs text-muted-foreground/70 mt-1">
             Disclaimer: This tool is for educational purposes only. Always do your own research before making trading decisions.
           </p>
         </div>

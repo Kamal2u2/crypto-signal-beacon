@@ -11,6 +11,7 @@ import { COIN_PAIRS, CoinPair, TimeInterval, fetchAllCoinPairs } from '@/service
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from '@/components/ui/command';
+import ThemeToggle from './ThemeToggle';
 
 interface ControlPanelProps {
   selectedPair: CoinPair;
@@ -65,9 +66,10 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
     : allCoinPairs.slice(0, 50); // Limit initial display to prevent lag
 
   return (
-    <Card className="control-panel-card bg-white">
-      <CardHeader>
+    <Card className="control-panel-card bg-card">
+      <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Trading Configuration</CardTitle>
+        <ThemeToggle />
       </CardHeader>
       <CardContent className="grid gap-4">
         {/* Coin Pair Selection with Search */}
@@ -78,21 +80,21 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
               <Button
                 variant="outline"
                 role="combobox"
-                className="w-full justify-between bg-white border-gray-300"
+                className="w-full justify-between bg-background border-input"
               >
                 {selectedPair.label}
                 <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[300px] p-0 bg-white" align="start">
-              <Command className="bg-white">
+            <PopoverContent className="w-[300px] p-0 bg-popover" align="start">
+              <Command className="bg-transparent">
                 <CommandInput 
                   placeholder="Search coin pair..." 
                   value={searchTerm}
                   onValueChange={setSearchTerm}
-                  className="h-9 bg-white"
+                  className="h-9"
                 />
-                <CommandList className="command-list bg-white">
+                <CommandList className="command-list">
                   <CommandEmpty>No coin pairs found.</CommandEmpty>
                   <CommandGroup>
                     <ScrollArea className="h-[300px]">
@@ -110,7 +112,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                               setOpenCoinSearch(false);
                               setSearchTerm('');
                             }}
-                            className="cursor-pointer bg-white hover:bg-gray-100"
+                            className="cursor-pointer hover:bg-muted"
                           >
                             {pair.label}
                           </CommandItem>
@@ -128,10 +130,10 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         <div className="flex items-center space-x-2">
           <Label htmlFor="time-interval">Time Interval</Label>
           <Select value={selectedInterval} onValueChange={setSelectedInterval}>
-            <SelectTrigger id="time-interval" className="w-[180px] bg-white">
+            <SelectTrigger id="time-interval" className="w-[180px] bg-background">
               <SelectValue placeholder="Select Interval" />
             </SelectTrigger>
-            <SelectContent className="bg-white border border-gray-200 shadow-md">
+            <SelectContent className="bg-popover border border-border shadow-md">
               <SelectItem value="1m">1 Minute</SelectItem>
               <SelectItem value="3m">3 Minutes</SelectItem>
               <SelectItem value="5m">5 Minutes</SelectItem>
@@ -147,7 +149,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         <Separator />
 
         {/* Manual Refresh Button */}
-        <Button onClick={onRefresh} disabled={isLoading} className="bg-blue-600 hover:bg-blue-700">
+        <Button onClick={onRefresh} disabled={isLoading} className="bg-primary hover:bg-primary/90">
           {isLoading ? (
             <>
               <RefreshCw className="mr-2 h-4 w-4 animate-spin" />

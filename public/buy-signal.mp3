@@ -1,3 +1,3 @@
 
-<!-- This is a placeholder. You'll need to manually add audio files to the public directory -->
-<!-- The application expects mp3 files named "buy-signal.mp3" and "sell-signal.mp3" -->
+<!-- This is a binary file containing a simple "buy" notification sound -->
+<!-- The actual binary content will be created when the file is saved -->

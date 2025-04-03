@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
@@ -883,11 +882,11 @@ const Index = () => {
                 
                 <PriceChart
                   data={klineData}
-                  pair={selectedPair}
-                  signals={signalData}
-                  lastSignalType={lastSignalType}
+                  isPending={isLoading}
+                  symbol={selectedPair.label}
+                  signalData={signalData}
+                  backtestMode={isBacktestMode}
                   backtestResults={backtestResults}
-                  confidenceThreshold={confidenceThreshold}
                 />
               </div>
             </div>

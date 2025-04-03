@@ -43,18 +43,24 @@ export interface KlineData {
 // Determine the appropriate limit based on time interval
 export function getDataLimitForTimeframe(interval: TimeInterval): number {
   switch(interval) {
+    case '1m':
+      return 1000; // Approximately 16 hours of 1-minute data
+    case '3m':
+      return 1000; // Approximately 2 days of 3-minute data
+    case '5m':
+      return 950; // Approximately 3 days of 5-minute data
+    case '15m':
+      return 600; // Approximately 6 days of 15-minute data
+    case '30m':
+      return 480; // Approximately 10 days of 30-minute data
     case '1h':
       return 720; // Approximately 30 days of hourly data
     case '4h':
       return 500; // Approximately 83 days of 4-hour data
     case '1d':
       return 365; // Approximately 1 year of daily data
-    case '30m':
-      return 480; // Approximately 10 days of 30-minute data
-    case '15m':
-      return 300; // Approximately 3 days of 15-minute data
     default:
-      return 100; // Default for shorter timeframes
+      return 100; // Default fallback
   }
 }
 

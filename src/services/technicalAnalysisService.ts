@@ -420,7 +420,154 @@ export const findSupportResistanceLevels = (highs: number[], lows: number[], clo
   };
 };
 
-// Generate signals based on technical indicators
+// NEW for short-term: Calculate price momentum
+export const calculateMomentum = (prices: number[], period: number = 10): number[] => {
+  const result: number[] = [];
+  
+  for (let i = 0; i < prices.length; i++) {
+    if (i < period) {
+      result.push(NaN);
+      continue;
+    }
+    
+    result.push(prices[i] / prices[i - period] * 100 - 100);
+  }
+  
+  return result;
+};
+
+// NEW for short-term: Parabolic SAR
+export const calculatePSAR = (
+  highs: number[], 
+  lows: number[], 
+  acceleration: number = 0.02, 
+  maximum: number = 0.2
+): { psar: number[], trend: ('up' | 'down')[] } => {
+  const psar: number[] = [];
+  const trend: ('up' | 'down')[] = [];
+  
+  if (highs.length < 2) {
+    return { psar: [], trend: [] };
+  }
+  
+  // Initialize with a reasonable trend direction
+  let uptrend = highs[1] > highs[0];
+  let EP = uptrend ? highs[0] : lows[0]; // Extreme point
+  let AF = acceleration; // Acceleration factor
+  
+  // Starting PSAR value
+  psar.push(uptrend ? lows[0] : highs[0]);
+  trend.push(uptrend ? 'up' : 'down');
+  
+  for (let i = 1; i < highs.length; i++) {
+    // Calculate PSAR for current period
+    psar.push(psar[i - 1] + AF * (EP - psar[i - 1]));
+    
+    // Check if PSAR crosses price, indicating trend reversal
+    let reverse = false;
+    
+    if (uptrend) {
+      if (psar[i] > lows[i]) {
+        uptrend = false;
+        reverse = true;
+        psar[i] = Math.max(...highs.slice(Math.max(0, i - 2), i + 1));
+        EP = lows[i];
+        AF = acceleration;
+      }
+    } else {
+      if (psar[i] < highs[i]) {
+        uptrend = true;
+        reverse = true;
+        psar[i] = Math.min(...lows.slice(Math.max(0, i - 2), i + 1));
+        EP = highs[i];
+        AF = acceleration;
+      }
+    }
+    
+    // If no reversal, continue and update EP if new extreme is found
+    if (!reverse) {
+      if (uptrend) {
+        if (highs[i] > EP) {
+          EP = highs[i];
+          AF = Math.min(AF + acceleration, maximum);
+        }
+      } else {
+        if (lows[i] < EP) {
+          EP = lows[i];
+          AF = Math.min(AF + acceleration, maximum);
+        }
+      }
+    }
+    
+    trend.push(uptrend ? 'up' : 'down');
+  }
+  
+  return { psar, trend };
+};
+
+// NEW for short-term: Calculate Chaikin Money Flow (CMF)
+export const calculateCMF = (
+  highs: number[], 
+  lows: number[], 
+  closes: number[], 
+  volumes: number[], 
+  period: number = 20
+): number[] => {
+  const result: number[] = [];
+  
+  for (let i = 0; i < closes.length; i++) {
+    if (i < period - 1) {
+      result.push(NaN);
+      continue;
+    }
+    
+    let mfVolume = 0;
+    let volume = 0;
+    
+    for (let j = i - period + 1; j <= i; j++) {
+      const highLowRange = highs[j] - lows[j];
+      
+      if (highLowRange === 0) {
+        continue; // Avoid division by zero
+      }
+      
+      // Money Flow Multiplier: [(Close - Low) - (High - Close)] / (High - Low)
+      const mfm = ((closes[j] - lows[j]) - (highs[j] - closes[j])) / highLowRange;
+      
+      // Money Flow Volume: Money Flow Multiplier * Volume for the Period
+      mfVolume += mfm * volumes[j];
+      volume += volumes[j];
+    }
+    
+    if (volume === 0) {
+      result.push(0);
+    } else {
+      // Chaikin Money Flow: Sum(Money Flow Volume) / Sum(Volume) for the Period
+      result.push(mfVolume / volume);
+    }
+  }
+  
+  return result;
+};
+
+// NEW for short-term: Calculate Rate of Change (ROC)
+export const calculateROC = (prices: number[], period: number = 9): number[] => {
+  const result: number[] = [];
+  
+  for (let i = 0; i < prices.length; i++) {
+    if (i < period) {
+      result.push(NaN);
+      continue;
+    }
+    
+    // ROC = [(Current Price - Price n periods ago) / Price n periods ago] * 100
+    result.push((prices[i] - prices[i - period]) / prices[i - period] * 100);
+  }
+  
+  return result;
+};
+
+// Generate signals based on technical indicators with short-term focus
 export const generateSignals = (klineData: KlineData[]): SignalSummary => {
   // Extract price data
   const closePrices = klineData.map(kline => kline.close);
@@ -434,59 +581,81 @@ export const generateSignals = (klineData: KlineData[]): SignalSummary => {
   const sma50 = calculateSMA(closePrices, 50);
   const ema20 = calculateEMA(closePrices, 20);
   const ema50 = calculateEMA(closePrices, 50);
-  const rsi = calculateRSI(closePrices);
-  const macd = calculateMACD(closePrices);
-  const bollingerBands = calculateBollingerBands(closePrices);
   
-  // Calculate new indicators
-  const stochastic = calculateStochastic(highPrices, lowPrices, closePrices);
-  const vwap = calculateVWAP(highPrices, lowPrices, closePrices, volumes);
-  const adx = calculateADX(highPrices, lowPrices, closePrices);
+  // Short-term specific indicators
+  const ema9 = calculateEMA(closePrices, 9);
+  const sma10 = calculateSMA(closePrices, 10);
+  
+  // Short-term RSI settings
+  const rsi = calculateRSI(closePrices, 7); // Shorter period for faster signals
+  
+  // MACD with faster settings for short-term
+  const macd = calculateMACD(closePrices, 8, 17, 9); // Faster periods: 8, 17, 9
+  
+  // Other indicators
+  const bollingerBands = calculateBollingerBands(closePrices, 15, 2); // Shorter period for BB
+  const stochastic = calculateStochastic(highPrices, lowPrices, closePrices, 7, 3); // Faster stochastic for short-term
+  const vwap = calculateVWAP(highPrices, lowPrices, closePrices, volumes, 10);
+  
+  // Short-term specific new indicators
+  const momentum = calculateMomentum(closePrices, 5);
+  const psar = calculatePSAR(highPrices, lowPrices, 0.025, 0.2);
+  const cmf = calculateCMF(highPrices, lowPrices, closePrices, volumes, 10);
+  const roc = calculateROC(closePrices, 5);
+  
+  // ADX for trend strength, but with shorter period for short-term
+  const adx = calculateADX(highPrices, lowPrices, closePrices, 10);
   
   // Calculate support/resistance levels
-  const supportResistanceLevels = findSupportResistanceLevels(highPrices, lowPrices, closePrices);
+  const levels = findSupportResistanceLevels(highPrices, lowPrices, closePrices);
   
   // Initialize signals object
   const signals: {[key: string]: IndicatorSignal} = {};
   
-  // Most recent values (existing indicators)
+  // Get most recent values for all indicators
+  const lastSMA10 = sma10[sma10.length - 1];
   const lastSMA20 = sma20[sma20.length - 1];
-  const lastSMA50 = sma50[sma50.length - 1];
+  const lastEMA9 = ema9[ema9.length - 1];
   const lastEMA20 = ema20[ema20.length - 1];
-  const lastEMA50 = ema50[ema50.length - 1];
   const lastRSI = rsi[rsi.length - 1];
+  const prevRSI = rsi[rsi.length - 2];
   const lastMACD = macd.macd[macd.macd.length - 1];
   const lastSignal = macd.signal[macd.signal.length - 1];
+  const prevMACD = macd.macd[macd.macd.length - 2];
+  const prevSignal = macd.signal[macd.signal.length - 2];
   const lastHistogram = macd.histogram[macd.histogram.length - 1];
+  const prevHistogram = macd.histogram[macd.histogram.length - 2];
+  
+  // Bollinger Bands values
   const lastUpperBB = bollingerBands.upper[bollingerBands.upper.length - 1];
   const lastLowerBB = bollingerBands.lower[bollingerBands.lower.length - 1];
   const lastMiddleBB = bollingerBands.middle[bollingerBands.middle.length - 1];
   
-  // Most recent values (new indicators)
+  // Stochastic values
   const lastK = stochastic.k[stochastic.k.length - 1];
   const lastD = stochastic.d[stochastic.d.length - 1];
+  const prevK = stochastic.k[stochastic.k.length - 2];
+  const prevD = stochastic.d[stochastic.d.length - 2];
+  
+  // VWAP values
   const lastVWAP = vwap[vwap.length - 1];
+  const prevVWAP = vwap[vwap.length - 2];
+  
+  // ADX values
   const lastADX = adx.adx[adx.adx.length - 1];
   const lastPDI = adx.pdi[adx.pdi.length - 1];
   const lastNDI = adx.ndi[adx.ndi.length - 1];
   
-  // Previous values for trend detection (existing)
-  const prevSMA20 = sma20[sma20.length - 2];
-  const prevSMA50 = sma50[sma50.length - 2];
-  const prevEMA20 = ema20[ema20.length - 2];
-  const prevEMA50 = ema50[ema50.length - 2];
-  const prevRSI = rsi[rsi.length - 2];
-  const prevMACD = macd.macd[macd.macd.length - 2];
-  const prevSignal = macd.signal[macd.signal.length - 2];
-  const prevHistogram = macd.histogram[macd.histogram.length - 2];
-  
-  // Previous values for trend detection (new)
-  const prevK = stochastic.k[stochastic.k.length - 2];
-  const prevD = stochastic.d[stochastic.d.length - 2];
-  const prevVWAP = vwap[vwap.length - 2];
-  const prevADX = adx.adx[adx.adx.length - 2];
-  const prevPDI = adx.pdi[adx.pdi.length - 2];
-  const prevNDI = adx.ndi[adx.ndi.length - 2];
+  // New short-term indicator values
+  const lastMomentum = momentum[momentum.length - 1];
+  const prevMomentum = momentum[momentum.length - 2];
+  const lastPSAR = psar.psar[psar.psar.length - 1];
+  const lastPSARTrend = psar.trend[psar.trend.length - 1];
+  const prevPSARTrend = psar.trend[psar.trend.length - 2];
+  const lastCMF = cmf[cmf.length - 1];
+  const prevCMF = cmf[cmf.length - 2];
+  const lastROC = roc[roc.length - 1];
+  const prevROC = roc[roc.length - 2];
   
   // Price movement strength (volatility indicator)
   const recentHighs = highPrices.slice(-10);
@@ -494,216 +663,276 @@ export const generateSignals = (klineData: KlineData[]): SignalSummary => {
   const highestHigh = Math.max(...recentHighs);
   const lowestLow = Math.min(...recentLows);
   const volatility = (highestHigh - lowestLow) / lowestLow * 100;
-  const isVolatile = volatility > 2.5;
+  const isVolatile = volatility > 1.2; // Lower threshold for short-term
   
-  // Volume analysis (new)
-  const recentVolumes = volumes.slice(-10);
+  // Volume analysis
+  const recentVolumes = volumes.slice(-5); // Shorter lookback for volume
   const avgVolume = recentVolumes.reduce((sum, vol) => sum + vol, 0) / recentVolumes.length;
   const lastVolume = volumes[volumes.length - 1];
   const volumeRatio = lastVolume / avgVolume;
-  const isHighVolume = volumeRatio > 1.5;
-  const isLowVolume = volumeRatio < 0.5;
+  const isHighVolume = volumeRatio > 1.3;
+  const isLowVolume = volumeRatio < 0.7;
   
-  // Trend strength detection (new)
-  const trendStrength = lastADX > 25 ? 'strong' : lastADX > 15 ? 'moderate' : 'weak';
-  const isUptrend = lastPDI > lastNDI && lastADX > 20;
-  const isDowntrend = lastNDI > lastPDI && lastADX > 20;
+  // Trend strength detection
+  const trendStrength = lastADX > 20 ? 'strong' : lastADX > 12 ? 'moderate' : 'weak';
+  const isUptrend = lastPDI > lastNDI && lastADX > 15;
+  const isDowntrend = lastNDI > lastPDI && lastADX > 15;
   
-  // === IMPROVED SIGNAL GENERATION LOGIC ===
+  // Short-term candlestick pattern detection
+  const last5Candles = klineData.slice(-5);
   
-  // 1. Moving Average Trend Analysis (improved)
-  if (lastSMA20 > lastSMA50 && lastEMA20 > lastEMA50) {
-    // Strong uptrend confirmed by both SMA and EMA
-    const maDistance = (lastSMA20 - lastSMA50) / lastSMA50 * 100;
-    const confidence = Math.min(90, 60 + maDistance * 10);
-    signals['MA Trend'] = { signal: 'BUY', weight: 3, confidence };
-  } else if (lastSMA20 < lastSMA50 && lastEMA20 < lastEMA50) {
-    // Strong downtrend confirmed by both SMA and EMA
-    const maDistance = (lastSMA50 - lastSMA20) / lastSMA50 * 100;
-    const confidence = Math.min(90, 60 + maDistance * 10);
-    signals['MA Trend'] = { signal: 'SELL', weight: 3, confidence };
-  } else if (lastSMA20 > lastSMA50 || lastEMA20 > lastEMA50) {
-    // Mixed signals but with upward bias
-    signals['MA Trend'] = { signal: 'HOLD', weight: 2, confidence: 60 };
+  // === IMPROVED SHORT-TERM SIGNAL GENERATION LOGIC ===
+  
+  // 1. Short-term EMA Crossovers (9 & 20)
+  if (lastEMA9 > lastEMA20 && ema9[ema9.length - 2] <= ema20[ema20.length - 2]) {
+    // Fresh EMA crossover up (bullish)
+    signals['EMA Cross'] = { signal: 'BUY', weight: 4, confidence: 85 };
+  } else if (lastEMA9 < lastEMA20 && ema9[ema9.length - 2] >= ema20[ema20.length - 2]) {
+    // Fresh EMA crossover down (bearish)
+    signals['EMA Cross'] = { signal: 'SELL', weight: 4, confidence: 85 };
+  } else if (lastEMA9 > lastEMA20 && (lastEMA9 - lastEMA20) / lastEMA20 * 100 > 0.1) {
+    // EMA9 above EMA20 with good separation (continued bullish)
+    signals['EMA Cross'] = { signal: 'HOLD', weight: 3, confidence: 70 };
+  } else if (lastEMA9 < lastEMA20 && (lastEMA20 - lastEMA9) / lastEMA20 * 100 > 0.1) {
+    // EMA9 below EMA20 with good separation (continued bearish)
+    signals['EMA Cross'] = { signal: 'HOLD', weight: 3, confidence: 70 };
   } else {
-    // Mixed signals but with downward bias
-    signals['MA Trend'] = { signal: 'HOLD', weight: 2, confidence: 60 };
+    signals['EMA Cross'] = { signal: 'NEUTRAL', weight: 1, confidence: 50 };
   }
   
-  // 2. RSI with trend confirmation (improved)
-  if (lastRSI < 35 && (isUptrend || lastRSI > prevRSI)) {
-    // Oversold condition with trend confirmation or RSI reversing up
-    const confidence = Math.min(95, 100 - lastRSI * 1.5);
-    signals['RSI'] = { signal: 'BUY', weight: 3, confidence };
-  } else if (lastRSI > 65 && (isDowntrend || lastRSI < prevRSI)) {
-    // Overbought condition with trend confirmation or RSI reversing down
-    const confidence = Math.min(95, (lastRSI - 50) * 1.5);
-    signals['RSI'] = { signal: 'SELL', weight: 3, confidence };
-  } else if (lastRSI < 45 && lastRSI > prevRSI) {
-    // RSI in lower neutral zone and rising
-    signals['RSI'] = { signal: 'HOLD', weight: 2, confidence: 65 };
-  } else if (lastRSI > 55 && lastRSI < prevRSI) {
-    // RSI in upper neutral zone and falling
-    signals['RSI'] = { signal: 'HOLD', weight: 2, confidence: 65 };
+  // 2. RSI (shorter period) with volatility context
+  if (lastRSI < 30 && (lastRSI > prevRSI || isVolatile)) {
+    // Oversold and starting to recover or in volatile market
+    signals['RSI Short-term'] = { signal: 'BUY', weight: 4, confidence: 80 };
+  } else if (lastRSI > 70 && (lastRSI < prevRSI || isVolatile)) {
+    // Overbought and starting to decline or in volatile market
+    signals['RSI Short-term'] = { signal: 'SELL', weight: 4, confidence: 80 };
+  } else if (lastRSI < 40 && lastRSI > prevRSI) {
+    // Moving up from oversold region
+    signals['RSI Short-term'] = { signal: 'BUY', weight: 3, confidence: 65 };
+  } else if (lastRSI > 60 && lastRSI < prevRSI) {
+    // Moving down from overbought region
+    signals['RSI Short-term'] = { signal: 'SELL', weight: 3, confidence: 65 };
   } else {
-    signals['RSI'] = { signal: 'NEUTRAL', weight: 1, confidence: 50 };
+    signals['RSI Short-term'] = { signal: 'NEUTRAL', weight: 2, confidence: 50 };
   }
   
-  // 3. MACD Signal with volume confirmation (improved)
+  // 3. MACD Signal with faster settings and volume confirmation
   if (lastMACD > lastSignal && prevMACD <= prevSignal) {
-    // MACD crossed above signal line (bullish)
-    const strength = Math.abs(lastMACD - lastSignal) / Math.abs(lastSignal) * 100;
-    let confidence = Math.min(90, 60 + strength);
-    
-    // Increase confidence if also high volume
-    if (isHighVolume) confidence = Math.min(95, confidence + 10);
-    
-    signals['MACD'] = { signal: 'BUY', weight: 4, confidence };
+    // MACD bullish crossover
+    let confidence = 80;
+    if (isHighVolume) confidence = 90; // Strong confirmation with high volume
+    signals['MACD Fast'] = { signal: 'BUY', weight: 5, confidence };
   } else if (lastMACD < lastSignal && prevMACD >= prevSignal) {
-    // MACD crossed below signal line (bearish)
-    const strength = Math.abs(lastMACD - lastSignal) / Math.abs(lastSignal) * 100;
-    let confidence = Math.min(90, 60 + strength);
-    
-    // Increase confidence if also high volume
-    if (isHighVolume) confidence = Math.min(95, confidence + 10);
-    
-    signals['MACD'] = { signal: 'SELL', weight: 4, confidence };
+    // MACD bearish crossover
+    let confidence = 80;
+    if (isHighVolume) confidence = 90; // Strong confirmation with high volume
+    signals['MACD Fast'] = { signal: 'SELL', weight: 5, confidence };
   } else if (lastMACD > lastSignal && lastHistogram > prevHistogram) {
-    // MACD above signal line and histogram increasing (momentum increasing)
-    signals['MACD'] = { signal: 'HOLD', weight: 2, confidence: 70 };
+    // MACD above signal and histogram increasing (bullish momentum)
+    signals['MACD Fast'] = { signal: 'HOLD', weight: 3, confidence: 65 };
   } else if (lastMACD < lastSignal && lastHistogram < prevHistogram) {
-    // MACD below signal line and histogram decreasing (momentum decreasing)
-    signals['MACD'] = { signal: 'HOLD', weight: 2, confidence: 70 };
+    // MACD below signal and histogram decreasing (bearish momentum)
+    signals['MACD Fast'] = { signal: 'HOLD', weight: 3, confidence: 65 };
   } else {
-    signals['MACD'] = { signal: 'NEUTRAL', weight: 1, confidence: 50 };
+    signals['MACD Fast'] = { signal: 'NEUTRAL', weight: 2, confidence: 50 };
   }
   
-  // 4. Bollinger Bands with volatility context (improved)
-  const bbPosition = (currentPrice - lastLowerBB) / (lastUpperBB - lastLowerBB);
-  if (bbPosition < 0.1 && !isDowntrend) {
-    // Price near lower band and not in strong downtrend
-    let confidence = 80;
-    if (isHighVolume && lastRSI < 40) confidence = 90; // Volume confirmation
-    signals['Bollinger Bands'] = { signal: 'BUY', weight: 3, confidence };
-  } else if (bbPosition > 0.9 && !isUptrend) {
-    // Price near upper band and not in strong uptrend
-    let confidence = 80;
-    if (isHighVolume && lastRSI > 60) confidence = 90; // Volume confirmation
-    signals['Bollinger Bands'] = { signal: 'SELL', weight: 3, confidence };
-  } else if (bbPosition < 0.2 && lastRSI < 40) {
-    // Price in lower region with oversold RSI
-    signals['Bollinger Bands'] = { signal: 'HOLD', weight: 2, confidence: 70 };
-  } else if (bbPosition > 0.8 && lastRSI > 60) {
-    // Price in upper region with overbought RSI
-    signals['Bollinger Bands'] = { signal: 'HOLD', weight: 2, confidence: 70 };
+  // 4. Bollinger Bands Squeeze and Breakout (optimized for short-term)
+  const bbWidth = (lastUpperBB - lastLowerBB) / lastMiddleBB;
+  const prevBBWidth = (bollingerBands.upper[bollingerBands.upper.length - 2] - 
+                     bollingerBands.lower[bollingerBands.lower.length - 2]) / 
+                     bollingerBands.middle[bollingerBands.middle.length - 2];
+  
+  if (bbWidth < 0.02 && prevBBWidth > bbWidth) {
+    // Extreme BB squeeze - high probability of breakout
+    signals['BB Squeeze'] = { signal: 'NEUTRAL', weight: 4, confidence: 75 };
+  } else if (bbWidth < prevBBWidth * 0.8) {
+    // BB width narrowing - volatility contracting
+    signals['BB Squeeze'] = { signal: 'NEUTRAL', weight: 3, confidence: 60 };
+  } else if (bbWidth > prevBBWidth * 1.5 && currentPrice > lastUpperBB * 0.99 && isHighVolume) {
+    // BB expansion with price near upper band and high volume - bullish breakout
+    signals['BB Squeeze'] = { signal: 'BUY', weight: 5, confidence: 85 };
+  } else if (bbWidth > prevBBWidth * 1.5 && currentPrice < lastLowerBB * 1.01 && isHighVolume) {
+    // BB expansion with price near lower band and high volume - bearish breakout
+    signals['BB Squeeze'] = { signal: 'SELL', weight: 5, confidence: 85 };
   } else {
-    signals['Bollinger Bands'] = { signal: 'NEUTRAL', weight: 1, confidence: 50 };
+    signals['BB Squeeze'] = { signal: 'NEUTRAL', weight: 1, confidence: 50 };
   }
   
-  // 5. Stochastic Oscillator (new signal)
+  // 5. Stochastic Fast Crossover (optimized for short-term)
   if (lastK < 20 && lastK > lastD && prevK <= prevD) {
-    // Oversold and %K crossed above %D (bullish)
-    signals['Stochastic'] = { signal: 'BUY', weight: 3, confidence: 85 };
+    // Stochastic bullish crossover in oversold zone
+    signals['Stochastic Fast'] = { signal: 'BUY', weight: 4, confidence: 80 };
   } else if (lastK > 80 && lastK < lastD && prevK >= prevD) {
-    // Overbought and %K crossed below %D (bearish)
-    signals['Stochastic'] = { signal: 'SELL', weight: 3, confidence: 85 };
-  } else if (lastK < 20 && lastK > prevK) {
-    // Oversold and rising
-    signals['Stochastic'] = { signal: 'HOLD', weight: 2, confidence: 65 };
-  } else if (lastK > 80 && lastK < prevK) {
-    // Overbought and falling
-    signals['Stochastic'] = { signal: 'HOLD', weight: 2, confidence: 65 };
+    // Stochastic bearish crossover in overbought zone
+    signals['Stochastic Fast'] = { signal: 'SELL', weight: 4, confidence: 80 };
+  } else if (lastK < 30 && lastK > prevK) {
+    // Stochastic rising from oversold
+    signals['Stochastic Fast'] = { signal: 'BUY', weight: 3, confidence: 65 };
+  } else if (lastK > 70 && lastK < prevK) {
+    // Stochastic falling from overbought
+    signals['Stochastic Fast'] = { signal: 'SELL', weight: 3, confidence: 65 };
   } else {
-    signals['Stochastic'] = { signal: 'NEUTRAL', weight: 1, confidence: 50 };
+    signals['Stochastic Fast'] = { signal: 'NEUTRAL', weight: 2, confidence: 50 };
   }
   
-  // 6. VWAP relative to price (new signal)
-  if (currentPrice < lastVWAP * 0.98 && lastRSI < 40) {
-    // Price significantly below VWAP and oversold
-    signals['VWAP'] = { signal: 'BUY', weight: 3, confidence: 80 };
-  } else if (currentPrice > lastVWAP * 1.02 && lastRSI > 60) {
-    // Price significantly above VWAP and overbought
-    signals['VWAP'] = { signal: 'SELL', weight: 3, confidence: 80 };
+  // 6. Parabolic SAR (excellent for short-term trend following)
+  if (lastPSARTrend === 'up' && prevPSARTrend === 'down') {
+    // Fresh bullish trend change
+    signals['PSAR'] = { signal: 'BUY', weight: 5, confidence: 85 };
+  } else if (lastPSARTrend === 'down' && prevPSARTrend === 'up') {
+    // Fresh bearish trend change
+    signals['PSAR'] = { signal: 'SELL', weight: 5, confidence: 85 };
+  } else if (lastPSARTrend === 'up' && currentPrice > lastPSAR * 1.005) {
+    // Price well above PSAR in uptrend
+    signals['PSAR'] = { signal: 'HOLD', weight: 3, confidence: 70 };
+  } else if (lastPSARTrend === 'down' && currentPrice < lastPSAR * 0.995) {
+    // Price well below PSAR in downtrend
+    signals['PSAR'] = { signal: 'HOLD', weight: 3, confidence: 70 };
+  } else {
+    signals['PSAR'] = { signal: 'NEUTRAL', weight: 2, confidence: 50 };
+  }
+  
+  // 7. Momentum Indicator
+  if (lastMomentum > 1 && prevMomentum < 0) {
+    // Momentum turning positive from negative
+    signals['Momentum'] = { signal: 'BUY', weight: 4, confidence: 75 };
+  } else if (lastMomentum < -1 && prevMomentum > 0) {
+    // Momentum turning negative from positive
+    signals['Momentum'] = { signal: 'SELL', weight: 4, confidence: 75 };
+  } else if (lastMomentum > 2) {
+    // Strong positive momentum
+    signals['Momentum'] = { signal: 'HOLD', weight: 3, confidence: 65 };
+  } else if (lastMomentum < -2) {
+    // Strong negative momentum
+    signals['Momentum'] = { signal: 'HOLD', weight: 3, confidence: 65 };
+  } else {
+    signals['Momentum'] = { signal: 'NEUTRAL', weight: 2, confidence: 50 };
+  }
+  
+  // 8. Chaikin Money Flow (volume-based indicator)
+  if (lastCMF > 0.1 && prevCMF < 0.1) {
+    // CMF turning strongly positive
+    signals['CMF'] = { signal: 'BUY', weight: 3, confidence: 75 };
+  } else if (lastCMF < -0.1 && prevCMF > -0.1) {
+    // CMF turning strongly negative
+    signals['CMF'] = { signal: 'SELL', weight: 3, confidence: 75 };
+  } else if (lastCMF > 0.05) {
+    // Positive money flow
+    signals['CMF'] = { signal: 'HOLD', weight: 2, confidence: 60 };
+  } else if (lastCMF < -0.05) {
+    // Negative money flow
+    signals['CMF'] = { signal: 'HOLD', weight: 2, confidence: 60 };
+  } else {
+    signals['CMF'] = { signal: 'NEUTRAL', weight: 1, confidence: 50 };
+  }
+  
+  // 9. Price relative to VWAP (important for intraday trading)
+  if (currentPrice < lastVWAP * 0.995 && (lastRSI < 40 || lastK < 30)) {
+    // Price below VWAP with oversold conditions - potential buy
+    signals['VWAP'] = { signal: 'BUY', weight: 4, confidence: 80 };
+  } else if (currentPrice > lastVWAP * 1.005 && (lastRSI > 60 || lastK > 70)) {
+    // Price above VWAP with overbought conditions - potential sell
+    signals['VWAP'] = { signal: 'SELL', weight: 4, confidence: 80 };
   } else if (currentPrice < lastVWAP && currentPrice > prevVWAP) {
-    // Price below VWAP but rising toward it
+    // Price approaching VWAP from below
     signals['VWAP'] = { signal: 'HOLD', weight: 2, confidence: 60 };
   } else if (currentPrice > lastVWAP && currentPrice < prevVWAP) {
-    // Price above VWAP but falling toward it
+    // Price approaching VWAP from above
     signals['VWAP'] = { signal: 'HOLD', weight: 2, confidence: 60 };
   } else {
     signals['VWAP'] = { signal: 'NEUTRAL', weight: 1, confidence: 50 };
   }
   
-  // 7. ADX Trend Strength (new signal)
-  if (isUptrend && trendStrength === 'strong' && lastPDI > prevPDI) {
-    // Strong uptrend getting stronger
-    signals['ADX Trend'] = { signal: 'BUY', weight: 4, confidence: 85 };
-  } else if (isDowntrend && trendStrength === 'strong' && lastNDI > prevNDI) {
-    // Strong downtrend getting stronger
-    signals['ADX Trend'] = { signal: 'SELL', weight: 4, confidence: 85 };
-  } else if (isUptrend && trendStrength !== 'weak') {
-    // Moderate to strong uptrend
-    signals['ADX Trend'] = { signal: 'HOLD', weight: 3, confidence: 70 };
-  } else if (isDowntrend && trendStrength !== 'weak') {
-    // Moderate to strong downtrend
-    signals['ADX Trend'] = { signal: 'HOLD', weight: 3, confidence: 70 };
+  // 10. Rate of Change (momentum measurement)
+  if (lastROC > 1.5 && prevROC < 0) {
+    // ROC turning strongly positive
+    signals['ROC'] = { signal: 'BUY', weight: 3, confidence: 70 };
+  } else if (lastROC < -1.5 && prevROC > 0) {
+    // ROC turning strongly negative
+    signals['ROC'] = { signal: 'SELL', weight: 3, confidence: 70 };
+  } else if (lastROC > 0.5 && lastROC > prevROC) {
+    // Increasing positive momentum
+    signals['ROC'] = { signal: 'HOLD', weight: 2, confidence: 60 };
+  } else if (lastROC < -0.5 && lastROC < prevROC) {
+    // Increasing negative momentum
+    signals['ROC'] = { signal: 'HOLD', weight: 2, confidence: 60 };
   } else {
-    // Weak trend or no clear direction
-    signals['ADX Trend'] = { signal: 'NEUTRAL', weight: 2, confidence: 50 };
+    signals['ROC'] = { signal: 'NEUTRAL', weight: 1, confidence: 50 };
   }
   
-  // 8. Volume Profile (new signal)
-  if (isHighVolume && currentPrice > prevSMA20 && lastRSI > prevRSI) {
-    // High volume with price above SMA and rising RSI (bullish)
-    signals['Volume Analysis'] = { signal: 'BUY', weight: 3, confidence: 80 };
-  } else if (isHighVolume && currentPrice < prevSMA20 && lastRSI < prevRSI) {
-    // High volume with price below SMA and falling RSI (bearish)
-    signals['Volume Analysis'] = { signal: 'SELL', weight: 3, confidence: 80 };
-  } else if (isHighVolume && currentPrice > prevSMA20) {
-    // High volume with price above SMA
-    signals['Volume Analysis'] = { signal: 'HOLD', weight: 2, confidence: 65 };
-  } else if (isHighVolume && currentPrice < prevSMA20) {
-    // High volume with price below SMA
-    signals['Volume Analysis'] = { signal: 'HOLD', weight: 2, confidence: 65 };
+  // 11. Support/Resistance Proximity with Stochastic confirmation
+  const nearestSupport = levels.support.find(level => level < currentPrice);
+  const nearestResistance = levels.resistance.find(level => level > currentPrice);
+  
+  if (nearestSupport && 
+      (currentPrice - nearestSupport) / currentPrice < 0.01 && 
+      lastK < 30 && lastK > prevK) {
+    // Price very close to support with Stochastic turning up
+    signals['Support/Resistance'] = { signal: 'BUY', weight: 4, confidence: 85 };
+  } else if (nearestResistance && 
+            (nearestResistance - currentPrice) / currentPrice < 0.01 && 
+            lastK > 70 && lastK < prevK) {
+    // Price very close to resistance with Stochastic turning down
+    signals['Support/Resistance'] = { signal: 'SELL', weight: 4, confidence: 85 };
+  } else if (nearestSupport && 
+            (currentPrice - nearestSupport) / currentPrice < 0.02) {
+    // Price near support
+    signals['Support/Resistance'] = { signal: 'HOLD', weight: 2, confidence: 65 };
+  } else if (nearestResistance && 
+            (nearestResistance - currentPrice) / currentPrice < 0.02) {
+    // Price near resistance
+    signals['Support/Resistance'] = { signal: 'HOLD', weight: 2, confidence: 65 };
   } else {
-    // Average or low volume
-    signals['Volume Analysis'] = { signal: 'NEUTRAL', weight: 1, confidence: 50 };
+    signals['Support/Resistance'] = { signal: 'NEUTRAL', weight: 1, confidence: 50 };
   }
   
-  // 9. Trend Confirmation (new compound signal)
-  if ((isUptrend || lastSMA20 > lastSMA50) && lastK > prevK && lastRSI > prevRSI) {
-    // Multiple indicators confirming uptrend
-    signals['Trend Confirmation'] = { signal: 'BUY', weight: 5, confidence: 85 };
-  } else if ((isDowntrend || lastSMA20 < lastSMA50) && lastK < prevK && lastRSI < prevRSI) {
-    // Multiple indicators confirming downtrend
-    signals['Trend Confirmation'] = { signal: 'SELL', weight: 5, confidence: 85 };
-  } else if (lastSMA20 > lastSMA50 && lastRSI > 50) {
-    // Some confirmation of upward bias
-    signals['Trend Confirmation'] = { signal: 'HOLD', weight: 3, confidence: 65 };
-  } else if (lastSMA20 < lastSMA50 && lastRSI < 50) {
-    // Some confirmation of downward bias
-    signals['Trend Confirmation'] = { signal: 'HOLD', weight: 3, confidence: 65 };
-  } else {
-    // Mixed signals
-    signals['Trend Confirmation'] = { signal: 'NEUTRAL', weight: 2, confidence: 50 };
-  }
-  
-  // 10. Volatility Breakout (new signal)
-  if (isVolatile && bollingerBands.upper[bollingerBands.upper.length - 1] > bollingerBands.upper[bollingerBands.upper.length - 5] * 1.01) {
-    // Expanding volatility (widening Bollinger Bands)
-    if (currentPrice > lastSMA20 && isHighVolume) {
-      // Price above SMA with high volume
-      signals['Volatility Breakout'] = { signal: 'BUY', weight: 4, confidence: 80 };
-    } else if (currentPrice < lastSMA20 && isHighVolume) {
-      // Price below SMA with high volume
-      signals['Volatility Breakout'] = { signal: 'SELL', weight: 4, confidence: 80 };
+  // 12. Volume Surge Detection (critical for short-term trading)
+  if (isHighVolume && lastVolume > volumes[volumes.length - 2] * 1.5) {
+    // Significant volume surge
+    if (currentPrice > closePrices[closePrices.length - 2] * 1.01) {
+      // Price increased with volume surge
+      signals['Volume Surge'] = { signal: 'BUY', weight: 5, confidence: 85 };
+    } else if (currentPrice < closePrices[closePrices.length - 2] * 0.99) {
+      // Price decreased with volume surge
+      signals['Volume Surge'] = { signal: 'SELL', weight: 5, confidence: 85 };
     } else {
-      // No clear direction despite volatility
-      signals['Volatility Breakout'] = { signal: 'NEUTRAL', weight: 2, confidence: 60 };
+      signals['Volume Surge'] = { signal: 'NEUTRAL', weight: 3, confidence: 60 };
     }
+  } else if (isLowVolume && lastROC > 1) {
+    // Low volume with price increase (potential fake move)
+    signals['Volume Surge'] = { signal: 'SELL', weight: 2, confidence: 60 };
+  } else if (isLowVolume && lastROC < -1) {
+    // Low volume with price decrease (potential fake move)
+    signals['Volume Surge'] = { signal: 'BUY', weight: 2, confidence: 60 };
   } else {
-    // Normal volatility
-    signals['Volatility Breakout'] = { signal: 'NEUTRAL', weight: 1, confidence: 50 };
+    signals['Volume Surge'] = { signal: 'NEUTRAL', weight: 1, confidence: 50 };
+  }
+  
+  // 13. Short-term trend consistency check (multiple indicators agreement)
+  const bullishIndicators = Object.entries(signals)
+    .filter(([_, data]) => data.signal === 'BUY')
+    .length;
+  
+  const bearishIndicators = Object.entries(signals)
+    .filter(([_, data]) => data.signal === 'SELL')
+    .length;
+  
+  if (bullishIndicators >= 4 && lastPSARTrend === 'up') {
+    // Multiple bullish signals with PSAR confirmation
+    signals['Trend Consistency'] = { signal: 'BUY', weight: 5, confidence: 90 };
+  } else if (bearishIndicators >= 4 && lastPSARTrend === 'down') {
+    // Multiple bearish signals with PSAR confirmation
+    signals['Trend Consistency'] = { signal: 'SELL', weight: 5, confidence: 90 };
+  } else if (bullishIndicators > bearishIndicators && bullishIndicators >= 3) {
+    // More bullish than bearish signals
+    signals['Trend Consistency'] = { signal: 'BUY', weight: 4, confidence: 75 };
+  } else if (bearishIndicators > bullishIndicators && bearishIndicators >= 3) {
+    // More bearish than bullish signals
+    signals['Trend Consistency'] = { signal: 'SELL', weight: 4, confidence: 75 };
+  } else {
+    signals['Trend Consistency'] = { signal: 'NEUTRAL', weight: 2, confidence: 50 };
   }
   
   // Calculate weighted average signal
@@ -725,23 +954,23 @@ export const generateSignals = (klineData: KlineData[]): SignalSummary => {
     else neutralWeight += weight;
   }
   
-  // Filter signals with higher thresholds for improved accuracy
+  // Determine overall signal with higher thresholds for short-term
   let overallSignal: SignalType = 'NEUTRAL';
   
-  // Require stronger consensus for signals
-  if (buyWeight > totalWeight * 0.35 && buyWeight > sellWeight) {
+  // Require stronger consensus for signals (higher thresholds for short-term)
+  if (buyWeight > totalWeight * 0.4 && buyWeight > sellWeight * 1.3) {
     overallSignal = 'BUY';
-  } else if (sellWeight > totalWeight * 0.35 && sellWeight > buyWeight) {
+  } else if (sellWeight > totalWeight * 0.4 && sellWeight > buyWeight * 1.3) {
     overallSignal = 'SELL';
   } else if (holdWeight > buyWeight && holdWeight > sellWeight && holdWeight > neutralWeight) {
     overallSignal = 'HOLD';
   }
   
-  // Apply trend filter to reduce false signals
-  if (overallSignal === 'BUY' && isDowntrend && trendStrength === 'strong') {
+  // Apply trend filter
+  if (overallSignal === 'BUY' && lastPSARTrend === 'down' && lastADX > 25) {
     // Don't buy against strong downtrend
     overallSignal = 'NEUTRAL';
-  } else if (overallSignal === 'SELL' && isUptrend && trendStrength === 'strong') {
+  } else if (overallSignal === 'SELL' && lastPSARTrend === 'up' && lastADX > 25) {
     // Don't sell against strong uptrend
     overallSignal = 'NEUTRAL';
   }
@@ -749,32 +978,32 @@ export const generateSignals = (klineData: KlineData[]): SignalSummary => {
   // Calculate overall confidence
   const overallConfidence = totalWeight > 0 ? weightedConfidence / totalWeight : 50;
   
-  // Calculate price targets if we have a BUY or SELL signal
+  // Calculate price targets
   let priceTargets;
   if (overallSignal === 'BUY' || overallSignal === 'SELL') {
     // Calculate average true range for stop loss determination
-    const atr = calculateATR(klineData, 14);
+    const atr = calculateATR(klineData, 7); // Shorter period for short-term
     const lastATR = atr[atr.length - 1];
     
     if (overallSignal === 'BUY') {
       const entryPrice = currentPrice;
       
-      // Dynamic stop loss based on volatility and support levels
-      let stopLossDistance = lastATR * 2;
+      // Dynamic stop loss with tighter settings for short-term
+      let stopLossDistance = lastATR * 1.5; // Tighter stop for short-term
       
       // Find closest support level below current price if available
-      const nearestSupport = supportResistanceLevels.support.find(level => level < currentPrice);
+      const nearestSupport = levels.support.find(level => level < currentPrice);
       if (nearestSupport && (currentPrice - nearestSupport) < stopLossDistance * 1.5) {
-        stopLossDistance = currentPrice - nearestSupport + (lastATR * 0.5);
+        stopLossDistance = currentPrice - nearestSupport + (lastATR * 0.3);
       }
       
       const stopLoss = entryPrice - stopLossDistance;
       const risk = entryPrice - stopLoss;
       
-      // Set targets with increasing risk-reward ratios
-      const target1 = entryPrice + (risk * 1.5); // 1.5:1 risk-reward
-      const target2 = entryPrice + (risk * 2.5); // 2.5:1 risk-reward  
-      const target3 = entryPrice + (risk * 4);   // 4:1 risk-reward
+      // Set targets with short-term appropriate risk-reward ratios
+      const target1 = entryPrice + (risk * 1.2); // 1.2:1 risk-reward
+      const target2 = entryPrice + (risk * 2);   // 2:1 risk-reward  
+      const target3 = entryPrice + (risk * 3);   // 3:1 risk-reward
       
       priceTargets = {
         entryPrice,
@@ -782,27 +1011,27 @@ export const generateSignals = (klineData: KlineData[]): SignalSummary => {
         target1,
         target2, 
         target3,
-        riskRewardRatio: 4
+        riskRewardRatio: 3
       };
     } else {
       const entryPrice = currentPrice;
       
-      // Dynamic stop loss based on volatility and resistance levels
-      let stopLossDistance = lastATR * 2;
+      // Dynamic stop loss with tighter settings for short-term
+      let stopLossDistance = lastATR * 1.5; // Tighter stop for short-term
       
       // Find closest resistance level above current price if available
-      const nearestResistance = supportResistanceLevels.resistance.find(level => level > currentPrice);
+      const nearestResistance = levels.resistance.find(level => level > currentPrice);
       if (nearestResistance && (nearestResistance - currentPrice) < stopLossDistance * 1.5) {
-        stopLossDistance = nearestResistance - currentPrice + (lastATR * 0.5);
+        stopLossDistance = nearestResistance - currentPrice + (lastATR * 0.3);
       }
       
       const stopLoss = entryPrice + stopLossDistance;
       const risk = stopLoss - entryPrice;
       
-      // Set targets with increasing risk-reward ratios
-      const target1 = entryPrice - (risk * 1.5); // 1.5:1 risk-reward
-      const target2 = entryPrice - (risk * 2.5); // 2.5:1 risk-reward
-      const target3 = entryPrice - (risk * 4);   // 4:1 risk-reward
+      // Set targets with short-term appropriate risk-reward ratios
+      const target1 = entryPrice - (risk * 1.2); // 1.2:1 risk-reward
+      const target2 = entryPrice - (risk * 2);   // 2:1 risk-reward
+      const target3 = entryPrice - (risk * 3);   // 3:1 risk-reward
       
       priceTargets = {
         entryPrice,
@@ -810,7 +1039,7 @@ export const generateSignals = (klineData: KlineData[]): SignalSummary => {
         target1,
         target2,
         target3,
-        riskRewardRatio: 4
+        riskRewardRatio: 3
       };
     }
   }
@@ -856,13 +1085,60 @@ const detectPatterns = (klineData: KlineData[]): PatternDetection[] => {
   const recentHighs = highs.slice(-10);
   const recentLows = lows.slice(-10);
   
+  // Short-term patterns - look for specific short-term patterns
+  
+  // Detect potential doji (indecision)
+  const last = klineData[klineData.length - 1];
+  const bodySize = Math.abs(last.open - last.close);
+  const totalRange = last.high - last.low;
+  
+  if (bodySize / totalRange < 0.1 && totalRange > 0) {
+    patterns.push({
+      name: 'Doji',
+      description: 'A candlestick with a small body indicates market indecision. Watch for the next candle to confirm direction.',
+      type: 'neutral',
+      confidence: 65
+    });
+  }
+  
+  // Detect potential Engulfing pattern (short-term reversal)
+  const lastCandle = klineData[klineData.length - 1];
+  const prevCandle = klineData[klineData.length - 2];
+  
+  if (prevCandle && lastCandle) {
+    const prevBody = Math.abs(prevCandle.open - prevCandle.close);
+    const lastBody = Math.abs(lastCandle.open - lastCandle.close);
+    
+    if (prevCandle.close < prevCandle.open && // Previous bearish
+        lastCandle.close > lastCandle.open && // Current bullish
+        lastCandle.open < prevCandle.close && // Current opens below prev close
+        lastCandle.close > prevCandle.open) { // Current closes above prev open
+      patterns.push({
+        name: 'Bullish Engulfing',
+        description: 'A larger bullish candle completely engulfs the previous bearish candle, suggesting a potential reversal to the upside.',
+        type: 'bullish',
+        confidence: 75
+      });
+    } else if (prevCandle.close > prevCandle.open && // Previous bullish
+              lastCandle.close < lastCandle.open && // Current bearish
+              lastCandle.open > prevCandle.close && // Current opens above prev close
+              lastCandle.close < prevCandle.open) { // Current closes below prev open
+      patterns.push({
+        name: 'Bearish Engulfing',
+        description: 'A larger bearish candle completely engulfs the previous bullish candle, suggesting a potential reversal to the downside.',
+        type: 'bearish',
+        confidence: 75
+      });
+    }
+  }
+  
   // Detect potential double bottom
-  const minIndex1 = lows.slice(-20, -10).indexOf(Math.min(...lows.slice(-20, -10))) + (closes.length - 20);
-  const minIndex2 = lows.slice(-10).indexOf(Math.min(...lows.slice(-10))) + (closes.length - 10);
+  const minIndex1 = lows.slice(-15, -8).indexOf(Math.min(...lows.slice(-15, -8))) + (closes.length - 15);
+  const minIndex2 = lows.slice(-7).indexOf(Math.min(...lows.slice(-7))) + (closes.length - 7);
   
   if (
-    Math.abs(lows[minIndex1] - lows[minIndex2]) / lows[minIndex1] < 0.03 && // Similar lows (within 3%)
-    minIndex2 - minIndex1 >= 5 && // Some distance between bottoms
+    Math.abs(lows[minIndex1] - lows[minIndex2]) / lows[minIndex1] < 0.02 && // Similar lows (within 2%)
+    minIndex2 - minIndex1 >= 4 && // Some distance between bottoms
     closes[closes.length - 1] > (recentHighs.reduce((a, b) => a + b, 0) / recentHighs.length) // Current price above recent average highs
   ) {
     patterns.push({
@@ -874,12 +1150,12 @@ const detectPatterns = (klineData: KlineData[]): PatternDetection[] => {
   }
   
   // Detect potential double top
-  const maxIndex1 = highs.slice(-20, -10).indexOf(Math.max(...highs.slice(-20, -10))) + (closes.length - 20);
-  const maxIndex2 = highs.slice(-10).indexOf(Math.max(...highs.slice(-10))) + (closes.length - 10);
+  const maxIndex1 = highs.slice(-15, -8).indexOf(Math.max(...highs.slice(-15, -8))) + (closes.length - 15);
+  const maxIndex2 = highs.slice(-7).indexOf(Math.max(...highs.slice(-7))) + (closes.length - 7);
   
   if (
-    Math.abs(highs[maxIndex1] - highs[maxIndex2]) / highs[maxIndex1] < 0.03 && // Similar highs (within 3%)
-    maxIndex2 - maxIndex1 >= 5 && // Some distance between tops
+    Math.abs(highs[maxIndex1] - highs[maxIndex2]) / highs[maxIndex1] < 0.02 && // Similar highs (within 2%)
+    maxIndex2 - maxIndex1 >= 4 && // Some distance between tops
     closes[closes.length - 1] < (recentLows.reduce((a, b) => a + b, 0) / recentLows.length) // Current price below recent average lows
   ) {
     patterns.push({
@@ -890,109 +1166,130 @@ const detectPatterns = (klineData: KlineData[]): PatternDetection[] => {
     });
   }
   
-  // Simple trend identification based on moving averages
+  // Simple trend identification based on short moving averages
+  const sma5 = calculateSMA(closes, 5);
   const sma10 = calculateSMA(closes, 10);
-  const sma20 = calculateSMA(closes, 20);
   
+  const last5 = sma5[sma5.length - 1];
+  const prev5 = sma5[sma5.length - 2];
   const last10 = sma10[sma10.length - 1];
   const prev10 = sma10[sma10.length - 2];
-  const last20 = sma20[sma20.length - 1];
-  const prev20 = sma20[sma20.length - 2];
   
-  if (last10 > last20 && prev10 <= prev20) {
+  if (last5 > last10 && prev5 <= prev10) {
     patterns.push({
       name: 'Golden Cross (Short-term)',
-      description: 'A bullish signal where a shorter-term moving average crosses above a longer-term moving average.',
+      description: 'A bullish signal where the 5-period moving average crosses above the 10-period moving average.',
       type: 'bullish',
-      confidence: 65
+      confidence: 70
     });
-  } else if (last10 < last20 && prev10 >= prev20) {
+  } else if (last5 < last10 && prev5 >= prev10) {
     patterns.push({
       name: 'Death Cross (Short-term)',
-      description: 'A bearish signal where a shorter-term moving average crosses below a longer-term moving average.',
+      description: 'A bearish signal where the 5-period moving average crosses below the 10-period moving average.',
       type: 'bearish',
-      confidence: 65
+      confidence: 70
     });
   }
   
   return patterns;
 };
 
-// Generate human-readable signal messages
+// Generate human-readable signal messages - updated for short-term focus
 const generateSignalMessage = (indicator: string, signal: SignalType, price: number): string => {
   switch (indicator) {
-    case 'MA Trend':
+    case 'EMA Cross':
       return signal === 'BUY' 
-        ? `Multiple moving averages confirm uptrend, suggesting strong bullish momentum.` 
+        ? `Fast EMA crossed above slow EMA with strong momentum. Bullish.` 
         : signal === 'SELL'
-          ? `Multiple moving averages confirm downtrend, suggesting strong bearish momentum.`
-          : `Moving averages indicate a continued ${signal === 'HOLD' ? 'current' : 'neutral'} trend.`;
+          ? `Fast EMA crossed below slow EMA with strong momentum. Bearish.`
+          : `EMAs show ${signal === 'HOLD' ? 'continued' : 'unclear'} short-term trend.`;
     
-    case 'RSI':
+    case 'RSI Short-term':
       return signal === 'BUY'
-        ? `RSI indicates oversold conditions with signs of reversal. Good entry opportunity.`
+        ? `Short-term RSI indicates oversold conditions with signs of reversal. Bullish.`
         : signal === 'SELL'
-          ? `RSI indicates overbought conditions with signs of reversal. Consider taking profits.`
-          : `RSI is in neutral territory, showing balanced buying and selling pressure.`;
+          ? `Short-term RSI indicates overbought conditions with signs of reversal. Bearish.`
+          : `RSI is in neutral territory, showing balanced short-term momentum.`;
     
-    case 'MACD':
+    case 'MACD Fast':
       return signal === 'BUY'
-        ? `MACD has crossed above signal line with increasing volume, strong bullish signal.`
+        ? `Fast MACD crossed above signal line with strengthening momentum. Strong buy signal.`
         : signal === 'SELL'
-          ? `MACD has crossed below signal line with increasing volume, strong bearish signal.`
+          ? `Fast MACD crossed below signal line with strengthening momentum. Strong sell signal.`
           : `MACD indicates ${signal === 'HOLD' ? 'continued' : 'neutral'} momentum.`;
     
-    case 'Bollinger Bands':
+    case 'BB Squeeze':
       return signal === 'BUY'
-        ? `Price is testing the lower Bollinger Band with oversold conditions. Potential bounce.`
+        ? `Bollinger band breakout with expanding volatility. Strong bullish momentum forming.`
         : signal === 'SELL'
-          ? `Price is testing the upper Bollinger Band with overbought conditions. Potential reversal.`
-          : `Price is within the middle range of the Bollinger Bands, suggesting no extreme conditions.`;
+          ? `Bollinger band breakdown with expanding volatility. Strong bearish momentum forming.`
+          : `Bollinger bands indicate volatility ${signal === 'HOLD' ? 'contraction' : 'without direction'}.`;
     
-    case 'Stochastic':
+    case 'Stochastic Fast':
       return signal === 'BUY'
-        ? `Stochastic has crossed up from oversold zone, indicating potential bullish reversal.`
+        ? `Fast Stochastic crossed up from oversold zone. Strong reversal potential.`
         : signal === 'SELL'
-          ? `Stochastic has crossed down from overbought zone, indicating potential bearish reversal.`
-          : `Stochastic is showing ${signal === 'HOLD' ? 'gradual momentum shift' : 'no clear direction'}.`;
+          ? `Fast Stochastic crossed down from overbought zone. Strong reversal potential.`
+          : `Stochastic is showing ${signal === 'HOLD' ? 'continued momentum' : 'no clear signal'}.`;
+    
+    case 'PSAR':
+      return signal === 'BUY'
+        ? `Parabolic SAR flipped bullish. Strong uptrend beginning.`
+        : signal === 'SELL'
+          ? `Parabolic SAR flipped bearish. Strong downtrend beginning.`
+          : `PSAR indicates ${signal === 'HOLD' ? 'continued trend strength' : 'no trend change'}.`;
+    
+    case 'Momentum':
+      return signal === 'BUY'
+        ? `Price momentum turned positive with strong buying pressure.`
+        : signal === 'SELL'
+          ? `Price momentum turned negative with strong selling pressure.`
+          : `Momentum indicator shows ${signal === 'HOLD' ? 'sustained direction' : 'neutral movement'}.`;
+    
+    case 'CMF':
+      return signal === 'BUY'
+        ? `Chaikin Money Flow turned positive, indicating strong buying pressure.`
+        : signal === 'SELL'
+          ? `Chaikin Money Flow turned negative, indicating strong selling pressure.`
+          : `Money flow is ${signal === 'HOLD' ? 'sustaining its direction' : 'neutral'}.`;
     
     case 'VWAP':
       return signal === 'BUY'
-        ? `Price below VWAP with oversold conditions. Institutional traders may see value here.`
+        ? `Price below VWAP with oversold indicators. Institutional value zone.`
         : signal === 'SELL'
-          ? `Price above VWAP with overbought conditions. Institutional traders may be taking profits.`
-          : `Price is near VWAP level, indicating equilibrium between buyers and sellers.`;
+          ? `Price above VWAP with overbought indicators. Institutional resistance zone.`
+          : `Price is ${signal === 'HOLD' ? 'moving towards' : 'near'} VWAP level.`;
     
-    case 'ADX Trend':
+    case 'ROC':
       return signal === 'BUY'
-        ? `ADX shows strong uptrend momentum that is gaining strength. Trend followers should pay attention.`
+        ? `Rate of Change has turned positive with accelerating momentum.`
         : signal === 'SELL'
-          ? `ADX shows strong downtrend momentum that is gaining strength. Trend followers should pay attention.`
-          : `ADX indicates ${signal === 'HOLD' ? 'continued trend' : 'weak or no trend'}.`;
+          ? `Rate of Change has turned negative with accelerating momentum.`
+          : `Price rate of change is ${signal === 'HOLD' ? 'maintaining its direction' : 'showing no clear trend'}.`;
     
-    case 'Volume Analysis':
+    case 'Support/Resistance':
       return signal === 'BUY'
-        ? `Increasing volume with rising price suggests strong buying pressure and participation.`
+        ? `Price is bouncing off major support with confirmation from oscillators.`
         : signal === 'SELL'
-          ? `Increasing volume with falling price suggests strong selling pressure and distribution.`
-          : `Volume patterns are ${signal === 'HOLD' ? 'supporting the current price action' : 'inconclusive'}.`;
+          ? `Price is rejecting major resistance with confirmation from oscillators.`
+          : `Price is approaching a key ${signal === 'HOLD' ? 'support/resistance level' : 'price level'}.`;
     
-    case 'Trend Confirmation':
+    case 'Volume Surge':
       return signal === 'BUY'
-        ? `Multiple indicators confirm uptrend. High-probability buying opportunity.`
+        ? `Significant volume surge with rising price. Strong buying pressure.`
         : signal === 'SELL'
-          ? `Multiple indicators confirm downtrend. High-probability selling opportunity.`
-          : `Trend indicators are ${signal === 'HOLD' ? 'aligned with the current direction' : 'giving mixed signals'}.`;
+          ? `Significant volume surge with falling price. Strong selling pressure.`
+          : `Volume pattern is ${signal === 'HOLD' ? 'worth monitoring' : 'showing no clear signal'}.`;
     
-    case 'Volatility Breakout':
+    case 'Trend Consistency':
       return signal === 'BUY'
-        ? `Increasing volatility with upward price action suggests potential for explosive move higher.`
+        ? `Multiple short-term indicators aligned bullish. High probability setup.`
         : signal === 'SELL'
-          ? `Increasing volatility with downward price action suggests potential for accelerated move lower.`
-          : `Market volatility is ${signal === 'HOLD' ? 'elevated but contained' : 'normal without clear direction'}.`;
+          ? `Multiple short-term indicators aligned bearish. High probability setup.`
+          : `Short-term indicators are ${signal === 'HOLD' ? 'mostly in agreement' : 'giving mixed signals'}.`;
     
     default:
-      return `${indicator} indicator suggests a ${signal.toLowerCase()} signal at the current price level.`;
+      return `${indicator} suggests a ${signal.toLowerCase()} signal at the current price level.`;
   }
 };
 

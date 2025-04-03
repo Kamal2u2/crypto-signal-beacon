@@ -40,6 +40,24 @@ export interface KlineData {
   takerBuyQuoteAssetVolume: number;
 }
 
+// Determine the appropriate limit based on time interval
+export function getDataLimitForTimeframe(interval: TimeInterval): number {
+  switch(interval) {
+    case '1h':
+      return 720; // Approximately 30 days of hourly data
+    case '4h':
+      return 500; // Approximately 83 days of 4-hour data
+    case '1d':
+      return 365; // Approximately 1 year of daily data
+    case '30m':
+      return 480; // Approximately 10 days of 30-minute data
+    case '15m':
+      return 300; // Approximately 3 days of 15-minute data
+    default:
+      return 100; // Default for shorter timeframes
+  }
+}
+
 // Function to fetch all available trading pairs from Binance
 export async function fetchAllCoinPairs(): Promise<CoinPair[]> {
   try {
@@ -82,7 +100,12 @@ export async function fetchKlineData(
   limit: number = 100
 ): Promise<KlineData[]> {
   try {
-    const url = `${BINANCE_API_BASE_URL}/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+    // Determine if we need more data based on the interval
+    const dynamicLimit = limit || getDataLimitForTimeframe(interval);
+    
+    console.log(`Fetching ${dynamicLimit} data points for ${symbol} at ${interval} interval`);
+    
+    const url = `${BINANCE_API_BASE_URL}/klines?symbol=${symbol}&interval=${interval}&limit=${dynamicLimit}`;
     const response = await fetch(url);
     
     if (!response.ok) {
@@ -90,6 +113,17 @@ export async function fetchKlineData(
     }
     
     const data = await response.json();
+    
+    console.log(`Received ${data.length} data points from Binance`);
+    
+    if (data.length === 0) {
+      toast({
+        title: "No data available",
+        description: `Binance returned 0 data points for ${symbol} at ${interval} interval`,
+        variant: "destructive"
+      });
+      return [];
+    }
     
     // Transform the response data into our KlineData format
     return data.map((item: any[]): KlineData => ({

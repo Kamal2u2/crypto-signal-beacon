@@ -45,6 +45,7 @@ import { SignalSummary } from '@/services/technicalAnalysisService';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 
 interface PriceChartProps {
   data: KlineData[];
@@ -284,7 +285,7 @@ const PriceChart: React.FC<PriceChartProps> = ({
         : dataPoint.high * 1.005,
       signalType: signalMap[timeKey]
     };
-  }).filter(Boolean);
+  }).filter(Boolean) as any[];
 
   const handleZoomIn = () => {
     setZoomLevel(prev => Math.max(10, prev - 20));
@@ -407,8 +408,28 @@ const PriceChart: React.FC<PriceChartProps> = ({
       </CardHeader>
       <CardContent className="bg-white p-4 flex-1 min-h-0 h-full">
         <div className="flex flex-col gap-4 h-full">
-          <div className="flex-1 min-h-0 h-full">
-            <ResponsiveContainer width="100%" height="100%" className="chart-content-wrapper">
+          <div className="flex-1 min-h-0 h-[500px]">
+            <ChartContainer 
+              config={{
+                price: {
+                  label: 'Price',
+                  color: '#8B5CF6'
+                },
+                volume: {
+                  label: 'Volume',
+                  color: '#0EA5E9'
+                },
+                sma20: {
+                  label: 'SMA 20',
+                  color: '#EF4444'
+                },
+                ema50: {
+                  label: 'EMA 50',
+                  color: '#10B981'
+                }
+              }}
+              className="h-full w-full"
+            >
               <ComposedChart
                 data={chartData}
                 margin={{
@@ -635,7 +656,7 @@ const PriceChart: React.FC<PriceChartProps> = ({
                     yAxisId="left"
                     name="Signals"
                     data={signalPoints}
-                    shape={(props) => {
+                    shape={(props: any) => {
                       if (!props || !props.payload) return null;
                       
                       const { cx, cy, payload } = props;
@@ -676,7 +697,7 @@ const PriceChart: React.FC<PriceChartProps> = ({
                   )}
                 />
               </ComposedChart>
-            </ResponsiveContainer>
+            </ChartContainer>
           </div>
           
           {showRSI && (
@@ -794,7 +815,7 @@ const PriceChart: React.FC<PriceChartProps> = ({
                   />
                   <Bar 
                     dataKey="histogram" 
-                    fill="histogramColor"
+                    fill={(entry) => entry.histogram >= 0 ? "#22c55e" : "#ef4444"}
                     name="Histogram"
                     radius={[2, 2, 0, 0]}
                   />
@@ -810,3 +831,4 @@ const PriceChart: React.FC<PriceChartProps> = ({
 };
 
 export default PriceChart;
+

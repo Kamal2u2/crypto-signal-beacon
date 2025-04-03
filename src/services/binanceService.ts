@@ -69,15 +69,16 @@ const BINANCE_WS_BASE_URL = 'wss://stream.binance.com:9443/ws';
 let websocket: WebSocket | null = null;
 let lastKlineData: KlineData[] = [];
 let activeSubscriptions: Set<string> = new Set();
+let priceWebsocket: WebSocket | null = null;
+let activePriceSymbol: string | null = null;
 
-// Function to initialize WebSocket connection
+// Function to initialize WebSocket connection for kline data
 export function initializeWebSocket(
   symbol: string, 
   interval: TimeInterval,
   onKlineUpdate: (kline: KlineData) => void
 ): void {
   if (websocket) {
-    // Close existing connection if any
     closeWebSocket();
   }
 
@@ -108,7 +109,6 @@ export function initializeWebSocket(
       description: "Connection error occurred. Attempting to reconnect...",
       variant: "destructive"
     });
-    // Attempt to reconnect after 5 seconds
     setTimeout(() => {
       if (activeSubscriptions.has(streamName)) {
         initializeWebSocket(symbol, interval, onKlineUpdate);
@@ -118,13 +118,73 @@ export function initializeWebSocket(
 
   websocket.onclose = () => {
     console.log('WebSocket connection closed');
-    // Attempt to reconnect if this was an unexpected closure
     if (activeSubscriptions.has(streamName)) {
       setTimeout(() => {
         initializeWebSocket(symbol, interval, onKlineUpdate);
       }, 5000);
     }
   };
+}
+
+// Function to initialize WebSocket connection for price ticker
+export function initializePriceWebSocket(
+  symbol: string,
+  onPriceUpdate: (price: number) => void
+): void {
+  if (priceWebsocket && activePriceSymbol === symbol) {
+    return;
+  }
+  
+  if (priceWebsocket) {
+    closePriceWebSocket();
+  }
+  
+  const streamName = `${symbol.toLowerCase()}@ticker`;
+  priceWebsocket = new WebSocket(`${BINANCE_WS_BASE_URL}/${streamName}`);
+  activePriceSymbol = symbol;
+
+  priceWebsocket.onopen = () => {
+    console.log('Price WebSocket connection established');
+  };
+
+  priceWebsocket.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      if (data.e === 'ticker') {
+        const price = parseFloat(data.c); // Current price
+        onPriceUpdate(price);
+      }
+    } catch (error) {
+      console.error('Error processing price WebSocket message:', error);
+    }
+  };
+
+  priceWebsocket.onerror = (error) => {
+    console.error('Price WebSocket error:', error);
+    setTimeout(() => {
+      if (activePriceSymbol === symbol) {
+        initializePriceWebSocket(symbol, onPriceUpdate);
+      }
+    }, 5000);
+  };
+
+  priceWebsocket.onclose = () => {
+    console.log('Price WebSocket connection closed');
+    if (activePriceSymbol === symbol) {
+      setTimeout(() => {
+        initializePriceWebSocket(symbol, onPriceUpdate);
+      }, 5000);
+    }
+  };
+}
+
+// Function to close WebSocket connection for price ticker
+export function closePriceWebSocket(): void {
+  if (priceWebsocket) {
+    priceWebsocket.close();
+    priceWebsocket = null;
+    activePriceSymbol = null;
+  }
 }
 
 // Function to close WebSocket connection
@@ -165,7 +225,6 @@ export async function fetchAllCoinPairs(): Promise<CoinPair[]> {
     
     const data = await response.json();
     
-    // Filter for USDT trading pairs (most popular)
     const usdtPairs = data.symbols
       .filter((symbol: any) => 
         symbol.status === 'TRADING' && 
@@ -255,7 +314,6 @@ export function updateKlineData(newKline: KlineData): KlineData[] {
     lastKlineData[index] = newKline;
   } else {
     lastKlineData.push(newKline);
-    // Keep the array size consistent
     if (lastKlineData.length > 1000) {
       lastKlineData.shift();
     }

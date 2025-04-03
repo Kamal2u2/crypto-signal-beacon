@@ -494,7 +494,6 @@ const PriceChart: React.FC<PriceChartProps> = ({
                 
                 <Tooltip content={<CustomTooltip />} />
                 
-                {/* Price Candles Visualization */}
                 {chartData.map((entry, index) => (
                   <React.Fragment key={`candle-${index}`}>
                     {/* Vertical line (wick) from high to low */}
@@ -815,10 +814,17 @@ const PriceChart: React.FC<PriceChartProps> = ({
                   />
                   <Bar 
                     dataKey="histogram" 
-                    fill={(entry) => entry.histogram >= 0 ? "#22c55e" : "#ef4444"}
+                    fill={["#22c55e", "#ef4444"]}
                     name="Histogram"
                     radius={[2, 2, 0, 0]}
-                  />
+                  >
+                    {chartData.map((entry, index) => (
+                      <rect
+                        key={`histogram-${index}`}
+                        fill={entry.histogram >= 0 ? "#22c55e" : "#ef4444"}
+                      />
+                    ))}
+                  </Bar>
                   <ReferenceLine y={0} stroke="#64748b" strokeDasharray="3 3" strokeWidth={1.5} />
                 </ComposedChart>
               </ResponsiveContainer>
@@ -831,4 +837,3 @@ const PriceChart: React.FC<PriceChartProps> = ({
 };
 
 export default PriceChart;
-

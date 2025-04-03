@@ -223,7 +223,24 @@ const config: Config = {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [
+    require("tailwindcss-animate"),
+    function({ addBase, theme }) {
+      addBase({
+        ':root': {
+          '--card-rgb': '255, 255, 255', // White in RGB format for light mode
+        },
+        '.dark': {
+          '--card-rgb': '57, 59, 71', // Dark card color in RGB format for dark mode
+        }
+      });
+    }
+  ],
+  safelist: [
+    {
+      pattern: /bg-(card|secondary)\/\d+/,
+    },
+  ],
 } satisfies Config;
 
 export default config;

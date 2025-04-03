@@ -111,7 +111,7 @@
 
 @layer components {
   .glass-card {
-    @apply bg-card/90 border border-border shadow-card backdrop-blur-sm hover:shadow-card-hover transition-shadow duration-300;
+    @apply bg-white/90 dark:bg-gray-800/90 border border-border shadow-card backdrop-blur-sm hover:shadow-card-hover transition-shadow duration-300;
   }
   
   .chart-container {

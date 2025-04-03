@@ -315,3 +315,73 @@ select:focus-visible {
   outline: 2px solid rgba(79, 70, 229, 0.5);
   outline-offset: 2px;
 }
+
+/* Modern gradient backgrounds */
+.bg-gradient-soft {
+  background: linear-gradient(135deg, #f9f9ff 0%, #f0f0ff 100%);
+}
+
+.bg-gradient-indigo {
+  background: linear-gradient(135deg, #c7d2fe 0%, #e0e7ff 100%);
+}
+
+.bg-gradient-purple {
+  background: linear-gradient(135deg, #ddd6fe 0%, #ede9fe 100%);
+}
+
+/* Enhanced candle/price chart visualization */
+.candle-wick {
+  stroke-linecap: round;
+}
+
+.candle-body {
+  rx: 1;
+  ry: 1;
+}
+
+/* Modern data visualization enhancements */
+.data-point {
+  transition: all 0.2s ease;
+}
+
+.data-point:hover {
+  filter: brightness(1.2);
+  transform: scale(1.2);
+}
+
+/* Enhanced chart tooltips */
+.modern-tooltip {
+  backdrop-filter: blur(10px);
+  background-color: rgba(255, 255, 255, 0.9);
+  border-radius: 0.5rem;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  padding: 0.75rem;
+  max-width: 300px;
+}
+
+/* Price change indicators */
+.price-up {
+  color: #22c55e;
+}
+
+.price-down {
+  color: #ef4444;
+}
+
+.price-neutral {
+  color: #8B5CF6;
+}
+
+/* Support and resistance levels */
+.support-level {
+  stroke: #22c55e;
+  stroke-width: 2;
+  stroke-dasharray: 5 5;
+}
+
+.resistance-level {
+  stroke: #ef4444;
+  stroke-width: 2;
+  stroke-dasharray: 5 5;
+}

@@ -1,48 +1,56 @@
+
 import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid, BarChart, Bar, ComposedChart, Line, Legend, ReferenceLine, Scatter } from 'recharts';
+import { 
+  Area, 
+  AreaChart, 
+  ResponsiveContainer, 
+  XAxis, 
+  YAxis, 
+  Tooltip, 
+  CartesianGrid, 
+  BarChart, 
+  Bar, 
+  ComposedChart, 
+  Line, 
+  Legend, 
+  ReferenceLine, 
+  Scatter 
+} from 'recharts';
 import { KlineData } from '@/services/binanceService';
 import { Skeleton } from '@/components/ui/skeleton';
-import { InfoIcon, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, BarChart3, Clock, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
-import { calculateSMA, calculateEMA, calculateRSI, calculateMACD, calculateBollingerBands, findSupportResistanceLevels } from '@/services/technicalAnalysisService';
-import { SignalSummary, TradingSignal } from '@/services/technicalAnalysisService';
+import { 
+  InfoIcon, 
+  ZoomIn, 
+  ZoomOut, 
+  ChevronLeft, 
+  ChevronRight, 
+  BarChart3, 
+  Clock, 
+  ArrowUpCircle, 
+  ArrowDownCircle,
+  Eye,
+  EyeOff
+} from 'lucide-react';
+import { 
+  calculateSMA, 
+  calculateEMA, 
+  calculateRSI, 
+  calculateMACD, 
+  calculateBollingerBands, 
+  findSupportResistanceLevels 
+} from '@/services/technicalAnalysisService';
+import { SignalSummary } from '@/services/technicalAnalysisService';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Separator } from '@/components/ui/separator';
 
 interface PriceChartProps {
   data: KlineData[];
   isPending: boolean;
   symbol: string;
   signalData?: SignalSummary | null;
-  backtestMode?: boolean;
-  backtestResults?: BacktestResults | null;
-}
-
-export interface BacktestResults {
-  signals: BacktestSignal[];
-  performance: {
-    totalTrades: number;
-    winningTrades: number;
-    losingTrades: number;
-    winRate: number;
-    profitFactor: number;
-    netProfit: number;
-    maxDrawdown: number;
-    averageProfit: number;
-    averageLoss: number;
-  };
-}
-
-export interface BacktestSignal {
-  time: number;
-  price: number;
-  type: 'BUY' | 'SELL';
-  exitTime?: number;
-  exitPrice?: number;
-  profit?: number;
-  profitPercent?: number;
-  outcome?: 'WIN' | 'LOSS' | 'OPEN';
-  exitReason?: string;
 }
 
 const formatXAxisTime = (time: number): string => {
@@ -61,13 +69,100 @@ const formatTooltipTime = (time: number): string => {
   });
 };
 
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload || !payload.length) {
+    return null;
+  }
+
+  const dataPoint = payload[0].payload;
+  
+  return (
+    <div className="p-3 bg-white/95 backdrop-blur-sm border border-gray-200 rounded-lg shadow-lg">
+      <p className="text-sm font-semibold text-gray-800 mb-1.5">{formatTooltipTime(dataPoint.time)}</p>
+      <Separator className="mb-2" />
+      
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+        <div className="flex items-center gap-1.5">
+          <div className="h-2 w-2 bg-indigo-500 rounded-full"></div>
+          <span className="text-xs text-gray-500">Open:</span>
+          <span className="text-xs font-semibold">${dataPoint.open.toFixed(2)}</span>
+        </div>
+        
+        <div className="flex items-center gap-1.5">
+          <div className="h-2 w-2 bg-green-500 rounded-full"></div>
+          <span className="text-xs text-gray-500">High:</span>
+          <span className="text-xs font-semibold">${dataPoint.high.toFixed(2)}</span>
+        </div>
+        
+        <div className="flex items-center gap-1.5">
+          <div className="h-2 w-2 bg-red-500 rounded-full"></div>
+          <span className="text-xs text-gray-500">Low:</span>
+          <span className="text-xs font-semibold">${dataPoint.low.toFixed(2)}</span>
+        </div>
+        
+        <div className="flex items-center gap-1.5">
+          <div className="h-2 w-2 bg-purple-500 rounded-full"></div>
+          <span className="text-xs text-gray-500">Close:</span>
+          <span className="text-xs font-semibold">${dataPoint.close.toFixed(2)}</span>
+        </div>
+        
+        {dataPoint.sma20 && (
+          <div className="flex items-center gap-1.5">
+            <div className="h-2 w-2 bg-red-400 rounded-full"></div>
+            <span className="text-xs text-gray-500">SMA20:</span>
+            <span className="text-xs font-semibold">${dataPoint.sma20.toFixed(2)}</span>
+          </div>
+        )}
+        
+        {dataPoint.ema50 && (
+          <div className="flex items-center gap-1.5">
+            <div className="h-2 w-2 bg-green-400 rounded-full"></div>
+            <span className="text-xs text-gray-500">EMA50:</span>
+            <span className="text-xs font-semibold">${dataPoint.ema50.toFixed(2)}</span>
+          </div>
+        )}
+        
+        {dataPoint.volume && (
+          <div className="flex items-center gap-1.5">
+            <div className="h-2 w-2 bg-blue-400 rounded-full"></div>
+            <span className="text-xs text-gray-500">Volume:</span>
+            <span className="text-xs font-semibold">{dataPoint.volume.toFixed(2)}</span>
+          </div>
+        )}
+        
+        {dataPoint.rsi && (
+          <div className="flex items-center gap-1.5">
+            <div className="h-2 w-2 bg-amber-400 rounded-full"></div>
+            <span className="text-xs text-gray-500">RSI:</span>
+            <span className="text-xs font-semibold">{dataPoint.rsi.toFixed(2)}</span>
+          </div>
+        )}
+      </div>
+      
+      {dataPoint.signalType && (
+        <div className="mt-2 pt-2 border-t border-gray-200">
+          <div className={cn(
+            "flex items-center justify-center gap-1.5 text-xs font-bold px-2 py-1 rounded-full",
+            dataPoint.signalType === 'BUY' ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+          )}>
+            {dataPoint.signalType === 'BUY' ? (
+              <ArrowUpCircle className="h-3 w-3" />
+            ) : (
+              <ArrowDownCircle className="h-3 w-3" />
+            )}
+            {dataPoint.signalType} SIGNAL
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const PriceChart: React.FC<PriceChartProps> = ({ 
   data, 
   isPending, 
   symbol, 
-  signalData, 
-  backtestMode = false,
-  backtestResults = null
+  signalData 
 }) => {
   const [showMA, setShowMA] = useState(true);
   const [showBollinger, setShowBollinger] = useState(false);
@@ -77,6 +172,7 @@ const PriceChart: React.FC<PriceChartProps> = ({
   const [showSupportResistance, setShowSupportResistance] = useState(true);
   const [showSignals, setShowSignals] = useState(true);
   const [zoomLevel, setZoomLevel] = useState(100);
+  const [showPriceLabels, setShowPriceLabels] = useState(true);
 
   if (isPending) {
     return (
@@ -153,7 +249,11 @@ const PriceChart: React.FC<PriceChartProps> = ({
       histogramColor: macdResult.histogram[dataIndex] >= 0 ? "#22c55e" : "#ef4444",
       upper: bollingerBands.upper[dataIndex],
       middle: bollingerBands.middle[dataIndex],
-      lower: bollingerBands.lower[dataIndex]
+      lower: bollingerBands.lower[dataIndex],
+      // Add change color based on price movement
+      priceColor: item.close > item.open ? "#22c55e" : item.close < item.open ? "#ef4444" : "#8B5CF6",
+      // Calculate price change percentage for display
+      changePercent: item.open > 0 ? ((item.close - item.open) / item.open) * 100 : 0
     };
     
     return enhancedData;
@@ -161,17 +261,11 @@ const PriceChart: React.FC<PriceChartProps> = ({
 
   let signalMap: { [key: string]: 'BUY' | 'SELL' } = {};
   
-  if (signalData && signalData.signals && !backtestMode) {
+  if (signalData && signalData.signals) {
     const lastCandleTime = data[data.length - 1].openTime;
     if (signalData.overallSignal === 'BUY' || signalData.overallSignal === 'SELL') {
       signalMap[lastCandleTime.toString()] = signalData.overallSignal;
     }
-  }
-  
-  if (backtestMode && backtestResults && backtestResults.signals) {
-    backtestResults.signals.forEach(signal => {
-      signalMap[signal.time.toString()] = signal.type;
-    });
   }
 
   const signalPoints = Object.keys(signalMap).map(timeKey => {
@@ -203,89 +297,112 @@ const PriceChart: React.FC<PriceChartProps> = ({
   const signalData2 = showSignals ? signalPoints : [];
 
   return (
-    <Card className="chart-container shadow-lg h-full">
-      <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-t-xl border-b">
+    <Card className="chart-container shadow-xl h-full border border-indigo-100/50">
+      <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-t-xl border-b">
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <CardTitle className="text-lg font-semibold text-gray-800">
-              Price Chart
+            <CardTitle className="text-lg font-semibold text-indigo-900">
+              {symbol} Price Chart
             </CardTitle>
-            {backtestMode && (
-              <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300">
-                Backtest Mode
-              </Badge>
+          </div>
+          <div className="flex items-center gap-2 bg-white p-1 rounded-lg shadow-sm">
+            <button 
+              className={cn(
+                "p-1.5 rounded-md text-gray-700 hover:bg-gray-100 transition-all",
+                showPriceLabels ? "bg-indigo-100" : "bg-white"
+              )}
+              onClick={() => setShowPriceLabels(!showPriceLabels)}
+              title={showPriceLabels ? "Hide price labels" : "Show price labels"}
+            >
+              {showPriceLabels ? (
+                <Eye className="h-4 w-4 text-indigo-600" />
+              ) : (
+                <EyeOff className="h-4 w-4" />
+              )}
+            </button>
+            
+            <button 
+              className="p-1.5 rounded-md bg-white text-gray-700 hover:bg-gray-100 transition-all"
+              onClick={handleZoomIn}
+              title="Zoom In"
+            >
+              <ZoomIn className="h-4 w-4" />
+            </button>
+            <span className="text-xs font-medium text-gray-700">{zoomLevel}%</span>
+            <button 
+              className="p-1.5 rounded-md bg-white text-gray-700 hover:bg-gray-100 transition-all"
+              onClick={handleZoomOut}
+              title="Zoom Out"
+            >
+              <ZoomOut className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+        
+        <div className="flex flex-wrap mt-2 gap-1.5">
+          <button 
+            className={cn(
+              "px-2.5 py-1 text-xs rounded-full font-medium transition-colors shadow-sm", 
+              showMA ? "bg-indigo-500 text-white" : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
             )}
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <button 
-                className="p-1.5 rounded-md bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 shadow-sm"
-                onClick={handleZoomIn}
-                title="Zoom In"
-              >
-                <ZoomIn className="h-4 w-4" />
-              </button>
-              <span className="text-xs font-medium text-gray-700">{zoomLevel}%</span>
-              <button 
-                className="p-1.5 rounded-md bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 shadow-sm"
-                onClick={handleZoomOut}
-                title="Zoom Out"
-              >
-                <ZoomOut className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="flex gap-1">
-              <button 
-                className={cn("px-2.5 py-1.5 text-xs rounded-md font-medium transition-colors shadow-sm", 
-                  showMA ? "bg-blue-500 text-white" : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200")}
-                onClick={() => setShowMA(!showMA)}
-              >
-                MA
-              </button>
-              <button 
-                className={cn("px-2.5 py-1.5 text-xs rounded-md font-medium transition-colors shadow-sm", 
-                  showBollinger ? "bg-blue-500 text-white" : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200")}
-                onClick={() => setShowBollinger(!showBollinger)}
-              >
-                BB
-              </button>
-              <button 
-                className={cn("px-2.5 py-1.5 text-xs rounded-md font-medium transition-colors shadow-sm", 
-                  showVolume ? "bg-blue-500 text-white" : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200")}
-                onClick={() => setShowVolume(!showVolume)}
-              >
-                VOL
-              </button>
-              <button 
-                className={cn("px-2.5 py-1.5 text-xs rounded-md font-medium transition-colors shadow-sm", 
-                  showRSI ? "bg-blue-500 text-white" : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200")}
-                onClick={() => setShowRSI(!showRSI)}
-              >
-                RSI
-              </button>
-              <button 
-                className={cn("px-2.5 py-1.5 text-xs rounded-md font-medium transition-colors shadow-sm", 
-                  showMACD ? "bg-blue-500 text-white" : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200")}
-                onClick={() => setShowMACD(!showMACD)}
-              >
-                MACD
-              </button>
-              <button 
-                className={cn("px-2.5 py-1.5 text-xs rounded-md font-medium transition-colors shadow-sm", 
-                  showSupportResistance ? "bg-blue-500 text-white" : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200")}
-                onClick={() => setShowSupportResistance(!showSupportResistance)}
-              >
-                S/R
-              </button>
-              <button 
-                className={cn("px-2.5 py-1.5 text-xs rounded-md font-medium transition-colors shadow-sm", 
-                  showSignals ? "bg-blue-500 text-white" : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200")}
-                onClick={() => setShowSignals(!showSignals)}
-              >
-                Signals
-              </button>
-            </div>
-          </div>
+            onClick={() => setShowMA(!showMA)}
+          >
+            Moving Avg
+          </button>
+          <button 
+            className={cn(
+              "px-2.5 py-1 text-xs rounded-full font-medium transition-colors shadow-sm", 
+              showBollinger ? "bg-indigo-500 text-white" : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
+            )}
+            onClick={() => setShowBollinger(!showBollinger)}
+          >
+            Bollinger
+          </button>
+          <button 
+            className={cn(
+              "px-2.5 py-1 text-xs rounded-full font-medium transition-colors shadow-sm", 
+              showVolume ? "bg-indigo-500 text-white" : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
+            )}
+            onClick={() => setShowVolume(!showVolume)}
+          >
+            Volume
+          </button>
+          <button 
+            className={cn(
+              "px-2.5 py-1 text-xs rounded-full font-medium transition-colors shadow-sm", 
+              showRSI ? "bg-indigo-500 text-white" : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
+            )}
+            onClick={() => setShowRSI(!showRSI)}
+          >
+            RSI
+          </button>
+          <button 
+            className={cn(
+              "px-2.5 py-1 text-xs rounded-full font-medium transition-colors shadow-sm", 
+              showMACD ? "bg-indigo-500 text-white" : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
+            )}
+            onClick={() => setShowMACD(!showMACD)}
+          >
+            MACD
+          </button>
+          <button 
+            className={cn(
+              "px-2.5 py-1 text-xs rounded-full font-medium transition-colors shadow-sm", 
+              showSupportResistance ? "bg-indigo-500 text-white" : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
+            )}
+            onClick={() => setShowSupportResistance(!showSupportResistance)}
+          >
+            Support/Resist
+          </button>
+          <button 
+            className={cn(
+              "px-2.5 py-1 text-xs rounded-full font-medium transition-colors shadow-sm", 
+              showSignals ? "bg-indigo-500 text-white" : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
+            )}
+            onClick={() => setShowSignals(!showSignals)}
+          >
+            Signals
+          </button>
         </div>
       </CardHeader>
       <CardContent className="bg-white p-4 flex-1 min-h-0 h-full">
@@ -310,6 +427,16 @@ const PriceChart: React.FC<PriceChartProps> = ({
                     <stop offset="5%" stopColor="#0EA5E9" stopOpacity={0.8}/>
                     <stop offset="95%" stopColor="#0EA5E9" stopOpacity={0.2}/>
                   </linearGradient>
+                  
+                  {/* Add gradients for candle-style display */}
+                  <linearGradient id="upCandle" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0.2}/>
+                  </linearGradient>
+                  <linearGradient id="downCandle" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0.2}/>
+                  </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" opacity={0.6} />
                 <XAxis 
@@ -329,6 +456,9 @@ const PriceChart: React.FC<PriceChartProps> = ({
                   stroke="#94A3B8"
                   strokeWidth={1.5}
                   width={60}
+                  tickSize={4}
+                  tickMargin={8}
+                  allowDecimals={false}
                 />
                 <YAxis 
                   yAxisId="right" 
@@ -340,44 +470,42 @@ const PriceChart: React.FC<PriceChartProps> = ({
                   strokeWidth={1.5}
                   width={40}
                 />
-                <Tooltip 
-                  formatter={(value, name, props) => {
-                    if (!props || !value) return ['-', name];
+                
+                <Tooltip content={<CustomTooltip />} />
+                
+                {/* Price Candles Visualization */}
+                {chartData.map((entry, index) => (
+                  <React.Fragment key={`candle-${index}`}>
+                    {/* Vertical line (wick) from high to low */}
+                    <Line
+                      yAxisId="left"
+                      data={[entry]}
+                      type="monotone"
+                      dataKey={(item: any) => [item.low, item.high]}
+                      stroke={entry.close >= entry.open ? "#22c55e" : "#ef4444"}
+                      strokeWidth={1.5}
+                      dot={false}
+                      activeDot={false}
+                      isAnimationActive={false}
+                    />
                     
-                    if (name === 'normalizedVolume') {
-                      const dataIndex = chartData.findIndex(item => 
-                        item.normalizedVolume === value);
-                      if (dataIndex >= 0 && zoomedData[dataIndex]) {
-                        return [zoomedData[dataIndex].volume.toFixed(2), 'Volume'];
-                      }
-                      return ['-', 'Volume'];
-                    }
-                    
-                    if (name === 'close' || name === 'open' || name === 'high' || name === 'low' || 
-                        name === 'sma20' || name === 'ema50' || name === 'upper' || 
-                        name === 'middle' || name === 'lower') {
-                      return [parseFloat(value as string).toFixed(2), name];
-                    }
-                    
-                    if (name === 'macd' || name === 'signal' || name === 'histogram') {
-                      return [parseFloat(value as string).toFixed(4), name];
-                    }
-                    
-                    return [parseFloat(value as string).toFixed(2), name];
-                  }}
-                  labelFormatter={(time) => {
-                    const dataPoint = chartData.find(item => item.formattedTime === time);
-                    return dataPoint ? formatTooltipTime(dataPoint.time) : 'Unknown time';
-                  }}
-                  contentStyle={{ 
-                    backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-                    borderRadius: '8px', 
-                    border: '1px solid #e2e8f0', 
-                    padding: '10px', 
-                    fontSize: '12px',
-                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
-                  }}
-                />
+                    {/* Price Labels */}
+                    {showPriceLabels && index === chartData.length - 1 && (
+                      <text
+                        x={chartData.length * 50} // Adjust based on chart width
+                        y={entry.close > entry.open 
+                          ? yDomain[0] + (entry.close - yDomain[0]) * 0.95 
+                          : yDomain[0] + (entry.close - yDomain[0]) * 1.05}
+                        fill={entry.close >= entry.open ? "#22c55e" : "#ef4444"}
+                        fontSize="12"
+                        fontWeight="bold"
+                        textAnchor="end"
+                      >
+                        ${entry.close.toFixed(2)} ({entry.changePercent.toFixed(2)}%)
+                      </text>
+                    )}
+                  </React.Fragment>
+                ))}
                 
                 <Area 
                   yAxisId="left" 
@@ -673,76 +801,6 @@ const PriceChart: React.FC<PriceChartProps> = ({
                   <ReferenceLine y={0} stroke="#64748b" strokeDasharray="3 3" strokeWidth={1.5} />
                 </ComposedChart>
               </ResponsiveContainer>
-            </div>
-          )}
-          
-          {backtestMode && backtestResults && (
-            <div className="mt-2 p-4 border border-indigo-200 rounded-lg bg-indigo-50">
-              <h3 className="text-base font-bold mb-3 text-indigo-800 flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-indigo-700" />
-                <span>Backtest Performance</span>
-              </h3>
-              
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="bg-white p-3 rounded-md border border-indigo-100 shadow-sm">
-                  <span className="text-xs text-gray-500">Win Rate</span>
-                  <p className="text-lg font-bold text-gray-800">
-                    {backtestResults.performance.winRate.toFixed(1)}%
-                  </p>
-                </div>
-                
-                <div className="bg-white p-3 rounded-md border border-indigo-100 shadow-sm">
-                  <span className="text-xs text-gray-500">Profit Factor</span>
-                  <p className="text-lg font-bold text-gray-800">
-                    {backtestResults.performance.profitFactor.toFixed(2)}
-                  </p>
-                </div>
-                
-                <div className="bg-white p-3 rounded-md border border-indigo-100 shadow-sm">
-                  <span className="text-xs text-gray-500">Net Profit</span>
-                  <p className={cn(
-                    "text-lg font-bold",
-                    backtestResults.performance.netProfit >= 0 ? "text-crypto-buy" : "text-crypto-sell"
-                  )}>
-                    {backtestResults.performance.netProfit >= 0 ? "+" : ""}{backtestResults.performance.netProfit.toFixed(2)}%
-                  </p>
-                </div>
-                
-                <div className="bg-white p-3 rounded-md border border-indigo-100 shadow-sm">
-                  <span className="text-xs text-gray-500">Max Drawdown</span>
-                  <p className="text-lg font-bold text-crypto-sell">
-                    {backtestResults.performance.maxDrawdown.toFixed(2)}%
-                  </p>
-                </div>
-                
-                <div className="bg-white p-3 rounded-md border border-indigo-100 shadow-sm">
-                  <span className="text-xs text-gray-500">Total Trades</span>
-                  <p className="text-lg font-bold text-gray-800">
-                    {backtestResults.performance.totalTrades}
-                  </p>
-                </div>
-                
-                <div className="bg-white p-3 rounded-md border border-indigo-100 shadow-sm">
-                  <span className="text-xs text-gray-500">Winning Trades</span>
-                  <p className="text-lg font-bold text-crypto-buy">
-                    {backtestResults.performance.winningTrades}
-                  </p>
-                </div>
-                
-                <div className="bg-white p-3 rounded-md border border-indigo-100 shadow-sm">
-                  <span className="text-xs text-gray-500">Losing Trades</span>
-                  <p className="text-lg font-bold text-crypto-sell">
-                    {backtestResults.performance.losingTrades}
-                  </p>
-                </div>
-                
-                <div className="bg-white p-3 rounded-md border border-indigo-100 shadow-sm">
-                  <span className="text-xs text-gray-500">Avg Profit/Loss</span>
-                  <p className="text-lg font-bold text-gray-800">
-                    +{backtestResults.performance.averageProfit.toFixed(2)}% / -{Math.abs(backtestResults.performance.averageLoss).toFixed(2)}%
-                  </p>
-                </div>
-              </div>
             </div>
           )}
         </div>

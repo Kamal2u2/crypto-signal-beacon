@@ -30,47 +30,37 @@ import {
 } from '@/services/notificationService';
 import { Button } from '@/components/ui/button';
 
-// Add some CSS to increase chart size
 import './index.css';
 
 const Index = () => {
-  // State for user selections
   const [selectedPair, setSelectedPair] = useState<CoinPair>(COIN_PAIRS[0]);
   const [selectedInterval, setSelectedInterval] = useState<TimeInterval>('15m');
   const [refreshInterval, setRefreshInterval] = useState<number>(30000); // 30 seconds
   const [isAutoRefreshEnabled, setIsAutoRefreshEnabled] = useState<boolean>(false);
   
-  // Signal settings
   const [confidenceThreshold, setConfidenceThreshold] = useState<number>(50); // Lower threshold to get more signals
   const [alertsEnabled, setAlertsEnabled] = useState<boolean>(true);
   const [alertVolume, setAlertVolume] = useState<number>(0.7);
   
-  // State for data
   const [klineData, setKlineData] = useState<KlineData[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [signalData, setSignalData] = useState<SignalSummary | null>(null);
   const [lastSignalType, setLastSignalType] = useState<SignalType | null>(null);
   
-  // Backtest state
   const [isBacktestMode, setIsBacktestMode] = useState<boolean>(false);
   const [isRunningBacktest, setIsRunningBacktest] = useState<boolean>(false);
   const [backtestResults, setBacktestResults] = useState<BacktestResults | null>(null);
   const [fullscreenChart, setFullscreenChart] = useState<boolean>(false);
   
-  // Interval reference
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
   
-  // Audio initialization flag
   const [isAudioInitialized, setIsAudioInitialized] = useState<boolean>(false);
   
-  // Notification permission state
   const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(false);
   
-  // Debug counter to track refresh cycles
   const debugCounterRef = useRef<number>(0);
 
-  // Function to fetch data
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     debugCounterRef.current += 1;
@@ -79,31 +69,24 @@ const Index = () => {
     try {
       console.log(`[Cycle ${cycleNumber}] Fetching data for ${selectedPair.symbol} at ${selectedInterval} interval`);
       
-      // Fetch kline data
       const data = await fetchKlineData(selectedPair.symbol, selectedInterval, 100);
       
       if (data.length > 0) {
         setKlineData(data);
         
-        // Generate signals
         const signals = generateSignals(data);
         setSignalData(signals);
         
-        // Debug the signal system
         debugSignalSystem(signals, data);
         
-        // Check if signal meets the confidence threshold
         const isSignalValid = signals.overallSignal !== 'NEUTRAL' && 
                              signals.overallSignal !== 'HOLD' && 
                              signals.confidence >= confidenceThreshold;
         
-        // Check if we need to play a notification sound or send browser notification
         if (isAudioInitialized && alertsEnabled && isSignalValid && signals.overallSignal !== lastSignalType) {
           if (signals.overallSignal === 'BUY' || signals.overallSignal === 'SELL') {
-            // Play sound alert
             playSignalSound(signals.overallSignal, alertVolume);
             
-            // Send browser notification if enabled
             if (notificationsEnabled) {
               sendSignalNotification(
                 signals.overallSignal, 
@@ -112,7 +95,6 @@ const Index = () => {
               );
             }
             
-            // Show toast notification
             toast({
               title: `${signals.overallSignal} Signal Detected`,
               description: `${selectedPair.label} - Confidence: ${signals.confidence.toFixed(0)}%`,
@@ -122,10 +104,8 @@ const Index = () => {
           setLastSignalType(signals.overallSignal);
         }
         
-        // Log the signal and confidence for debugging
         console.log(`[Cycle ${cycleNumber}] Signal: ${signals.overallSignal}, Confidence: ${signals.confidence.toFixed(0)}%, Threshold: ${confidenceThreshold}%`);
         
-        // Fetch current price
         const price = await fetchCurrentPrice(selectedPair.symbol);
         setCurrentPrice(price);
       } else {
@@ -147,22 +127,18 @@ const Index = () => {
     }
   }, [selectedPair, selectedInterval, isAudioInitialized, lastSignalType, alertsEnabled, alertVolume, confidenceThreshold, notificationsEnabled]);
 
-  // Set up initial data fetch
   useEffect(() => {
     fetchData();
     
-    // Initialize audio on first render
     const initAudio = () => {
       initializeAudio();
       setIsAudioInitialized(true);
       document.removeEventListener('click', initAudio);
       
-      // Also try to request notification permission
       const hasPermission = requestNotificationPermission();
       setNotificationsEnabled(hasPermission);
     };
     
-    // Audio needs to be initialized after a user interaction
     document.addEventListener('click', initAudio);
     
     return () => {
@@ -170,7 +146,6 @@ const Index = () => {
     };
   }, [fetchData]);
 
-  // Set up auto-refresh
   useEffect(() => {
     if (isAutoRefreshEnabled) {
       refreshTimerRef.current = setInterval(fetchData, refreshInterval);
@@ -186,7 +161,6 @@ const Index = () => {
       }
     }
     
-    // Clean up on unmount
     return () => {
       if (refreshTimerRef.current) {
         clearInterval(refreshTimerRef.current);
@@ -194,37 +168,31 @@ const Index = () => {
     };
   }, [isAutoRefreshEnabled, refreshInterval, fetchData]);
   
-  // Refresh when pair or interval changes
   useEffect(() => {
     if (!isBacktestMode) {
       fetchData();
     }
   }, [selectedPair, selectedInterval, fetchData, isBacktestMode]);
 
-  // User manually refreshes
   const handleRefresh = () => {
     if (!isBacktestMode) {
       fetchData();
     }
   };
 
-  // Handle pair change
   const handlePairChange = (pair: CoinPair) => {
     setSelectedPair(pair);
-    setLastSignalType(null); // Reset signal type when pair changes
-    setBacktestResults(null); // Clear any backtest results
+    setLastSignalType(null);
+    setBacktestResults(null);
     
-    // Log pair change for debugging
     console.log(`Switching to pair: ${pair.symbol}`);
   };
 
-  // Handle backtest mode toggle
   const handleBacktestModeToggle = () => {
     const newMode = !isBacktestMode;
     setIsBacktestMode(newMode);
     
     if (newMode) {
-      // Entering backtest mode - stop auto-refresh
       if (refreshTimerRef.current) {
         clearInterval(refreshTimerRef.current);
         refreshTimerRef.current = null;
@@ -236,7 +204,6 @@ const Index = () => {
         description: "Live trading signals are paused. Configure and run backtests.",
       });
     } else {
-      // Exiting backtest mode - clear results and fetch fresh data
       setBacktestResults(null);
       fetchData();
       
@@ -247,29 +214,20 @@ const Index = () => {
     }
   };
 
-  // Run backtest with given settings
   const runBacktest = async (settings: BacktestSettings) => {
     setIsRunningBacktest(true);
     setBacktestResults(null);
     
     try {
-      // Simulate a loading delay to show the spinner
       await new Promise(resolve => setTimeout(resolve, 1500));
       
-      // Mock implementation for backtest - in a real app, this would be a proper backtest engine
       console.log("Running backtest with settings:", settings);
       
-      // Fetch historical data for the backtest period
-      // In a real app, you would fetch the data for the entire date range
       const data = await fetchKlineData(settings.pair.symbol, settings.interval, 100);
       
       if (data.length > 0) {
-        // Keep original data for chart display
         setKlineData(data);
         
-        // Generate mock backtest signals based on the data
-        // In a real app, this would be the result of running the trading algorithm
-        // on historical data
         const mockSignals = generateMockBacktestSignals(data, settings);
         const mockPerformance = calculateMockPerformance(mockSignals, settings);
         
@@ -303,18 +261,14 @@ const Index = () => {
     }
   };
 
-  // Generate mock backtest signals for demo purposes
   const generateMockBacktestSignals = (data: KlineData[], settings: BacktestSettings) => {
     const signals: BacktestResults['signals'] = [];
     
-    // Create signals at somewhat realistic intervals
-    // In a real app, these would be generated by your trading algorithm
     for (let i = 10; i < data.length - 20; i += Math.floor(Math.random() * 10) + 5) {
       const type = Math.random() > 0.5 ? 'BUY' : 'SELL';
       const price = data[i].close;
       const time = data[i].openTime;
       
-      // For BUY signals, calculate outcome based on future prices
       if (type === 'BUY' && i + 10 < data.length) {
         const futurePrice = data[i + 10].close;
         const profitPercent = ((futurePrice - price) / price) * 100;
@@ -329,7 +283,6 @@ const Index = () => {
           outcome
         });
       } 
-      // For SELL signals, reverse the logic
       else if (type === 'SELL' && i + 10 < data.length) {
         const futurePrice = data[i + 10].close;
         const profitPercent = ((price - futurePrice) / price) * 100;
@@ -349,7 +302,6 @@ const Index = () => {
     return signals;
   };
 
-  // Calculate mock performance metrics for the backtest
   const calculateMockPerformance = (signals: BacktestResults['signals'], settings: BacktestSettings) => {
     const winningTrades = signals.filter(s => s.outcome === 'WIN').length;
     const losingTrades = signals.filter(s => s.outcome === 'LOSS').length;
@@ -367,7 +319,6 @@ const Index = () => {
     const averageProfit = profits.length > 0 ? totalProfit / profits.length : 0;
     const averageLoss = losses.length > 0 ? losses.reduce((sum, val) => sum + val, 0) / losses.length : 0;
     
-    // Calculate drawdown
     let maxDrawdown = 0;
     let cumProfit = 0;
     let peakProfit = 0;
@@ -381,7 +332,6 @@ const Index = () => {
       }
     });
     
-    // Calculate net profit as a percentage of initial capital
     const netProfit = signals.reduce((sum, signal) => sum + (signal.profitPercent || 0), 0);
     
     return {
@@ -396,8 +346,7 @@ const Index = () => {
       averageLoss
     };
   };
-  
-  // Toggle fullscreen chart
+
   const toggleFullscreenChart = () => {
     setFullscreenChart(!fullscreenChart);
   };
@@ -503,10 +452,9 @@ const Index = () => {
           </div>
           
           <div className={cn(
-            "lg:col-span-3",
+            "lg:col-span-3 flex flex-col",
             fullscreenChart && "fixed inset-0 z-50 bg-white p-4 overflow-auto"
           )}>
-            {/* Signal Summary Card at the top for better visibility */}
             {!isBacktestMode && signalData && (
               <div className={cn(
                 "glass-card p-4 mb-4 flex flex-wrap items-center justify-between gap-4 bg-white rounded-lg shadow-md border",
@@ -581,8 +529,7 @@ const Index = () => {
               </div>
             )}
             
-            {/* Fullscreen toggle button */}
-            <div className="relative">
+            <div className="relative flex-grow min-h-0 h-full">
               <Button
                 size="sm"
                 variant="outline"
@@ -592,8 +539,7 @@ const Index = () => {
                 {fullscreenChart ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
               </Button>
             
-              {/* Price Chart - Now larger */}
-              <div className="crypto-chart-container">
+              <div className="crypto-chart-container h-full">
                 <PriceChart 
                   data={klineData}
                   isPending={isLoading}
@@ -605,7 +551,6 @@ const Index = () => {
               </div>
             </div>
             
-            {/* Signals Display */}
             {!fullscreenChart && !isBacktestMode && (
               <div className="mt-6">
                 <SignalDisplay 

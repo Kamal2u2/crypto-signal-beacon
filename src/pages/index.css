@@ -1,5 +1,4 @@
 
-
 /* Increase chart size - optimized for maximum window */
 .crypto-chart-container {
   height: calc(100vh - 250px); /* Dynamic height based on viewport */
@@ -228,3 +227,52 @@
   height: 100% !important;
 }
 
+/* Fix for chart container overflow issues */
+.recharts-wrapper {
+  max-width: 100% !important;
+  overflow: visible !important;
+}
+
+/* Make sure chart elements stay contained */
+.recharts-surface {
+  overflow: visible !important;
+}
+
+/* Ensure legends have proper spacing */
+.recharts-legend-wrapper {
+  padding: 0 10px !important;
+}
+
+/* Make chart scales more readable */
+.recharts-yAxis .recharts-cartesian-axis-tick-value {
+  font-weight: 500 !important;
+}
+
+/* Fix for chart axis labels */
+.recharts-cartesian-axis-ticks {
+  font-size: 12px !important;
+}
+
+/* Enhance chart container to fix sizing issues */
+.chart-container {
+  width: 100% !important;
+  height: 100% !important;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Make card content fill available space */
+.chart-container .card-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Ensure ComposedChart fills the container */
+.chart-container .recharts-wrapper,
+.chart-container .recharts-surface {
+  width: 100% !important;
+  height: 100% !important;
+}

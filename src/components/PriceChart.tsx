@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -43,13 +42,11 @@ export interface BacktestSignal {
   outcome?: 'WIN' | 'LOSS' | 'OPEN';
 }
 
-// Helper function to format date/time consistently
 const formatXAxisTime = (time: number): string => {
   const date = new Date(time);
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
-// Helper to generate readable tooltip time format
 const formatTooltipTime = (time: number): string => {
   const date = new Date(time);
   return date.toLocaleString([], { 
@@ -76,8 +73,8 @@ const PriceChart: React.FC<PriceChartProps> = ({
   const [showMACD, setShowMACD] = useState(false);
   const [showSupportResistance, setShowSupportResistance] = useState(true);
   const [showSignals, setShowSignals] = useState(true);
-  const [zoomLevel, setZoomLevel] = useState(100); // 100% means show all data
-  
+  const [zoomLevel, setZoomLevel] = useState(100);
+
   if (isPending) {
     return (
       <Card className="chart-container">
@@ -112,7 +109,6 @@ const PriceChart: React.FC<PriceChartProps> = ({
     );
   }
 
-  // Calculate technical indicators
   const prices = data.map(item => item.close);
   const highs = data.map(item => item.high);
   const lows = data.map(item => item.low);
@@ -122,19 +118,15 @@ const PriceChart: React.FC<PriceChartProps> = ({
   const macdResult = calculateMACD(prices);
   const bollingerBands = calculateBollingerBands(prices);
   
-  // Find support and resistance levels
   const supportResistanceLevels = findSupportResistanceLevels(highs, lows, prices);
 
-  // Prepare volume data - normalize for better visualization
   const maxVolume = Math.max(...data.map(item => item.volume));
   
-  // Apply zoom level to data
   const zoomFactor = zoomLevel / 100;
   const dataLength = data.length;
-  const visibleDataCount = Math.max(Math.floor(dataLength * zoomFactor), 10); // Show at least 10 data points
+  const visibleDataCount = Math.max(Math.floor(dataLength * zoomFactor), 10);
   const zoomedData = data.slice(Math.max(0, dataLength - visibleDataCount), dataLength);
   
-  // Combine all data for chart
   const chartData = zoomedData.map((item, index) => {
     const dataIndex = Math.max(0, dataLength - visibleDataCount) + index;
     
@@ -159,11 +151,8 @@ const PriceChart: React.FC<PriceChartProps> = ({
     return enhancedData;
   });
 
-  // Add signals to the chart data if available
-  // This will be used to show signal markers directly on the chart
   let signalMap: { [key: string]: 'BUY' | 'SELL' } = {};
   
-  // Add live signals to the map if available
   if (signalData && signalData.signals && !backtestMode) {
     const lastCandleTime = data[data.length - 1].openTime;
     if (signalData.overallSignal === 'BUY' || signalData.overallSignal === 'SELL') {
@@ -171,14 +160,12 @@ const PriceChart: React.FC<PriceChartProps> = ({
     }
   }
   
-  // Add backtest signals to the map if available
   if (backtestMode && backtestResults && backtestResults.signals) {
     backtestResults.signals.forEach(signal => {
       signalMap[signal.time.toString()] = signal.type;
     });
   }
 
-  // Create signal points for scatter plot
   const signalPoints = Object.keys(signalMap).map(timeKey => {
     const time = parseInt(timeKey);
     const dataPoint = data.find(item => item.openTime === time);
@@ -190,25 +177,23 @@ const PriceChart: React.FC<PriceChartProps> = ({
       date: new Date(time),
       formattedTime: formatXAxisTime(time),
       price: dataPoint.close,
-      // For positioning:
-      // BUY signals should appear below the candle, SELL signals above
       signalY: signalMap[timeKey] === 'BUY' 
-        ? dataPoint.low * 0.995 // Position below the low point
-        : dataPoint.high * 1.005, // Position above the high point
+        ? dataPoint.low * 0.995
+        : dataPoint.high * 1.005,
       signalType: signalMap[timeKey]
     };
   }).filter(Boolean);
 
   const handleZoomIn = () => {
-    setZoomLevel(prev => Math.max(10, prev - 20)); // Zoom in by reducing visible data
+    setZoomLevel(prev => Math.max(10, prev - 20));
   };
   
   const handleZoomOut = () => {
-    setZoomLevel(prev => Math.min(100, prev + 20)); // Zoom out by increasing visible data
+    setZoomLevel(prev => Math.min(100, prev + 20));
   };
 
   return (
-    <Card className="chart-container shadow-lg">
+    <Card className="chart-container shadow-lg h-full">
       <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-t-xl border-b">
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-2">
@@ -293,391 +278,386 @@ const PriceChart: React.FC<PriceChartProps> = ({
           </div>
         </div>
       </CardHeader>
-      <CardContent className="bg-white p-4">
-        <div className="flex flex-col gap-4">
-          {/* Main price chart */}
-          <ComposedChart
-            width={500}
-            height={400} // Increased height for better visualization
-            data={chartData}
-            margin={{
-              top: 20,
-              right: 30, // Increased right margin to accommodate signals
-              bottom: 20,
-              left: 30, // Increased left margin
-            }}
-          >
-            <defs>
-              <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.8}/>
-                <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0.2}/>
-              </linearGradient>
-              <linearGradient id="colorVolume" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#0EA5E9" stopOpacity={0.8}/>
-                <stop offset="95%" stopColor="#0EA5E9" stopOpacity={0.2}/>
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" opacity={0.6} />
-            <XAxis 
-              dataKey="formattedTime" 
-              tick={{fontSize: 12, fill: "#64748B"}}
-              stroke="#94A3B8"
-              strokeWidth={1.5}
-              tickCount={6}
-              minTickGap={30}
-            />
-            <YAxis 
-              yAxisId="left" 
-              orientation="left" 
-              domain={['auto', 'auto']} 
-              tick={{fontSize: 12, fill: "#64748B"}}
-              tickFormatter={(value) => value.toFixed(0)}
-              stroke="#94A3B8"
-              strokeWidth={1.5}
-              width={60}
-            />
-            <YAxis 
-              yAxisId="right" 
-              orientation="right" 
-              domain={[0, 100]} 
-              hide={!showVolume} 
-              tick={{fontSize: 12, fill: "#64748B"}}
-              stroke="#94A3B8"
-              strokeWidth={1.5}
-              width={40}
-            />
-            <Tooltip 
-              formatter={(value, name, props) => {
-                if (!props || !value) return ['-', name];
-                
-                if (name === 'normalizedVolume') {
-                  // Find the corresponding data point in the original data
-                  const dataIndex = chartData.findIndex(item => 
-                    item.normalizedVolume === value);
-                  if (dataIndex >= 0 && zoomedData[dataIndex]) {
-                    return [zoomedData[dataIndex].volume.toFixed(2), 'Volume'];
-                  }
-                  return ['-', 'Volume'];
-                }
-                
-                // Format different metrics appropriately
-                if (name === 'close' || name === 'open' || name === 'high' || name === 'low' || 
-                    name === 'sma20' || name === 'ema50' || name === 'upper' || 
-                    name === 'middle' || name === 'lower') {
-                  return [parseFloat(value as string).toFixed(2), name];
-                }
-                
-                if (name === 'macd' || name === 'signal' || name === 'histogram') {
-                  return [parseFloat(value as string).toFixed(4), name];
-                }
-                
-                return [parseFloat(value as string).toFixed(2), name];
-              }}
-              labelFormatter={(time) => {
-                const dataPoint = chartData.find(item => item.formattedTime === time);
-                return dataPoint ? formatTooltipTime(dataPoint.time) : 'Unknown time';
-              }}
-              contentStyle={{ 
-                backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-                borderRadius: '8px', 
-                border: '1px solid #e2e8f0', 
-                padding: '10px', 
-                fontSize: '12px',
-                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
-              }}
-            />
-            <Area 
-              yAxisId="left" 
-              type="monotone" 
-              dataKey="close" 
-              stroke="#8B5CF6" 
-              strokeWidth={2}
-              fill="url(#colorPrice)" 
-              name="Price"
-              animationDuration={500}
-            />
-            
-            {showBollinger && (
-              <>
-                <Line 
-                  yAxisId="left" 
-                  type="monotone" 
-                  dataKey="upper" 
-                  stroke="#F43F5E" 
-                  dot={false} 
-                  name="Upper Band"
-                  strokeDasharray="3 3"
-                  strokeWidth={2}
+      <CardContent className="bg-white p-4 flex-1 min-h-0 h-full">
+        <div className="flex flex-col gap-4 h-full">
+          <div className="flex-1 min-h-0 h-full">
+            <ResponsiveContainer width="100%" height="100%" className="chart-content-wrapper">
+              <ComposedChart
+                data={chartData}
+                margin={{
+                  top: 20,
+                  right: 30,
+                  bottom: 20,
+                  left: 30,
+                }}
+              >
+                <defs>
+                  <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0.2}/>
+                  </linearGradient>
+                  <linearGradient id="colorVolume" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#0EA5E9" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#0EA5E9" stopOpacity={0.2}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" opacity={0.6} />
+                <XAxis 
+                  dataKey="formattedTime" 
+                  tick={{fontSize: 12, fill: "#64748B"}}
+                  stroke="#94A3B8"
+                  strokeWidth={1.5}
+                  tickCount={6}
+                  minTickGap={30}
                 />
-                <Line 
+                <YAxis 
+                  yAxisId="left" 
+                  orientation="left" 
+                  domain={['auto', 'auto']} 
+                  tick={{fontSize: 12, fill: "#64748B"}}
+                  tickFormatter={(value) => value.toFixed(0)}
+                  stroke="#94A3B8"
+                  strokeWidth={1.5}
+                  width={60}
+                />
+                <YAxis 
+                  yAxisId="right" 
+                  orientation="right" 
+                  domain={[0, 100]} 
+                  hide={!showVolume} 
+                  tick={{fontSize: 12, fill: "#64748B"}}
+                  stroke="#94A3B8"
+                  strokeWidth={1.5}
+                  width={40}
+                />
+                <Tooltip 
+                  formatter={(value, name, props) => {
+                    if (!props || !value) return ['-', name];
+                    
+                    if (name === 'normalizedVolume') {
+                      const dataIndex = chartData.findIndex(item => 
+                        item.normalizedVolume === value);
+                      if (dataIndex >= 0 && zoomedData[dataIndex]) {
+                        return [zoomedData[dataIndex].volume.toFixed(2), 'Volume'];
+                      }
+                      return ['-', 'Volume'];
+                    }
+                    
+                    if (name === 'close' || name === 'open' || name === 'high' || name === 'low' || 
+                        name === 'sma20' || name === 'ema50' || name === 'upper' || 
+                        name === 'middle' || name === 'lower') {
+                      return [parseFloat(value as string).toFixed(2), name];
+                    }
+                    
+                    if (name === 'macd' || name === 'signal' || name === 'histogram') {
+                      return [parseFloat(value as string).toFixed(4), name];
+                    }
+                    
+                    return [parseFloat(value as string).toFixed(2), name];
+                  }}
+                  labelFormatter={(time) => {
+                    const dataPoint = chartData.find(item => item.formattedTime === time);
+                    return dataPoint ? formatTooltipTime(dataPoint.time) : 'Unknown time';
+                  }}
+                  contentStyle={{ 
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+                    borderRadius: '8px', 
+                    border: '1px solid #e2e8f0', 
+                    padding: '10px', 
+                    fontSize: '12px',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+                  }}
+                />
+                <Area 
                   yAxisId="left" 
                   type="monotone" 
-                  dataKey="middle" 
+                  dataKey="close" 
                   stroke="#8B5CF6" 
-                  dot={false} 
-                  name="Middle Band"
                   strokeWidth={2}
+                  fill="url(#colorPrice)" 
+                  name="Price"
+                  animationDuration={500}
                 />
-                <Line 
-                  yAxisId="left" 
-                  type="monotone" 
-                  dataKey="lower" 
-                  stroke="#3B82F6" 
-                  dot={false} 
-                  name="Lower Band"
-                  strokeDasharray="3 3"
-                  strokeWidth={2}
+                
+                {showBollinger && (
+                  <>
+                    <Line 
+                      yAxisId="left" 
+                      type="monotone" 
+                      dataKey="upper" 
+                      stroke="#F43F5E" 
+                      dot={false} 
+                      name="Upper Band"
+                      strokeDasharray="3 3"
+                      strokeWidth={2}
+                    />
+                    <Line 
+                      yAxisId="left" 
+                      type="monotone" 
+                      dataKey="middle" 
+                      stroke="#8B5CF6" 
+                      dot={false} 
+                      name="Middle Band"
+                      strokeWidth={2}
+                    />
+                    <Line 
+                      yAxisId="left" 
+                      type="monotone" 
+                      dataKey="lower" 
+                      stroke="#3B82F6" 
+                      dot={false} 
+                      name="Lower Band"
+                      strokeDasharray="3 3"
+                      strokeWidth={2}
+                    />
+                  </>
+                )}
+                
+                {showMA && (
+                  <>
+                    <Line 
+                      yAxisId="left" 
+                      type="monotone" 
+                      dataKey="sma20" 
+                      stroke="#EF4444" 
+                      dot={false} 
+                      name="SMA 20"
+                      strokeWidth={2}
+                    />
+                    <Line 
+                      yAxisId="left" 
+                      type="monotone" 
+                      dataKey="ema50" 
+                      stroke="#10B981" 
+                      dot={false} 
+                      name="EMA 50"
+                      strokeWidth={2}
+                    />
+                  </>
+                )}
+                
+                {showVolume && (
+                  <Bar 
+                    yAxisId="right" 
+                    dataKey="normalizedVolume" 
+                    fill="url(#colorVolume)" 
+                    opacity={0.7} 
+                    name="Volume"
+                    animationDuration={500}
+                    radius={[2, 2, 0, 0]}
+                  />
+                )}
+                
+                {showSupportResistance && supportResistanceLevels.support.map((level, index) => (
+                  <ReferenceLine 
+                    key={`support-${index}`} 
+                    y={level} 
+                    yAxisId="left"
+                    stroke="#22c55e" 
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    label={{ 
+                      value: `S: ${level.toFixed(0)}`, 
+                      position: 'insideBottomLeft',
+                      fill: '#22c55e',
+                      fontSize: 11,
+                      fontWeight: 'bold'
+                    }}
+                  />
+                ))}
+                
+                {showSupportResistance && supportResistanceLevels.resistance.map((level, index) => (
+                  <ReferenceLine 
+                    key={`resistance-${index}`} 
+                    y={level} 
+                    yAxisId="left"
+                    stroke="#ef4444" 
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    label={{ 
+                      value: `R: ${level.toFixed(0)}`, 
+                      position: 'insideTopLeft',
+                      fill: '#ef4444',
+                      fontSize: 11,
+                      fontWeight: 'bold'
+                    }}
+                  />
+                ))}
+                
+                {showSignals && signalPoints.length > 0 && (
+                  <Scatter
+                    yAxisId="left"
+                    name="Signals"
+                    data={signalPoints}
+                    shape={(props) => {
+                      if (!props || !props.payload) return null;
+                      
+                      const { cx, cy, payload } = props;
+                      const signalType = payload.signalType;
+                      
+                      const yScale = props.yAxis.scale;
+                      const explicitY = yScale(payload.signalY);
+                      
+                      if (signalType === 'BUY') {
+                        return (
+                          <svg x={cx - 15} y={explicitY - 15} width="30" height="30" viewBox="0 0 30 30">
+                            <circle cx="15" cy="15" r="12" fill="#22c55e" opacity="0.9" />
+                            <path d="M15 7 L15 23 M9 13 L15 7 L21 13" stroke="white" strokeWidth="2" fill="none" />
+                          </svg>
+                        );
+                      } 
+                      else if (signalType === 'SELL') {
+                        return (
+                          <svg x={cx - 15} y={explicitY - 15} width="30" height="30" viewBox="0 0 30 30">
+                            <circle cx="15" cy="15" r="12" fill="#ef4444" opacity="0.9" />
+                            <path d="M15 7 L15 23 M9 17 L15 23 L21 17" stroke="white" strokeWidth="2" fill="none" />
+                          </svg>
+                        );
+                      }
+                      
+                      return null;
+                    }}
+                  />
+                )}
+                
+                <Legend 
+                  verticalAlign="top" 
+                  wrapperStyle={{ lineHeight: '40px' }}
+                  iconSize={12}
+                  iconType="circle"
+                  formatter={(value, entry) => (
+                    <span style={{ color: '#1E293B', fontSize: '12px', fontWeight: 500 }}>{value}</span>
+                  )}
                 />
-              </>
-            )}
-            
-            {showMA && (
-              <>
-                <Line 
-                  yAxisId="left" 
-                  type="monotone" 
-                  dataKey="sma20" 
-                  stroke="#EF4444" 
-                  dot={false} 
-                  name="SMA 20"
-                  strokeWidth={2}
-                />
-                <Line 
-                  yAxisId="left" 
-                  type="monotone" 
-                  dataKey="ema50" 
-                  stroke="#10B981" 
-                  dot={false} 
-                  name="EMA 50"
-                  strokeWidth={2}
-                />
-              </>
-            )}
-            
-            {showVolume && (
-              <Bar 
-                yAxisId="right" 
-                dataKey="normalizedVolume" 
-                fill="url(#colorVolume)" 
-                opacity={0.7} 
-                name="Volume"
-                animationDuration={500}
-                radius={[2, 2, 0, 0]}
-              />
-            )}
-            
-            {/* Support and Resistance lines */}
-            {showSupportResistance && supportResistanceLevels.support.map((level, index) => (
-              <ReferenceLine 
-                key={`support-${index}`} 
-                y={level} 
-                yAxisId="left"
-                stroke="#22c55e" 
-                strokeWidth={2}
-                strokeDasharray="5 5"
-                label={{ 
-                  value: `S: ${level.toFixed(0)}`, 
-                  position: 'insideBottomLeft',
-                  fill: '#22c55e',
-                  fontSize: 11,
-                  fontWeight: 'bold'
-                }}
-              />
-            ))}
-            
-            {showSupportResistance && supportResistanceLevels.resistance.map((level, index) => (
-              <ReferenceLine 
-                key={`resistance-${index}`} 
-                y={level} 
-                yAxisId="left"
-                stroke="#ef4444" 
-                strokeWidth={2}
-                strokeDasharray="5 5"
-                label={{ 
-                  value: `R: ${level.toFixed(0)}`, 
-                  position: 'insideTopLeft',
-                  fill: '#ef4444',
-                  fontSize: 11,
-                  fontWeight: 'bold'
-                }}
-              />
-            ))}
-
-            {/* Signal markers using explicitly positioned Scatter */}
-            {showSignals && signalPoints.length > 0 && (
-              <Scatter
-                yAxisId="left"
-                name="Signals"
-                data={signalPoints}
-                shape={(props) => {
-                  if (!props || !props.payload) return null;
-                  
-                  const { cx, cy, payload } = props;
-                  const signalType = payload.signalType;
-                  
-                  // Calculate explicit y-coordinate based on signalY value
-                  const yScale = props.yAxis.scale;
-                  const explicitY = yScale(payload.signalY);
-                  
-                  // SVG for BUY signal (green arrow up)
-                  if (signalType === 'BUY') {
-                    return (
-                      <svg x={cx - 15} y={explicitY - 15} width="30" height="30" viewBox="0 0 30 30">
-                        <circle cx="15" cy="15" r="12" fill="#22c55e" opacity="0.9" />
-                        <path d="M15 7 L15 23 M9 13 L15 7 L21 13" stroke="white" strokeWidth="2" fill="none" />
-                      </svg>
-                    );
-                  } 
-                  // SVG for SELL signal (red arrow down)
-                  else if (signalType === 'SELL') {
-                    return (
-                      <svg x={cx - 15} y={explicitY - 15} width="30" height="30" viewBox="0 0 30 30">
-                        <circle cx="15" cy="15" r="12" fill="#ef4444" opacity="0.9" />
-                        <path d="M15 7 L15 23 M9 17 L15 23 L21 17" stroke="white" strokeWidth="2" fill="none" />
-                      </svg>
-                    );
-                  }
-                  
-                  return null;
-                }}
-              />
-            )}
-            
-            <Legend 
-              verticalAlign="top" 
-              wrapperStyle={{ lineHeight: '40px' }}
-              iconSize={12}
-              iconType="circle"
-              formatter={(value, entry) => (
-                <span style={{ color: '#1E293B', fontSize: '12px', fontWeight: 500 }}>{value}</span>
-              )}
-            />
-          </ComposedChart>
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
           
-          {/* RSI chart */}
           {showRSI && (
-            <ComposedChart
-              width={500}
-              height={100}
-              data={chartData}
-              margin={{
-                top: 5,
-                right: 20,
-                left: 20,
-                bottom: 5,
-              }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" opacity={0.6} />
-              <XAxis 
-                dataKey="formattedTime" 
-                tick={{fontSize: 12, fill: "#64748B"}}
-                height={15}
-                stroke="#94A3B8"
-                minTickGap={30}
-              />
-              <YAxis 
-                domain={[0, 100]} 
-                tick={{fontSize: 12, fill: "#64748B"}}
-                width={30}
-                stroke="#94A3B8" 
-              />
-              <Tooltip 
-                formatter={(value) => [parseFloat(value as string).toFixed(2), 'RSI']}
-                labelFormatter={(time) => {
-                  const dataPoint = chartData.find(item => item.formattedTime === time);
-                  return dataPoint ? formatTooltipTime(dataPoint.time) : 'Unknown time';
-                }}
-                contentStyle={{ 
-                  backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-                  borderRadius: '8px', 
-                  border: '1px solid #e2e8f0', 
-                  padding: '10px', 
-                  fontSize: '12px',
-                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
-                }}
-              />
-              <Line 
-                type="monotone" 
-                dataKey="rsi" 
-                stroke="#F59E0B" 
-                dot={false} 
-                strokeWidth={2} 
-                animationDuration={500}
-              />
-              <ReferenceLine y={70} stroke="#ef4444" strokeDasharray="3 3" strokeWidth={1.5} />
-              <ReferenceLine y={30} stroke="#22c55e" strokeDasharray="3 3" strokeWidth={1.5} />
-              <ReferenceLine y={50} stroke="#64748b" strokeDasharray="2 2" strokeWidth={1.5} />
-            </ComposedChart>
+            <div style={{ height: 100 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart
+                  data={chartData}
+                  margin={{
+                    top: 5,
+                    right: 20,
+                    left: 20,
+                    bottom: 5,
+                  }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" opacity={0.6} />
+                  <XAxis 
+                    dataKey="formattedTime" 
+                    tick={{fontSize: 12, fill: "#64748B"}}
+                    height={15}
+                    stroke="#94A3B8"
+                    minTickGap={30}
+                  />
+                  <YAxis 
+                    domain={[0, 100]} 
+                    tick={{fontSize: 12, fill: "#64748B"}}
+                    width={30}
+                    stroke="#94A3B8" 
+                  />
+                  <Tooltip 
+                    formatter={(value) => [parseFloat(value as string).toFixed(2), 'RSI']}
+                    labelFormatter={(time) => {
+                      const dataPoint = chartData.find(item => item.formattedTime === time);
+                      return dataPoint ? formatTooltipTime(dataPoint.time) : 'Unknown time';
+                    }}
+                    contentStyle={{ 
+                      backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+                      borderRadius: '8px', 
+                      border: '1px solid #e2e8f0', 
+                      padding: '10px', 
+                      fontSize: '12px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+                    }}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="rsi" 
+                    stroke="#F59E0B" 
+                    dot={false} 
+                    strokeWidth={2} 
+                    animationDuration={500}
+                  />
+                  <ReferenceLine y={70} stroke="#ef4444" strokeDasharray="3 3" strokeWidth={1.5} />
+                  <ReferenceLine y={30} stroke="#22c55e" strokeDasharray="3 3" strokeWidth={1.5} />
+                  <ReferenceLine y={50} stroke="#64748b" strokeDasharray="2 2" strokeWidth={1.5} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
           )}
           
-          {/* MACD chart */}
           {showMACD && (
-            <ComposedChart
-              width={500}
-              height={100}
-              data={chartData}
-              margin={{
-                top: 5,
-                right: 20,
-                left: 20,
-                bottom: 5,
-              }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" opacity={0.6} />
-              <XAxis 
-                dataKey="formattedTime" 
-                tick={{fontSize: 12, fill: "#64748B"}}
-                height={15}
-                stroke="#94A3B8"
-                minTickGap={30}
-              />
-              <YAxis 
-                tick={{fontSize: 12, fill: "#64748B"}}
-                width={30}
-                stroke="#94A3B8" 
-              />
-              <Tooltip 
-                formatter={(value) => [parseFloat(value as string).toFixed(4), 'MACD']}
-                labelFormatter={(time) => {
-                  const dataPoint = chartData.find(item => item.formattedTime === time);
-                  return dataPoint ? formatTooltipTime(dataPoint.time) : 'Unknown time';
-                }}
-                contentStyle={{ 
-                  backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-                  borderRadius: '8px', 
-                  border: '1px solid #e2e8f0', 
-                  padding: '10px', 
-                  fontSize: '12px',
-                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
-                }}
-              />
-              <Line 
-                type="monotone" 
-                dataKey="macd" 
-                stroke="#10B981" 
-                dot={false} 
-                strokeWidth={2}
-                name="MACD Line"
-              />
-              <Line 
-                type="monotone" 
-                dataKey="signal" 
-                stroke="#F43F5E" 
-                dot={false} 
-                strokeWidth={2}
-                name="Signal Line"
-              />
-              <Bar 
-                dataKey="histogram" 
-                fill="histogramColor"
-                name="Histogram"
-                radius={[2, 2, 0, 0]}
-              />
-              <ReferenceLine y={0} stroke="#64748b" strokeDasharray="3 3" strokeWidth={1.5} />
-            </ComposedChart>
+            <div style={{ height: 100 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart
+                  data={chartData}
+                  margin={{
+                    top: 5,
+                    right: 20,
+                    left: 20,
+                    bottom: 5,
+                  }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" opacity={0.6} />
+                  <XAxis 
+                    dataKey="formattedTime" 
+                    tick={{fontSize: 12, fill: "#64748B"}}
+                    height={15}
+                    stroke="#94A3B8"
+                    minTickGap={30}
+                  />
+                  <YAxis 
+                    tick={{fontSize: 12, fill: "#64748B"}}
+                    width={30}
+                    stroke="#94A3B8" 
+                  />
+                  <Tooltip 
+                    formatter={(value) => [parseFloat(value as string).toFixed(4), 'MACD']}
+                    labelFormatter={(time) => {
+                      const dataPoint = chartData.find(item => item.formattedTime === time);
+                      return dataPoint ? formatTooltipTime(dataPoint.time) : 'Unknown time';
+                    }}
+                    contentStyle={{ 
+                      backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+                      borderRadius: '8px', 
+                      border: '1px solid #e2e8f0', 
+                      padding: '10px', 
+                      fontSize: '12px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+                    }}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="macd" 
+                    stroke="#10B981" 
+                    dot={false} 
+                    strokeWidth={2}
+                    name="MACD Line"
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="signal" 
+                    stroke="#F43F5E" 
+                    dot={false} 
+                    strokeWidth={2}
+                    name="Signal Line"
+                  />
+                  <Bar 
+                    dataKey="histogram" 
+                    fill="histogramColor"
+                    name="Histogram"
+                    radius={[2, 2, 0, 0]}
+                  />
+                  <ReferenceLine y={0} stroke="#64748b" strokeDasharray="3 3" strokeWidth={1.5} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
           )}
           
-          {/* Backtest Results Section */}
           {backtestMode && backtestResults && (
             <div className="mt-2 p-4 border border-indigo-200 rounded-lg bg-indigo-50">
               <h3 className="text-base font-bold mb-3 text-indigo-800 flex items-center gap-2">

@@ -9,11 +9,15 @@
   overflow: hidden;
   background-color: white;
   position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 .crypto-chart-container .recharts-responsive-container {
   height: 100% !important;
   width: 100% !important;
+  display: block !important;
+  min-height: 400px !important;
 }
 
 .crypto-chart-container [class^="recharts-"] text {
@@ -331,6 +335,8 @@ select:focus-visible {
 
 .recharts-wrapper, .recharts-surface {
   overflow: visible !important;
+  width: 100% !important;
+  height: 100% !important;
 }
 
 .recharts-cartesian-grid {
@@ -348,6 +354,8 @@ select:focus-visible {
 .recharts-responsive-container {
   width: 100% !important;
   height: 100% !important;
+  min-height: 500px !important;
+  display: block !important;
 }
 
 .recharts-cartesian-axis-tick text {

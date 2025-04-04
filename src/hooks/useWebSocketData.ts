@@ -40,6 +40,8 @@ export const useWebSocketData = ({
   const prevPairRef = useRef<string>(selectedPair.symbol);
   const prevIntervalRef = useRef<string>(selectedInterval);
   const setupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isFirstMountRef = useRef<boolean>(true);
+  const isProcessingRef = useRef<boolean>(false);
   
   // Use the signal processor hook
   const {
@@ -76,20 +78,49 @@ export const useWebSocketData = ({
     processNewSignal
   });
 
-  // Reset WebSocket connection only when pair or interval actually changes
+  // Handle WebSocket connection and reconnection
   useEffect(() => {
+    // Skip the first mount effect to avoid double initialization
+    if (isFirstMountRef.current) {
+      isFirstMountRef.current = false;
+      
+      // Initial setup
+      if (!webSocketInitializedRef.current && !isProcessingRef.current) {
+        isProcessingRef.current = true;
+        if (setIsLoading) {
+          setIsLoading(true);
+        }
+        
+        setupWebSocket()
+          .catch(err => console.error("WebSocket setup failed:", err))
+          .finally(() => {
+            if (setIsLoading) {
+              setIsLoading(false);
+            }
+            isProcessingRef.current = false;
+          });
+      }
+      return;
+    }
+    
     // Only trigger WebSocket reset if the pair or interval has actually changed
-    if (prevPairRef.current !== selectedPair.symbol || prevIntervalRef.current !== selectedInterval) {
-      console.log(`Pair or interval changed: ${prevPairRef.current} -> ${selectedPair.symbol} or ${prevIntervalRef.current} -> ${selectedInterval}`);
+    const pairChanged = prevPairRef.current !== selectedPair.symbol;
+    const intervalChanged = prevIntervalRef.current !== selectedInterval;
+    
+    if (pairChanged || intervalChanged) {
+      console.log(`Config changed: Pair ${pairChanged ? 'changed' : 'unchanged'}, Interval ${intervalChanged ? 'changed' : 'unchanged'}`);
       
       // Update refs with new values
       prevPairRef.current = selectedPair.symbol;
       prevIntervalRef.current = selectedInterval;
       
+      // Clear any scheduled reconnection
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
       }
       
+      // Close existing connection if active
       if (webSocketInitializedRef.current) {
         closeWebSocket();
         webSocketInitializedRef.current = false;
@@ -98,35 +129,31 @@ export const useWebSocketData = ({
       // Clear any previous setup timeout
       if (setupTimeoutRef.current) {
         clearTimeout(setupTimeoutRef.current);
+        setupTimeoutRef.current = null;
       }
       
-      // Add a small delay to avoid rapid reconnections when multiple properties change at once
-      setIsLoading(true);
-      setupTimeoutRef.current = setTimeout(() => {
-        setupWebSocket().finally(() => {
-          if (setIsLoading) {
-            setIsLoading(false);
-          }
-        });
-        setupTimeoutRef.current = null;
-      }, 500);
-      
-      return () => {
-        if (setupTimeoutRef.current) {
-          clearTimeout(setupTimeoutRef.current);
-          setupTimeoutRef.current = null;
-        }
-      };
-    }
-    
-    // Initial setup if not yet initialized
-    if (!webSocketInitializedRef.current) {
-      setIsLoading(true);
-      setupWebSocket().finally(() => {
+      // Prevent multiple processing simultaneously
+      if (!isProcessingRef.current) {
+        isProcessingRef.current = true;
+        
+        // Set loading state
         if (setIsLoading) {
-          setIsLoading(false);
+          setIsLoading(true);
         }
-      });
+        
+        // Delay reconnection to prevent rapid switching
+        setupTimeoutRef.current = setTimeout(() => {
+          setupWebSocket()
+            .catch(err => console.error("WebSocket setup failed after config change:", err))
+            .finally(() => {
+              if (setIsLoading) {
+                setIsLoading(false);
+              }
+              isProcessingRef.current = false;
+              setupTimeoutRef.current = null;
+            });
+        }, 300);
+      }
     }
     
   }, [selectedPair.symbol, selectedInterval, setupWebSocket, setIsLoading]);
@@ -134,9 +161,13 @@ export const useWebSocketData = ({
   // Clean up resources when component unmounts
   useEffect(() => {
     return () => {
+      // Clear any pending timeouts
       if (setupTimeoutRef.current) {
         clearTimeout(setupTimeoutRef.current);
+        setupTimeoutRef.current = null;
       }
+      
+      // Clean up WebSocket resources
       cleanupResources();
     };
   }, [cleanupResources]);

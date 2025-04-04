@@ -15,8 +15,38 @@ interface ChartSectionProps {
   toggleFullscreenChart: () => void;
 }
 
-// Custom comparison function for the chart section
-const arePropsEqual = (prevProps: ChartSectionProps, nextProps: ChartSectionProps) => {
+const ChartSection = memo(({
+  klineData,
+  isLoading,
+  symbol,
+  signalData,
+  fullscreenChart,
+  toggleFullscreenChart
+}: ChartSectionProps) => {
+  return (
+    <div className="relative min-h-[500px] glass-card rounded-xl shadow-lg mb-6 overflow-hidden">
+      <Button
+        variant="outline"
+        size="sm"
+        className="absolute top-2 right-2 z-10 bg-background/80 backdrop-blur-sm"
+        onClick={toggleFullscreenChart}
+      >
+        {fullscreenChart ? (
+          <Minimize2 className="h-4 w-4" />
+        ) : (
+          <Maximize2 className="h-4 w-4" />
+        )}
+      </Button>
+      
+      <PriceChart
+        data={klineData}
+        isPending={isLoading}
+        symbol={symbol}
+        signalData={signalData}
+      />
+    </div>
+  );
+}, (prevProps, nextProps) => {
   // Always re-render if fullscreen state changes
   if (prevProps.fullscreenChart !== nextProps.fullscreenChart) return false;
   
@@ -50,40 +80,8 @@ const arePropsEqual = (prevProps: ChartSectionProps, nextProps: ChartSectionProp
   }
   
   return true;
-};
+});
 
-const ChartSection: React.FC<ChartSectionProps> = ({
-  klineData,
-  isLoading,
-  symbol,
-  signalData,
-  fullscreenChart,
-  toggleFullscreenChart
-}) => {
-  return (
-    <div className="relative min-h-[500px] glass-card rounded-xl shadow-lg mb-6 overflow-hidden">
-      <Button
-        variant="outline"
-        size="sm"
-        className="absolute top-2 right-2 z-10 bg-background/80 backdrop-blur-sm"
-        onClick={toggleFullscreenChart}
-      >
-        {fullscreenChart ? (
-          <Minimize2 className="h-4 w-4" />
-        ) : (
-          <Maximize2 className="h-4 w-4" />
-        )}
-      </Button>
-      
-      <PriceChart
-        data={klineData}
-        isPending={isLoading}
-        symbol={symbol}
-        signalData={signalData}
-      />
-    </div>
-  );
-};
+ChartSection.displayName = 'ChartSection';
 
-// Use memo with custom comparison function to prevent unnecessary re-renders
-export default memo(ChartSection, arePropsEqual);
+export default ChartSection;

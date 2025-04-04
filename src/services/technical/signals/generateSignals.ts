@@ -17,7 +17,11 @@ import { generateVolumeSignals } from './volumeSignals';
 import { generateSupportResistanceSignals } from './supportResistanceSignals';
 
 export const generateSignals = (klineData: KlineData[]): SignalSummary => {
+  // Debug start time for performance tracking
+  const startTime = performance.now();
+  
   if (!klineData || klineData.length < 50) {
+    console.log('Insufficient data for signal generation');
     return {
       overallSignal: 'NEUTRAL',
       confidence: 0,
@@ -33,6 +37,8 @@ export const generateSignals = (klineData: KlineData[]): SignalSummary => {
   const volumes = klineData.map(item => item.volume);
   const opens = getOpens(klineData);
   const lastPrice = closes[closes.length - 1];
+  
+  console.log(`Analyzing price data. Current price: ${lastPrice}`);
   
   // Calculate indicators
   const sma20 = calculateSMA(closes, 20);
@@ -51,6 +57,10 @@ export const generateSignals = (klineData: KlineData[]): SignalSummary => {
   const roc = calculateROC(closes);
   
   const supportResistance = findSupportResistanceLevels(highs, lows, closes);
+  
+  // Debug key indicator values
+  console.log(`[INDICATORS] RSI: ${rsi14[rsi14.length-1].toFixed(2)}, MACD: ${macdResult.macd[macdResult.macd.length-1].toFixed(2)}`);
+  console.log(`[INDICATORS] EMA9: ${ema9[ema9.length-1].toFixed(2)}, EMA21: ${ema21[ema21.length-1].toFixed(2)}, SMA50: ${sma50[sma50.length-1].toFixed(2)}`);
   
   // Generate individual signals
   let signals: TradingSignal[] = [];
@@ -81,6 +91,15 @@ export const generateSignals = (klineData: KlineData[]): SignalSummary => {
   signals = [...signals, ...srSignals.signals];
   indicators = { ...indicators, ...srSignals.indicators };
   
+  // Count signal types for debugging
+  const signalCounts = {
+    BUY: signals.filter(s => s.type === 'BUY').length,
+    SELL: signals.filter(s => s.type === 'SELL').length,
+    HOLD: signals.filter(s => s.type === 'HOLD').length,
+    NEUTRAL: signals.filter(s => s.type === 'NEUTRAL').length
+  };
+  console.log(`Signal counts by type:`, signalCounts);
+  
   // Calculate signal weights
   const weights = computeSignalWeights(indicators);
   
@@ -105,7 +124,7 @@ export const generateSignals = (klineData: KlineData[]): SignalSummary => {
   const priceTargets = calculatePriceTargets(klineData, overallSignal);
   
   // Log the overall signal
-  console.log(`Overall signal: ${overallSignal} with confidence: ${confidence.toFixed(2)}`);
+  console.log(`Overall signal: ${overallSignal} with confidence: ${confidence.toFixed(2)}% (exec time: ${(performance.now() - startTime).toFixed(1)}ms)`);
   
   return {
     overallSignal,

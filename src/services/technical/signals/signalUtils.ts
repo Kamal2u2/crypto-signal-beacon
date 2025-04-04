@@ -13,7 +13,8 @@ export const sumSignalWeights = (indicators: { [key: string]: IndicatorSignal },
 
 // Helper function to calculate confidence
 export const calculateConfidence = (signalWeight: number, totalWeight: number): number => {
-  return Math.min(100, Math.round((signalWeight / totalWeight) * 100) + 30); // Base 30% + weighted contribution
+  // Enhanced confidence calculation - base 40% + weighted contribution
+  return Math.min(100, Math.round((signalWeight / totalWeight) * 100) + 40);
 };
 
 // Calculate price targets based on ATR
@@ -80,29 +81,51 @@ export const computeSignalWeights = (indicators: { [key: string]: IndicatorSigna
   };
 };
 
-// Determine overall signal based on weights
+// Determine overall signal based on weights - ENHANCED ALGORITHM
 export const determineOverallSignal = (weights: TradingSignalWeight): { 
   overallSignal: SignalType, 
   confidence: number 
 } => {
   const { buyWeight, sellWeight, holdWeight, neutralWeight, totalWeight } = weights;
   
+  // Log the weights for debugging
+  console.log('Signal weights:', { buyWeight, sellWeight, holdWeight, neutralWeight, totalWeight });
+
+  // Lowered thresholds to make the algorithm more sensitive
+  const buyThreshold = 0.15; // Lower threshold from 0.25 to 0.15
+  const sellThreshold = 0.15; // Lower threshold from 0.25 to 0.15
+  const holdThreshold = 0.20; // Lower threshold from 0.25 to 0.20
+  
   let overallSignal: SignalType;
   let confidence: number;
   
-  if (buyWeight > sellWeight && buyWeight > holdWeight && buyWeight > 0.25 * totalWeight) {
+  // Calculate the proportions
+  const buyProportion = totalWeight > 0 ? buyWeight / totalWeight : 0;
+  const sellProportion = totalWeight > 0 ? sellWeight / totalWeight : 0;
+  const holdProportion = totalWeight > 0 ? holdWeight / totalWeight : 0;
+  
+  // Priority logic - first check if buy or sell signals are strong enough
+  if (buyWeight > sellWeight && buyProportion > buyThreshold) {
     overallSignal = 'BUY';
     confidence = calculateConfidence(buyWeight, totalWeight);
-  } else if (sellWeight > buyWeight && sellWeight > holdWeight && sellWeight > 0.25 * totalWeight) {
+  } 
+  else if (sellWeight > buyWeight && sellProportion > sellThreshold) {
     overallSignal = 'SELL';
     confidence = calculateConfidence(sellWeight, totalWeight);
-  } else if (holdWeight > 0.25 * totalWeight) {
+  } 
+  // Check for hold signal
+  else if (holdProportion > holdThreshold) {
     overallSignal = 'HOLD';
     confidence = calculateConfidence(holdWeight, totalWeight);
-  } else {
+  } 
+  // If nothing is significant, it's neutral
+  else {
     overallSignal = 'NEUTRAL';
     confidence = calculateConfidence(neutralWeight, totalWeight);
   }
+  
+  // Log the decision
+  console.log(`Signal decision: ${overallSignal} with confidence: ${confidence}%, buyProportion: ${(buyProportion*100).toFixed(1)}%, sellProportion: ${(sellProportion*100).toFixed(1)}%, holdProportion: ${(holdProportion*100).toFixed(1)}%`);
   
   return { overallSignal, confidence };
 };

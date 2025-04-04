@@ -15,12 +15,13 @@ interface PriceChartProps {
   signalData?: SignalSummary | null;
 }
 
-const PriceChart: React.FC<PriceChartProps> = memo(({ 
+const PriceChart = memo(({ 
   data, 
   isPending, 
   symbol, 
   signalData 
 }) => {
+  // Only call useChartData hook if we have data to process
   const {
     chartState,
     toggleSetting,
@@ -68,41 +69,9 @@ const PriceChart: React.FC<PriceChartProps> = memo(({
       </CardContent>
     </Card>
   );
-}, (prevProps, nextProps) => {
-  // If loading state changed, we need to re-render
-  if (prevProps.isPending !== nextProps.isPending) return false;
-  
-  // If symbol changed, we need to re-render
-  if (prevProps.symbol !== nextProps.symbol) return false;
-  
-  // Deep compare signalData changes
-  if (prevProps.signalData !== nextProps.signalData) {
-    // If one is null and the other isn't, they're different
-    if (!!prevProps.signalData !== !!nextProps.signalData) return false;
-    
-    // If both exist, compare their values
-    if (prevProps.signalData && nextProps.signalData) {
-      if (prevProps.signalData.overallSignal !== nextProps.signalData.overallSignal) return false;
-      if (prevProps.signalData.confidence !== nextProps.signalData.confidence) return false;
-    }
-  }
-  
-  // If data length changed, we need to re-render
-  if (prevProps.data.length !== nextProps.data.length) return false;
-  
-  // Only check the last candle for changes since that's what updates
-  if (prevProps.data.length > 0 && nextProps.data.length > 0) {
-    const prevLastCandle = prevProps.data[prevProps.data.length - 1];
-    const nextLastCandle = nextProps.data[nextProps.data.length - 1];
-    
-    // Only check essential properties
-    if (prevLastCandle.close !== nextLastCandle.close) return false;
-    if (prevLastCandle.high !== nextLastCandle.high) return false;
-    if (prevLastCandle.low !== nextLastCandle.low) return false;
-  }
-  
-  // If we made it here, props are effectively equal
-  return true;
 });
+
+// Add displayName to help with debugging
+PriceChart.displayName = 'PriceChart';
 
 export default PriceChart;

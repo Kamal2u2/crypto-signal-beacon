@@ -1,5 +1,4 @@
-
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import { 
   CoinPair, 
@@ -32,33 +31,45 @@ export const useWebSocketManager = ({
   const debugCounterRef = useRef<number>(0);
   const previousPairRef = useRef<string>(selectedPair.symbol);
   const previousIntervalRef = useRef<string>(selectedInterval);
-  const isInitialMount = useRef<boolean>(true);
   const fetchInProgressRef = useRef<boolean>(false);
+  const lastFetchTimeRef = useRef<number>(0);
+  const klineDataRef = useRef<KlineData[]>([]);
+  
+  useEffect(() => {
+    klineDataRef.current = klineData;
+  }, [klineData]);
 
-  const handleKlineUpdate = useCallback((newKline: KlineData) => {
-    setKlineData(prevData => {
-      const updatedData = updateKlineData(newKline);
-      
-      // Generate new signals with the updated data
-      const newSignals = generateSignals(updatedData);
-      processNewSignal(newSignals);
-      
-      return updatedData;
-    });
+  const processNewSignalRef = useRef(processNewSignal);
+  useEffect(() => {
+    processNewSignalRef.current = processNewSignal;
   }, [processNewSignal]);
 
+  const handleKlineUpdate = useCallback((newKline: KlineData) => {
+    const updatedData = updateKlineData(newKline, klineDataRef.current);
+    klineDataRef.current = updatedData;
+    
+    setKlineData(updatedData);
+    
+    const newSignals = generateSignals(updatedData);
+    processNewSignalRef.current(newSignals);
+  }, []);
+
   const setupWebSocket = useCallback(async () => {
-    // Skip setup if there's already a fetch in progress to avoid simultaneous requests
     if (fetchInProgressRef.current) {
       console.log('Fetch already in progress, skipping WebSocket setup');
       return;
     }
     
-    // Set the flag to true to prevent concurrent setups
+    const now = Date.now();
+    if (now - lastFetchTimeRef.current < 2000) {
+      console.log('Too many requests, throttling API calls');
+      return;
+    }
+    
     fetchInProgressRef.current = true;
+    lastFetchTimeRef.current = now;
     
     try {
-      // Prevent duplicate setups for the same pair and interval
       if (webSocketInitializedRef.current && 
           previousPairRef.current === selectedPair.symbol && 
           previousIntervalRef.current === selectedInterval) {
@@ -71,18 +82,18 @@ export const useWebSocketManager = ({
       previousPairRef.current = selectedPair.symbol;
       previousIntervalRef.current = selectedInterval;
       
+      closeWebSocket();
+      webSocketInitializedRef.current = false;
+      
       const data = await fetchKlineData(selectedPair.symbol, selectedInterval);
       if (data && data.length > 0) {
+        klineDataRef.current = data;
         setKlineData(data);
         
         const signals = generateSignals(data);
-        processNewSignal(signals);
+        processNewSignalRef.current(signals);
       }
       
-      // Close any existing WebSocket before initializing a new one
-      closeWebSocket();
-      
-      // Initialize WebSocket after getting initial data
       initializeWebSocket(
         selectedPair.symbol,
         selectedInterval,
@@ -104,7 +115,6 @@ export const useWebSocketManager = ({
       
       reconnectAttemptsRef.current++;
       
-      // Use exponential backoff for reconnections
       const backoffTime = Math.min(1000 * Math.pow(1.5, reconnectAttemptsRef.current), 30000);
       
       if (reconnectTimeoutRef.current) {
@@ -114,22 +124,29 @@ export const useWebSocketManager = ({
       reconnectTimeoutRef.current = setTimeout(() => {
         if (reconnectAttemptsRef.current < 10) {
           closeWebSocket();
+          webSocketInitializedRef.current = false;
           setupWebSocket();
         }
       }, backoffTime);
     } finally {
-      // Always reset the fetch in progress flag
       fetchInProgressRef.current = false;
     }
-  }, [selectedPair.symbol, selectedInterval, handleKlineUpdate, processNewSignal]);
+  }, [selectedPair.symbol, selectedInterval, handleKlineUpdate]);
 
   const fetchData = useCallback(async () => {
+    const now = Date.now();
+    if (now - lastFetchTimeRef.current < 2000) {
+      console.log('Too many requests, throttling API calls');
+      return;
+    }
+    
     if (fetchInProgressRef.current) {
       console.log('Fetch already in progress, skipping duplicate fetch request');
       return;
     }
     
     fetchInProgressRef.current = true;
+    lastFetchTimeRef.current = now;
     setIsLoading(true);
     debugCounterRef.current += 1;
     const cycleNumber = debugCounterRef.current;
@@ -140,10 +157,11 @@ export const useWebSocketManager = ({
       const data = await fetchKlineData(selectedPair.symbol, selectedInterval, 100);
       
       if (data.length > 0) {
+        klineDataRef.current = data;
         setKlineData(data);
         
         const signals = generateSignals(data);
-        processNewSignal(signals);
+        processNewSignalRef.current(signals);
         
         console.log(`[Cycle ${cycleNumber}] Signal processing complete`);
       } else {
@@ -166,11 +184,20 @@ export const useWebSocketManager = ({
     }
   }, [
     selectedPair,
-    selectedInterval,
-    processNewSignal
+    selectedInterval
   ]);
 
   const handleRefresh = useCallback(() => {
+    const now = Date.now();
+    if (now - lastFetchTimeRef.current < 2000) {
+      console.log('Too many refreshes, throttling API calls');
+      toast({
+        title: "Please wait",
+        description: "Refreshing too quickly, please wait a moment",
+      });
+      return;
+    }
+    
     if (fetchInProgressRef.current) {
       console.log('Fetch already in progress, skipping refresh request');
       return;
@@ -181,21 +208,20 @@ export const useWebSocketManager = ({
     reconnectAttemptsRef.current = 0;
     setIsLoading(true);
     
-    // Add a small delay to prevent rapid consecutive refreshes
     setTimeout(() => {
       setupWebSocket().finally(() => {
         setIsLoading(false);
       });
-    }, 300);
+    }, 500);
   }, [setupWebSocket]);
 
-  // Clean up function for resources
   const cleanupResources = useCallback(() => {
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
     }
     closeWebSocket();
+    webSocketInitializedRef.current = false;
   }, []);
 
   return {
@@ -207,7 +233,6 @@ export const useWebSocketManager = ({
     handleRefresh,
     cleanupResources,
     webSocketInitializedRef,
-    reconnectTimeoutRef,
-    isInitialMount
+    reconnectTimeoutRef
   };
 };

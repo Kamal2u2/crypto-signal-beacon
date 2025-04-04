@@ -12,7 +12,8 @@ interface CustomTooltipProps {
 }
 
 export const CustomTooltip = memo(({ active, payload, label }: CustomTooltipProps) => {
-  if (!active || !payload || !payload.length) {
+  // Return null if not active or no payload to prevent rendering when not needed
+  if (!active || !payload || !payload.length || !payload[0] || !payload[0].payload) {
     return null;
   }
 
@@ -48,7 +49,7 @@ export const CustomTooltip = memo(({ active, payload, label }: CustomTooltipProp
           <span className="text-[10px] font-semibold">${dataPoint.close.toFixed(2)}</span>
         </div>
         
-        {dataPoint.volume && (
+        {typeof dataPoint.volume === 'number' && (
           <div className="flex items-center gap-1">
             <div className="h-1.5 w-1.5 bg-blue-400 rounded-full"></div>
             <span className="text-[10px] text-gray-500">Volume:</span>
@@ -56,7 +57,7 @@ export const CustomTooltip = memo(({ active, payload, label }: CustomTooltipProp
           </div>
         )}
         
-        {dataPoint.rsi && (
+        {typeof dataPoint.rsi === 'number' && (
           <div className="flex items-center gap-1">
             <div className="h-1.5 w-1.5 bg-amber-400 rounded-full"></div>
             <span className="text-[10px] text-gray-500">RSI:</span>

@@ -19,6 +19,11 @@ interface MACDChartProps {
 }
 
 const MACDChart: React.FC<MACDChartProps> = ({ chartData }) => {
+  // Early return if no data to prevent rendering errors
+  if (!chartData || chartData.length === 0) {
+    return <div style={{ height: 100 }} className="flex items-center justify-center text-sm text-gray-500">No MACD data available</div>;
+  }
+
   return (
     <div style={{ height: 100 }} className="overflow-hidden">
       <ResponsiveContainer width="100%" height="100%">
@@ -106,6 +111,7 @@ const MACDChart: React.FC<MACDChartProps> = ({ chartData }) => {
 
 // Use memo with custom comparison function to prevent unnecessary re-renders
 export default memo(MACDChart, (prevProps, nextProps) => {
+  if (!prevProps.chartData || !nextProps.chartData) return false;
   if (prevProps.chartData.length !== nextProps.chartData.length) return false;
   
   // Only check the last data point's MACD values

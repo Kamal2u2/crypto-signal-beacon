@@ -60,7 +60,15 @@ export const useWebSocketData = ({
     selectedPairLabel: selectedPair.label
   });
 
-  // Use the WebSocket manager hook
+  // Use the WebSocket manager hook with stable reference to processNewSignal
+  const processSignalRef = useRef(processNewSignal);
+  
+  // Update the ref when processNewSignal changes
+  useEffect(() => {
+    processSignalRef.current = processNewSignal;
+  }, [processNewSignal]);
+
+  // Use the WebSocket manager hook with the stable reference
   const {
     klineData,
     isLoading,
@@ -70,12 +78,11 @@ export const useWebSocketData = ({
     handleRefresh,
     cleanupResources,
     webSocketInitializedRef,
-    reconnectTimeoutRef,
-    isInitialMount
+    reconnectTimeoutRef
   } = useWebSocketManager({
     selectedPair,
     selectedInterval,
-    processNewSignal
+    processNewSignal: (signals: any) => processSignalRef.current(signals)
   });
 
   // Handle WebSocket connection and reconnection
@@ -87,6 +94,7 @@ export const useWebSocketData = ({
       // Initial setup
       if (!webSocketInitializedRef.current && !isProcessingRef.current) {
         isProcessingRef.current = true;
+        
         if (setIsLoading) {
           setIsLoading(true);
         }
@@ -152,7 +160,7 @@ export const useWebSocketData = ({
               isProcessingRef.current = false;
               setupTimeoutRef.current = null;
             });
-        }, 300);
+        }, 500); // Increased delay to reduce flickering
       }
     }
     

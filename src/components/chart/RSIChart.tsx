@@ -17,6 +17,11 @@ interface RSIChartProps {
 }
 
 const RSIChart: React.FC<RSIChartProps> = ({ chartData }) => {
+  // Early return if no data to prevent rendering errors
+  if (!chartData || chartData.length === 0) {
+    return <div style={{ height: 100 }} className="flex items-center justify-center text-sm text-gray-500">No RSI data available</div>;
+  }
+  
   return (
     <div style={{ height: 100 }} className="overflow-hidden">
       <ResponsiveContainer width="100%" height="100%">
@@ -82,6 +87,7 @@ const RSIChart: React.FC<RSIChartProps> = ({ chartData }) => {
 
 // Use memo with custom comparison to prevent unnecessary re-renders
 export default memo(RSIChart, (prevProps, nextProps) => {
+  if (!prevProps.chartData || !nextProps.chartData) return false;
   if (prevProps.chartData.length !== nextProps.chartData.length) return false;
   
   // Only check the last point's RSI value

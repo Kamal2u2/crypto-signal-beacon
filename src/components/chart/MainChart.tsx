@@ -1,5 +1,5 @@
 
-import React, { memo, useMemo } from 'react';
+import React, { memo, useMemo, useEffect, useState } from 'react';
 import {
   ComposedChart,
   XAxis,
@@ -12,6 +12,7 @@ import {
 } from 'recharts';
 import { ChartContainer } from '@/components/ui/chart';
 import { CustomTooltip } from './ChartTooltip';
+import { formatPrice } from '@/utils/chartFormatters';
 
 interface MainChartProps {
   chartData: any[];
@@ -40,14 +41,24 @@ const MainChart: React.FC<MainChartProps> = memo(({
   showPriceLabels,
   currentPrice: externalCurrentPrice
 }) => {
+  // Track current price in state to force rerender when it changes
+  const [localCurrentPrice, setLocalCurrentPrice] = useState<number | null>(null);
+  
+  // Update local state when external price changes
+  useEffect(() => {
+    if (externalCurrentPrice !== undefined && externalCurrentPrice !== null) {
+      setLocalCurrentPrice(externalCurrentPrice);
+    }
+  }, [externalCurrentPrice]);
+  
   // Calculate current price to display
   const currentPrice = useMemo(() => {
     // Use external current price if provided, otherwise use last candle price
-    if (externalCurrentPrice !== undefined && externalCurrentPrice !== null) {
-      return externalCurrentPrice;
+    if (localCurrentPrice !== null) {
+      return localCurrentPrice;
     }
     return chartData.length > 0 ? chartData[chartData.length - 1].close : null;
-  }, [chartData, externalCurrentPrice]);
+  }, [chartData, localCurrentPrice]);
 
   // Create support/resistance lines with memoization
   const supportLines = useMemo(() => {
@@ -62,7 +73,7 @@ const MainChart: React.FC<MainChartProps> = memo(({
         strokeDasharray="3 3"
         ifOverflow="hidden"
         label={{ 
-          value: `S: ${level.toFixed(2)}`, 
+          value: `S: ${formatPrice(level)}`, 
           position: 'insideBottomLeft',
           fill: '#22c55e',
           fontSize: 10,
@@ -84,7 +95,7 @@ const MainChart: React.FC<MainChartProps> = memo(({
         strokeDasharray="3 3"
         ifOverflow="hidden"
         label={{ 
-          value: `R: ${level.toFixed(2)}`, 
+          value: `R: ${formatPrice(level)}`, 
           position: 'insideTopLeft',
           fill: '#ef4444',
           fontSize: 10,
@@ -105,7 +116,7 @@ const MainChart: React.FC<MainChartProps> = memo(({
         strokeDasharray="3 3"
         ifOverflow="hidden"
         label={{
-          value: `$${currentPrice.toFixed(2)}`,
+          value: `$${formatPrice(currentPrice)}`,
           position: 'right',
           fill: '#8B5CF6',
           fontSize: 11,
@@ -117,10 +128,7 @@ const MainChart: React.FC<MainChartProps> = memo(({
 
   // Format Y-axis ticks to display proper price values
   const formatYAxisTick = (value: number) => {
-    if (value >= 1000) {
-      return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
-    }
-    return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+    return formatPrice(value);
   };
 
   // Only include technical indicators if they're enabled
@@ -245,7 +253,7 @@ const MainChart: React.FC<MainChartProps> = memo(({
             tickFormatter={formatYAxisTick}
             stroke="#94A3B8"
             strokeWidth={1.5}
-            width={50}
+            width={60}
             tickSize={4}
             tickMargin={6}
             allowDecimals={true}
@@ -292,10 +300,11 @@ const MainChart: React.FC<MainChartProps> = memo(({
   );
 }, (prevProps, nextProps) => {
   // Custom comparison function to prevent unnecessary rerenders
-  if (prevProps.chartData.length !== nextProps.chartData.length) return false;
   
-  // Compare external current price
+  // Always rerender if the current price changes
   if (prevProps.currentPrice !== nextProps.currentPrice) return false;
+  
+  if (prevProps.chartData.length !== nextProps.chartData.length) return false;
   
   // Compare chart options
   if (prevProps.showMA !== nextProps.showMA) return false;
@@ -330,5 +339,7 @@ const MainChart: React.FC<MainChartProps> = memo(({
   // If we made it here, props are effectively equal
   return true;
 });
+
+MainChart.displayName = 'MainChart';
 
 export default MainChart;

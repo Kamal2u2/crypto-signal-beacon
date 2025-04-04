@@ -22,7 +22,7 @@ const PriceChart = memo(({
   symbol, 
   signalData,
   currentPrice
-}) => {
+}: PriceChartProps) => {
   // Only call useChartData hook if we have data to process
   const {
     chartState,

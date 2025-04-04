@@ -5,6 +5,7 @@ import { Maximize2, Minimize2 } from 'lucide-react';
 import PriceChart from '@/components/PriceChart';
 import { KlineData } from '@/services/binanceService';
 import { SignalSummary } from '@/services/technicalAnalysisService';
+import { formatPrice } from '@/utils/chartFormatters';
 
 interface ChartSectionProps {
   klineData: KlineData[];
@@ -25,6 +26,9 @@ const ChartSection = memo(({
   toggleFullscreenChart,
   currentPrice
 }: ChartSectionProps) => {
+  // Format the current price for display if available
+  const formattedPrice = currentPrice ? formatPrice(currentPrice) : null;
+  
   return (
     <div className="relative min-h-[500px] glass-card rounded-xl shadow-lg mb-6 overflow-hidden">
       <Button
@@ -39,6 +43,12 @@ const ChartSection = memo(({
           <Maximize2 className="h-4 w-4" />
         )}
       </Button>
+      
+      {formattedPrice && (
+        <div className="absolute top-2 left-2 z-10 px-2 py-1 bg-background/80 backdrop-blur-sm rounded text-sm font-medium">
+          Current: ${formattedPrice}
+        </div>
+      )}
       
       <PriceChart
         data={klineData}

@@ -1,4 +1,3 @@
-
 import React from 'react';
 import {
   ComposedChart,
@@ -22,7 +21,7 @@ interface MainChartProps {
   showBollinger: boolean;
   showVolume: boolean;
   showSupportResistance: boolean;
-  yDomain: [number, number];
+  yDomain: [number, number];  // Explicitly typed as tuple with exactly 2 numbers
   supportResistanceLevels: {
     support: number[];
     resistance: number[];
@@ -91,6 +90,7 @@ const MainChart: React.FC<MainChartProps> = ({
               <stop offset="95%" stopColor="#ef4444" stopOpacity={0.2}/>
             </linearGradient>
           </defs>
+          
           <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" opacity={0.6} />
           <XAxis 
             dataKey="formattedTime" 

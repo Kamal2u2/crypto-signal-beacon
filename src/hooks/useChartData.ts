@@ -59,7 +59,12 @@ export const useChartData = (data: KlineData[], signalData?: SignalSummary | nul
   };
 
   const processedData = useMemo(() => {
-    if (!data || data.length === 0) return { chartData: [], yDomain: [0, 1], supportResistanceLevels: { support: [], resistance: [] } };
+    // Default return value with explicitly typed yDomain
+    if (!data || data.length === 0) return { 
+      chartData: [], 
+      yDomain: [0, 1] as [number, number], 
+      supportResistanceLevels: { support: [], resistance: [] } 
+    };
     
     const prices = data.map(item => item.close);
     const highs = data.map(item => item.high);
@@ -82,7 +87,8 @@ export const useChartData = (data: KlineData[], signalData?: SignalSummary | nul
     let minPrice = Math.min(...zoomedData.map(item => item.low)) * 0.995;
     let maxPrice = Math.max(...zoomedData.map(item => item.high)) * 1.005;
     
-    const yDomain = [minPrice, maxPrice] as [number, number];
+    // Ensure yDomain is always a tuple of two numbers
+    const yDomain: [number, number] = [minPrice, maxPrice];
     
     // Create chart data
     const chartData = zoomedData.map((item, index) => {

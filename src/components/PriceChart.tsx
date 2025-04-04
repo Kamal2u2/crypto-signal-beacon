@@ -13,13 +13,15 @@ interface PriceChartProps {
   isPending: boolean;
   symbol: string;
   signalData?: SignalSummary | null;
+  currentPrice?: number | null;
 }
 
 const PriceChart = memo(({ 
   data, 
   isPending, 
   symbol, 
-  signalData 
+  signalData,
+  currentPrice
 }) => {
   // Only call useChartData hook if we have data to process
   const {
@@ -65,6 +67,7 @@ const PriceChart = memo(({
           chartState={chartState}
           yDomain={yDomain}
           supportResistanceLevels={supportResistanceLevels}
+          currentPrice={currentPrice}
         />
       </CardContent>
     </Card>

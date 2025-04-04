@@ -25,6 +25,7 @@ interface MainChartProps {
     resistance: number[];
   };
   showPriceLabels: boolean;
+  currentPrice?: number | null;
 }
 
 // Create a highly optimized MainChart component that minimizes re-renders
@@ -36,12 +37,17 @@ const MainChart: React.FC<MainChartProps> = memo(({
   showSupportResistance,
   yDomain,
   supportResistanceLevels,
-  showPriceLabels
+  showPriceLabels,
+  currentPrice: externalCurrentPrice
 }) => {
   // Calculate current price to display
   const currentPrice = useMemo(() => {
+    // Use external current price if provided, otherwise use last candle price
+    if (externalCurrentPrice !== undefined && externalCurrentPrice !== null) {
+      return externalCurrentPrice;
+    }
     return chartData.length > 0 ? chartData[chartData.length - 1].close : null;
-  }, [chartData]);
+  }, [chartData, externalCurrentPrice]);
 
   // Create support/resistance lines with memoization
   const supportLines = useMemo(() => {
@@ -56,7 +62,7 @@ const MainChart: React.FC<MainChartProps> = memo(({
         strokeDasharray="3 3"
         ifOverflow="hidden"
         label={{ 
-          value: `S: ${level.toFixed(0)}`, 
+          value: `S: ${level.toFixed(2)}`, 
           position: 'insideBottomLeft',
           fill: '#22c55e',
           fontSize: 10,
@@ -78,7 +84,7 @@ const MainChart: React.FC<MainChartProps> = memo(({
         strokeDasharray="3 3"
         ifOverflow="hidden"
         label={{ 
-          value: `R: ${level.toFixed(0)}`, 
+          value: `R: ${level.toFixed(2)}`, 
           position: 'insideTopLeft',
           fill: '#ef4444',
           fontSize: 10,
@@ -108,6 +114,14 @@ const MainChart: React.FC<MainChartProps> = memo(({
       />
     );
   }, [currentPrice, showPriceLabels]);
+
+  // Format Y-axis ticks to display proper price values
+  const formatYAxisTick = (value: number) => {
+    if (value >= 1000) {
+      return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
+    }
+    return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  };
 
   // Only include technical indicators if they're enabled
   const technicalLines = useMemo(() => {
@@ -228,13 +242,13 @@ const MainChart: React.FC<MainChartProps> = memo(({
             orientation="left" 
             domain={yDomain} 
             tick={{fontSize: 11, fill: "#64748B"}}
-            tickFormatter={(value) => value.toString()}
+            tickFormatter={formatYAxisTick}
             stroke="#94A3B8"
             strokeWidth={1.5}
             width={50}
             tickSize={4}
             tickMargin={6}
-            allowDecimals={false}
+            allowDecimals={true}
           />
           
           <Tooltip content={<CustomTooltip />} isAnimationActive={false} />
@@ -279,6 +293,9 @@ const MainChart: React.FC<MainChartProps> = memo(({
 }, (prevProps, nextProps) => {
   // Custom comparison function to prevent unnecessary rerenders
   if (prevProps.chartData.length !== nextProps.chartData.length) return false;
+  
+  // Compare external current price
+  if (prevProps.currentPrice !== nextProps.currentPrice) return false;
   
   // Compare chart options
   if (prevProps.showMA !== nextProps.showMA) return false;

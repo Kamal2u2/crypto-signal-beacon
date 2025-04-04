@@ -21,13 +21,15 @@ interface ChartLayoutProps {
     support: number[];
     resistance: number[];
   };
+  currentPrice?: number | null;
 }
 
 const ChartLayout: React.FC<ChartLayoutProps> = ({
   chartData,
   chartState,
   yDomain,
-  supportResistanceLevels
+  supportResistanceLevels,
+  currentPrice
 }) => {
   const {
     showMA,
@@ -58,6 +60,7 @@ const ChartLayout: React.FC<ChartLayoutProps> = ({
           yDomain={yDomain}
           supportResistanceLevels={supportResistanceLevels}
           showPriceLabels={showPriceLabels}
+          currentPrice={currentPrice}
         />
       </div>
       

@@ -45,11 +45,27 @@ export const useWebSocketManager = ({
   }, [processNewSignal]);
 
   const handleKlineUpdate = useCallback((newKline: KlineData) => {
-    const updatedData = updateKlineData(newKline, klineDataRef.current);
-    klineDataRef.current = updatedData;
+    // Update the klineData with the new kline
+    updateKlineData(newKline);
     
+    // Since updateKlineData returns a new array, we need to create our own updated data
+    const updatedData = [...klineDataRef.current];
+    const existingIndex = updatedData.findIndex(k => k.openTime === newKline.openTime);
+    
+    if (existingIndex !== -1) {
+      updatedData[existingIndex] = newKline;
+    } else {
+      updatedData.push(newKline);
+      if (updatedData.length > 1000) {
+        updatedData.shift();
+      }
+    }
+    
+    // Update component state
+    klineDataRef.current = updatedData;
     setKlineData(updatedData);
     
+    // Process new signals based on updated data
     const newSignals = generateSignals(updatedData);
     processNewSignalRef.current(newSignals);
   }, []);

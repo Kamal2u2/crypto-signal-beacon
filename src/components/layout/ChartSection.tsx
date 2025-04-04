@@ -13,6 +13,7 @@ interface ChartSectionProps {
   signalData: SignalSummary | null;
   fullscreenChart: boolean;
   toggleFullscreenChart: () => void;
+  currentPrice?: number | null;
 }
 
 const ChartSection = memo(({
@@ -21,7 +22,8 @@ const ChartSection = memo(({
   symbol,
   signalData,
   fullscreenChart,
-  toggleFullscreenChart
+  toggleFullscreenChart,
+  currentPrice
 }: ChartSectionProps) => {
   return (
     <div className="relative min-h-[500px] glass-card rounded-xl shadow-lg mb-6 overflow-hidden">
@@ -43,6 +45,7 @@ const ChartSection = memo(({
         isPending={isLoading}
         symbol={symbol}
         signalData={signalData}
+        currentPrice={currentPrice}
       />
     </div>
   );

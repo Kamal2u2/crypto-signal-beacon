@@ -10,7 +10,7 @@ import {
   updateKlineData,
   KlineData
 } from '@/services/binanceService';
-import { SignalSummary, generateSignals } from '@/services/technicalAnalysisService';
+import { SignalSummary, generateSignals, SignalType } from '@/services/technicalAnalysisService';
 
 interface UseWebSocketDataProps {
   selectedPair: CoinPair;
@@ -20,7 +20,7 @@ interface UseWebSocketDataProps {
   alertsEnabled: boolean;
   alertVolume: number;
   notificationsEnabled: boolean;
-  lastSignalType: string | null;
+  lastSignalType: SignalType | null;
   setLastSignalType: (type: string | null) => void;
   playSignalSound: (type: 'BUY' | 'SELL', volume: number) => void;
   sendSignalNotification: (type: string, symbol: string, confidence: number) => void;

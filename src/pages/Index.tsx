@@ -7,7 +7,8 @@ import {
   initializeAudio, 
   playSignalSound,
   sendSignalNotification,
-  debugSignalSystem
+  debugSignalSystem,
+  requestNotificationPermission
 } from '@/services/notificationService';
 import LiveCoinPrice from '@/components/LiveCoinPrice';
 import Header from '@/components/layout/Header';
@@ -40,6 +41,13 @@ const Index = () => {
   // Use custom hooks for data fetching and websocket management
   const { currentPrice } = usePriceWebSocket(selectedPair);
   
+  // Define a type-safe wrapper function for setLastSignalType
+  const handleSetLastSignalType = (type: string | null) => {
+    if (type === null || type === 'BUY' || type === 'SELL' || type === 'HOLD' || type === 'NEUTRAL') {
+      setLastSignalType(type as SignalType | null);
+    }
+  };
+  
   const { 
     klineData, 
     signalData, 
@@ -55,7 +63,7 @@ const Index = () => {
     alertVolume,
     notificationsEnabled,
     lastSignalType,
-    setLastSignalType,
+    setLastSignalType: handleSetLastSignalType,
     playSignalSound,
     sendSignalNotification
   });

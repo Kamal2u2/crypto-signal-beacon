@@ -1,4 +1,3 @@
-
 import { useState, useMemo } from 'react';
 import { KlineData } from '@/services/binanceService';
 import { SignalSummary } from '@/services/technicalAnalysisService';
@@ -26,9 +25,9 @@ export interface ChartState {
 
 export const useChartData = (data: KlineData[], signalData?: SignalSummary | null) => {
   const [chartState, setChartState] = useState<ChartState>({
-    showMA: true,
+    showMA: false,
     showBollinger: false,
-    showVolume: true,
+    showVolume: false,
     showRSI: false,
     showMACD: false,
     showSupportResistance: true,
@@ -59,7 +58,6 @@ export const useChartData = (data: KlineData[], signalData?: SignalSummary | nul
   };
 
   const processedData = useMemo(() => {
-    // Default return value with explicitly typed yDomain
     if (!data || data.length === 0) return { 
       chartData: [], 
       yDomain: [0, 1] as [number, number], 
@@ -78,7 +76,6 @@ export const useChartData = (data: KlineData[], signalData?: SignalSummary | nul
     const supportResistanceLevels = findSupportResistanceLevels(highs, lows, prices);
     const maxVolume = Math.max(...data.map(item => item.volume));
     
-    // Apply zoom
     const zoomFactor = chartState.zoomLevel / 100;
     const dataLength = data.length;
     const visibleDataCount = Math.max(Math.floor(dataLength * zoomFactor), 10);
@@ -87,10 +84,8 @@ export const useChartData = (data: KlineData[], signalData?: SignalSummary | nul
     let minPrice = Math.min(...zoomedData.map(item => item.low)) * 0.995;
     let maxPrice = Math.max(...zoomedData.map(item => item.high)) * 1.005;
     
-    // Ensure yDomain is always a tuple of two numbers
     const yDomain: [number, number] = [minPrice, maxPrice];
     
-    // Create chart data
     const chartData = zoomedData.map((item, index) => {
       const dataIndex = Math.max(0, dataLength - visibleDataCount) + index;
       
@@ -117,7 +112,6 @@ export const useChartData = (data: KlineData[], signalData?: SignalSummary | nul
       return enhancedData;
     });
 
-    // Handle signals
     let signalMap: { [key: string]: 'BUY' | 'SELL' } = {};
     
     if (signalData && signalData.signals) {

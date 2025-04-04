@@ -29,11 +29,6 @@ const ChartControls: React.FC<ChartControlsProps> = ({
   handleZoomOut,
 }) => {
   const {
-    showMA,
-    showBollinger,
-    showVolume,
-    showRSI,
-    showMACD,
     showSupportResistance,
     showSignals,
     zoomLevel,
@@ -83,51 +78,6 @@ const ChartControls: React.FC<ChartControlsProps> = ({
       </div>
       
       <div className="flex flex-wrap mt-2 gap-1.5">
-        <button 
-          className={cn(
-            "px-2.5 py-1 text-xs rounded-full font-medium transition-colors shadow-sm", 
-            showMA ? "bg-indigo-500 text-white" : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
-          )}
-          onClick={() => toggleSetting('showMA')}
-        >
-          Moving Avg
-        </button>
-        <button 
-          className={cn(
-            "px-2.5 py-1 text-xs rounded-full font-medium transition-colors shadow-sm", 
-            showBollinger ? "bg-indigo-500 text-white" : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
-          )}
-          onClick={() => toggleSetting('showBollinger')}
-        >
-          Bollinger
-        </button>
-        <button 
-          className={cn(
-            "px-2.5 py-1 text-xs rounded-full font-medium transition-colors shadow-sm", 
-            showVolume ? "bg-indigo-500 text-white" : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
-          )}
-          onClick={() => toggleSetting('showVolume')}
-        >
-          Volume
-        </button>
-        <button 
-          className={cn(
-            "px-2.5 py-1 text-xs rounded-full font-medium transition-colors shadow-sm", 
-            showRSI ? "bg-indigo-500 text-white" : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
-          )}
-          onClick={() => toggleSetting('showRSI')}
-        >
-          RSI
-        </button>
-        <button 
-          className={cn(
-            "px-2.5 py-1 text-xs rounded-full font-medium transition-colors shadow-sm", 
-            showMACD ? "bg-indigo-500 text-white" : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
-          )}
-          onClick={() => toggleSetting('showMACD')}
-        >
-          MACD
-        </button>
         <button 
           className={cn(
             "px-2.5 py-1 text-xs rounded-full font-medium transition-colors shadow-sm", 

@@ -34,6 +34,9 @@ const MainChart: React.FC<MainChartProps> = ({
   supportResistanceLevels,
   showPriceLabels
 }) => {
+  // Calculate current price to display
+  const currentPrice = chartData.length > 0 ? chartData[chartData.length - 1].close : null;
+
   return (
     <div className="h-[500px] w-full">
       <ChartContainer 
@@ -79,7 +82,7 @@ const MainChart: React.FC<MainChartProps> = ({
           
           <Tooltip content={<CustomTooltip />} />
           
-          {/* Simple price line chart */}
+          {/* Price line chart */}
           <Line 
             yAxisId="left" 
             type="monotone" 
@@ -92,33 +95,24 @@ const MainChart: React.FC<MainChartProps> = ({
             activeDot={{ r: 6, fill: "#8B5CF6", stroke: "white", strokeWidth: 2 }}
           />
           
-          {showPriceLabels && chartData.length > 0 && (
-            <Line
+          {/* Current price label */}
+          {currentPrice && showPriceLabels && chartData.length > 0 && (
+            <ReferenceLine
+              y={currentPrice}
               yAxisId="left"
-              data={[chartData[chartData.length - 1]]}
-              type="monotone"
-              dataKey="close"
-              stroke="transparent"
-              dot={false}
-              isAnimationActive={false}
-              label={({ x, y, value }) => {
-                const entry = chartData[chartData.length - 1];
-                return (
-                  <text
-                    x={x + 10}
-                    y={y}
-                    fill={entry.close >= entry.open ? "#22c55e" : "#ef4444"}
-                    fontSize="12"
-                    fontWeight="bold"
-                    textAnchor="start"
-                  >
-                    ${entry.close.toFixed(2)} ({entry.changePercent.toFixed(2)}%)
-                  </text>
-                );
+              stroke="#8B5CF6"
+              strokeDasharray="3 3"
+              label={{
+                value: `$${currentPrice.toFixed(2)}`,
+                position: 'right',
+                fill: '#8B5CF6',
+                fontSize: 12,
+                fontWeight: 'bold'
               }}
             />
           )}
           
+          {/* Support/Resistance lines */}
           {showSupportResistance && supportResistanceLevels.support.map((level, index) => (
             <ReferenceLine 
               key={`support-${index}`} 

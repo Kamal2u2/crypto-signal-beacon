@@ -1,3 +1,4 @@
+
 import React from 'react';
 import {
   ComposedChart,
@@ -126,20 +127,7 @@ const MainChart: React.FC<MainChartProps> = ({
           
           <Tooltip content={<CustomTooltip />} />
           
-          {chartData.map((entry, index) => (
-            <Line
-              key={`candle-${index}`}
-              yAxisId="left"
-              data={[entry]}
-              type="monotone"
-              dataKey={(item) => [item.low, item.high]}
-              stroke={entry.close >= entry.open ? "#22c55e" : "#ef4444"}
-              strokeWidth={1.5}
-              dot={false}
-              activeDot={false}
-              isAnimationActive={false}
-            />
-          ))}
+          {/* Removed the map function that was creating individual candle lines with dots */}
           
           {showPriceLabels && chartData.length > 0 && (
             <Line
@@ -148,6 +136,7 @@ const MainChart: React.FC<MainChartProps> = ({
               type="monotone"
               dataKey="close"
               stroke="transparent"
+              dot={false}
               isAnimationActive={false}
               label={({ x, y, value }) => {
                 const entry = chartData[chartData.length - 1];
@@ -177,6 +166,8 @@ const MainChart: React.FC<MainChartProps> = ({
             name="Price"
             animationDuration={500}
             isAnimationActive={false}
+            dot={false}
+            activeDot={false}
           />
           
           {showBollinger && (

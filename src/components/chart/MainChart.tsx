@@ -72,8 +72,10 @@ const MainChart: React.FC<MainChartProps> = memo(({
         if (priceRefLineRef.current && showPriceLabels) {
           const svg = svgRef.current?.querySelector('.recharts-wrapper svg');
           if (svg) {
-            const height = svg.height.baseVal.value;
-            const width = svg.width.baseVal.value;
+            // Fix: Cast the SVG element to SVGSVGElement to access height and width
+            const svgElement = svg as SVGSVGElement;
+            const height = svgElement.height.baseVal.value;
+            const width = svgElement.width.baseVal.value;
             const yScale = height / (yDomain[1] - yDomain[0]);
             const yPos = height - (externalCurrentPrice - yDomain[0]) * yScale;
             
@@ -293,93 +295,96 @@ const MainChart: React.FC<MainChartProps> = memo(({
         }}
         className="h-full w-full"
       >
-        <ComposedChart
-          data={chartData}
-          margin={{
-            top: 20,
-            right: 30,
-            bottom: 20,
-            left: 30,
-          }}
-        >
-          <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" opacity={0.6} />
-          <XAxis 
-            dataKey="formattedTime" 
-            tick={{fontSize: 11, fill: "#64748B"}}
-            stroke="#94A3B8"
-            strokeWidth={1.5}
-            tickCount={5}
-            minTickGap={30}
-            height={20}
-          />
-          <YAxis 
-            yAxisId="left" 
-            orientation="left" 
-            domain={yDomain} 
-            tick={{fontSize: 11, fill: "#64748B"}}
-            tickFormatter={formatYAxisTick}
-            stroke="#94A3B8"
-            strokeWidth={1.5}
-            width={60}
-            tickSize={4}
-            tickMargin={6}
-            allowDecimals={true}
-          />
-          
-          <Tooltip content={<CustomTooltip />} isAnimationActive={false} />
-          
-          {/* Price line chart */}
-          <Line 
-            yAxisId="left" 
-            type="monotone" 
-            dataKey="close" 
-            stroke="#8B5CF6" 
-            strokeWidth={2.5}
-            name="Price"
-            isAnimationActive={false}
-            dot={false}
-            activeDot={{ r: 5, fill: "#8B5CF6", stroke: "white", strokeWidth: 2 }}
-            connectNulls={true}
-          />
-          
-          {/* Technical indicators */}
-          {technicalLines}
-          
-          {/* Price reference line - fallback to standard component if DOM manipulation fails */}
-          {!PriceReferenceLineWithRef && currentPrice && showPriceLabels && (
-            <ReferenceLine
-              y={currentPrice}
-              yAxisId="left"
-              stroke="#8B5CF6"
-              strokeDasharray="3 3"
-              ifOverflow="hidden"
-              label={{
-                value: `$${formatPrice(currentPrice)}`,
-                position: 'right',
-                fill: '#8B5CF6',
-                fontSize: 11,
-                fontWeight: 'bold'
-              }}
+        {/* Fix: Wrap ComposedChart in a fragment to pass a single React element instead of an array */}
+        <>
+          <ComposedChart
+            data={chartData}
+            margin={{
+              top: 20,
+              right: 30,
+              bottom: 20,
+              left: 30,
+            }}
+          >
+            <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" opacity={0.6} />
+            <XAxis 
+              dataKey="formattedTime" 
+              tick={{fontSize: 11, fill: "#64748B"}}
+              stroke="#94A3B8"
+              strokeWidth={1.5}
+              tickCount={5}
+              minTickGap={30}
+              height={20}
             />
-          )}
-          
-          {/* Support/Resistance lines */}
-          {supportLines}
-          {resistanceLines}
-          
-          <Legend 
-            verticalAlign="top" 
-            wrapperStyle={{ lineHeight: '40px' }}
-            iconSize={10}
-            iconType="circle"
-            formatter={(value) => (
-              <span style={{ color: '#1E293B', fontSize: '11px', fontWeight: 500 }}>{value}</span>
+            <YAxis 
+              yAxisId="left" 
+              orientation="left" 
+              domain={yDomain} 
+              tick={{fontSize: 11, fill: "#64748B"}}
+              tickFormatter={formatYAxisTick}
+              stroke="#94A3B8"
+              strokeWidth={1.5}
+              width={60}
+              tickSize={4}
+              tickMargin={6}
+              allowDecimals={true}
+            />
+            
+            <Tooltip content={<CustomTooltip />} isAnimationActive={false} />
+            
+            {/* Price line chart */}
+            <Line 
+              yAxisId="left" 
+              type="monotone" 
+              dataKey="close" 
+              stroke="#8B5CF6" 
+              strokeWidth={2.5}
+              name="Price"
+              isAnimationActive={false}
+              dot={false}
+              activeDot={{ r: 5, fill: "#8B5CF6", stroke: "white", strokeWidth: 2 }}
+              connectNulls={true}
+            />
+            
+            {/* Technical indicators */}
+            {technicalLines}
+            
+            {/* Price reference line - fallback to standard component if DOM manipulation fails */}
+            {!PriceReferenceLineWithRef && currentPrice && showPriceLabels && (
+              <ReferenceLine
+                y={currentPrice}
+                yAxisId="left"
+                stroke="#8B5CF6"
+                strokeDasharray="3 3"
+                ifOverflow="hidden"
+                label={{
+                  value: `$${formatPrice(currentPrice)}`,
+                  position: 'right',
+                  fill: '#8B5CF6',
+                  fontSize: 11,
+                  fontWeight: 'bold'
+                }}
+              />
             )}
-          />
-        </ComposedChart>
-        
-        {/* Custom price reference line for DOM manipulation */}
-        {PriceReferenceLineWithRef}
+            
+            {/* Support/Resistance lines */}
+            {supportLines}
+            {resistanceLines}
+            
+            <Legend 
+              verticalAlign="top" 
+              wrapperStyle={{ lineHeight: '40px' }}
+              iconSize={10}
+              iconType="circle"
+              formatter={(value) => (
+                <span style={{ color: '#1E293B', fontSize: '11px', fontWeight: 500 }}>{value}</span>
+              )}
+            />
+          </ComposedChart>
+          
+          {/* Custom price reference line for DOM manipulation */}
+          {PriceReferenceLineWithRef}
+        </>
       </ChartContainer>
     </div>
   );

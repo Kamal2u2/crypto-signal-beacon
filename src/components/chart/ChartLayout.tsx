@@ -15,6 +15,7 @@ interface ChartLayoutProps {
     showMACD: boolean;
     showSupportResistance: boolean;
     showPriceLabels: boolean;
+    showSignals: boolean; // Added this property
   };
   yDomain: [number, number];
   supportResistanceLevels: {

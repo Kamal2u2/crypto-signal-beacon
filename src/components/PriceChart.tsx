@@ -66,7 +66,8 @@ const PriceChart = memo(({
     showRSI: chartState.showRSI,
     showMACD: chartState.showMACD,
     showSupportResistance: chartState.showSupportResistance,
-    showPriceLabels: chartState.showPriceLabels
+    showPriceLabels: chartState.showPriceLabels,
+    showSignals: false // Add the missing property
   };
 
   return (

@@ -1,5 +1,5 @@
 
-import React, { memo, useMemo, useEffect, useState } from 'react';
+import React, { memo, useMemo, useEffect, useState, useRef } from 'react';
 import {
   ComposedChart,
   XAxis,
@@ -43,12 +43,35 @@ const MainChart: React.FC<MainChartProps> = memo(({
 }) => {
   // Track current price in state to force rerender when it changes
   const [localCurrentPrice, setLocalCurrentPrice] = useState<number | null>(null);
+  const lastPriceRef = useRef<number | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
   
-  // Update local state when external price changes
+  // Update local state when external price changes, using requestAnimationFrame for smooth updates
   useEffect(() => {
-    if (externalCurrentPrice !== undefined && externalCurrentPrice !== null) {
-      setLocalCurrentPrice(externalCurrentPrice);
+    if (externalCurrentPrice !== undefined && 
+        externalCurrentPrice !== null && 
+        externalCurrentPrice !== lastPriceRef.current) {
+      
+      lastPriceRef.current = externalCurrentPrice;
+      
+      // Cancel any pending animation frame
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      
+      // Schedule price update on next animation frame for smoother rendering
+      animationFrameRef.current = requestAnimationFrame(() => {
+        setLocalCurrentPrice(externalCurrentPrice);
+        animationFrameRef.current = null;
+      });
     }
+    
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+    };
   }, [externalCurrentPrice]);
   
   // Calculate current price to display

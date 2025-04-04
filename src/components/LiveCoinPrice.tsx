@@ -51,7 +51,7 @@ const LiveCoinPrice: React.FC<LiveCoinPriceProps> = ({ price, symbol, className 
     };
   }, [lastUpdateTime]);
   
-  // Immediately update display price when we get a new price
+  // Immediately update display price when we get a new price - optimized to be more responsive
   useEffect(() => {
     if (price !== null) {
       // First time initialization
@@ -62,24 +62,29 @@ const LiveCoinPrice: React.FC<LiveCoinPriceProps> = ({ price, symbol, className 
         return;
       }
       
-      // Only update if price actually changed
+      // Always update immediately, even if the price is the same
+      // This ensures we're showing the most current data
+      setPreviousPrice(displayPrice);
+      setDisplayPrice(price);
+      
+      // Only set direction and flash if the price actually changed
       if (price !== displayPrice) {
-        setPreviousPrice(displayPrice);
-        setDisplayPrice(price);
         setPriceDirection(price > displayPrice ? 'up' : 'down');
         setFlashAnimation(true);
-        setLastUpdateTime(new Date());
-        
-        // Reset flash animation after 1 second
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current);
-        }
-        
-        timeoutRef.current = setTimeout(() => {
-          setFlashAnimation(false);
-          timeoutRef.current = null;
-        }, 1000);
       }
+      
+      // Always update the timestamp to show freshness
+      setLastUpdateTime(new Date());
+      
+      // Reset flash animation after a short period
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      
+      timeoutRef.current = setTimeout(() => {
+        setFlashAnimation(false);
+        timeoutRef.current = null;
+      }, 800); // Reduced from 1000ms to 800ms for quicker animation
     }
     
     return () => {
@@ -121,7 +126,7 @@ const LiveCoinPrice: React.FC<LiveCoinPriceProps> = ({ price, symbol, className 
               <div className="flex items-center text-xs text-gray-400 ml-2">
                 <Clock className="h-3 w-3 mr-1" />
                 {timeSinceUpdate}
-                {lastUpdateTime && new Date().getTime() - lastUpdateTime.getTime() > 10000 && (
+                {lastUpdateTime && new Date().getTime() - lastUpdateTime.getTime() > 5000 && (
                   <span className="ml-2 text-amber-500 animate-pulse">
                     <RefreshCw className="h-3 w-3" />
                   </span>

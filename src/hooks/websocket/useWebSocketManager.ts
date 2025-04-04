@@ -7,7 +7,8 @@ import {
   initializeWebSocket,
   closeWebSocket,
   updateKlineData,
-  KlineData
+  KlineData,
+  pingPriceWebSocket
 } from '@/services/binanceService';
 import { generateSignals } from '@/services/technicalAnalysisService';
 
@@ -34,6 +35,7 @@ export const useWebSocketManager = ({
   const fetchInProgressRef = useRef<boolean>(false);
   const lastFetchTimeRef = useRef<number>(0);
   const klineDataRef = useRef<KlineData[]>([]);
+  const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   useEffect(() => {
     klineDataRef.current = klineData;
@@ -44,11 +46,24 @@ export const useWebSocketManager = ({
     processNewSignalRef.current = processNewSignal;
   }, [processNewSignal]);
 
+  useEffect(() => {
+    if (!heartbeatIntervalRef.current) {
+      heartbeatIntervalRef.current = setInterval(() => {
+        pingPriceWebSocket();
+      }, 15000);
+    }
+    
+    return () => {
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+        heartbeatIntervalRef.current = null;
+      }
+    };
+  }, []);
+
   const handleKlineUpdate = useCallback((newKline: KlineData) => {
-    // Update the klineData with the new kline
     updateKlineData(newKline);
     
-    // Since updateKlineData returns a new array, we need to create our own updated data
     const updatedData = [...klineDataRef.current];
     const existingIndex = updatedData.findIndex(k => k.openTime === newKline.openTime);
     
@@ -61,11 +76,9 @@ export const useWebSocketManager = ({
       }
     }
     
-    // Update component state
     klineDataRef.current = updatedData;
     setKlineData(updatedData);
     
-    // Process new signals based on updated data
     const newSignals = generateSignals(updatedData);
     processNewSignalRef.current(newSignals);
   }, []);

@@ -1,5 +1,5 @@
 
-// Re-export all technical analysis functions for easier imports
+// This file re-exports all the technical indicators for easier importing
 export * from './types';
 export * from './movingAverages';
 export * from './oscillators';
@@ -10,4 +10,3 @@ export * from './trendIndicators';
 export * from './supportResistance';
 export * from './atr';
 export * from './signalGeneration';
-

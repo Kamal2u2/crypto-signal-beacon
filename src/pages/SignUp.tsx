@@ -15,7 +15,7 @@ const SignUp = () => {
             routing="path" 
             path="/sign-up" 
             signInUrl="/sign-in" 
-            fallbackRedirectUrl="/"
+            afterSignUpUrl="/"
             appearance={{
               elements: {
                 rootBox: "w-full",

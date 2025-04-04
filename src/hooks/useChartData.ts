@@ -18,6 +18,7 @@ interface ChartState {
   showBollinger: boolean;
   showSupportResistance: boolean;
   showPriceLabels: boolean;
+  showSignals: boolean; // Added missing property
 }
 
 export const useChartData = (klineData: KlineData[], signalData?: SignalSummary | null) => {
@@ -34,7 +35,8 @@ export const useChartData = (klineData: KlineData[], signalData?: SignalSummary 
     showMA: true,
     showBollinger: false,
     showSupportResistance: true,
-    showPriceLabels: true
+    showPriceLabels: true,
+    showSignals: false // Initialize with default value
   });
 
   // Generic function to toggle chart settings

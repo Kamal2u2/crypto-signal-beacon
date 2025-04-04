@@ -15,7 +15,7 @@ interface ChartLayoutProps {
     showMACD: boolean;
     showSupportResistance: boolean;
     showPriceLabels: boolean;
-    showSignals: boolean; // Added this property
+    showSignals: boolean;
   };
   yDomain: [number, number];
   supportResistanceLevels: {
@@ -39,7 +39,8 @@ const ChartLayout: React.FC<ChartLayoutProps> = ({
     showRSI,
     showMACD,
     showSupportResistance,
-    showPriceLabels
+    showPriceLabels,
+    showSignals
   } = chartState;
 
   // Calculate dynamic height for the main chart container based on which indicator charts are shown

@@ -58,7 +58,7 @@ const PriceChart = memo(({
     );
   }
 
-  // Pass only the chart state properties needed by ChartLayout
+  // Pass all chart state properties needed by ChartLayout
   const chartLayoutState = {
     showMA: chartState.showMA,
     showBollinger: chartState.showBollinger,
@@ -67,7 +67,7 @@ const PriceChart = memo(({
     showMACD: chartState.showMACD,
     showSupportResistance: chartState.showSupportResistance,
     showPriceLabels: chartState.showPriceLabels,
-    showSignals: false // Add the missing property
+    showSignals: chartState.showSignals // Added the missing property
   };
 
   return (

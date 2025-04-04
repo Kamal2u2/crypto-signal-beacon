@@ -127,7 +127,36 @@ const MainChart: React.FC<MainChartProps> = ({
           
           <Tooltip content={<CustomTooltip />} />
           
-          {/* Removed the map function that was creating individual candle lines with dots */}
+          {/* Candlestick representation */}
+          {chartData.map((entry, index) => (
+            <React.Fragment key={`candle-${index}`}>
+              {/* Vertical line from low to high */}
+              <Line
+                yAxisId="left"
+                data={[{ ...entry, lowHigh: [entry.low, entry.high] }]}
+                type="monotone"
+                dataKey="lowHigh"
+                stroke={entry.close >= entry.open ? "#22c55e" : "#ef4444"}
+                strokeWidth={1}
+                dot={false}
+                activeDot={false}
+                isAnimationActive={false}
+                connectNulls={true}
+              />
+              {/* Rectangle for open-close */}
+              <Bar
+                yAxisId="left"
+                data={[entry]}
+                dataKey={(item) => Math.abs(item.open - item.close)}
+                barSize={6}
+                fill={entry.close >= entry.open ? "#22c55e" : "#ef4444"}
+                stroke="none"
+                isAnimationActive={false}
+                baseValue={Math.min(entry.open, entry.close)}
+                style={{ opacity: 0.8 }}
+              />
+            </React.Fragment>
+          ))}
           
           {showPriceLabels && chartData.length > 0 && (
             <Line
@@ -167,7 +196,7 @@ const MainChart: React.FC<MainChartProps> = ({
             animationDuration={500}
             isAnimationActive={false}
             dot={false}
-            activeDot={false}
+            activeDot={true}
           />
           
           {showBollinger && (

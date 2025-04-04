@@ -150,7 +150,7 @@ const MainChart: React.FC<MainChartProps> = ({
                 fontWeight: 'bold'
               }}
             />
-          )}
+          ))}
           
           <Legend 
             verticalAlign="top" 

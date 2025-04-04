@@ -30,6 +30,8 @@ export const useWebSocketManager = ({
   const reconnectAttemptsRef = useRef<number>(0);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const debugCounterRef = useRef<number>(0);
+  const previousPairRef = useRef<string>(selectedPair.symbol);
+  const previousIntervalRef = useRef<string>(selectedInterval);
 
   const handleKlineUpdate = useCallback((newKline: KlineData) => {
     setKlineData(prevData => {
@@ -45,6 +47,16 @@ export const useWebSocketManager = ({
 
   const setupWebSocket = useCallback(async () => {
     try {
+      // Prevent duplicate setups for the same pair and interval
+      if (webSocketInitializedRef.current && 
+          previousPairRef.current === selectedPair.symbol && 
+          previousIntervalRef.current === selectedInterval) {
+        return;
+      }
+      
+      previousPairRef.current = selectedPair.symbol;
+      previousIntervalRef.current = selectedInterval;
+      
       const data = await fetchKlineData(selectedPair.symbol, selectedInterval);
       if (data && data.length > 0) {
         setKlineData(data);
@@ -52,6 +64,9 @@ export const useWebSocketManager = ({
         const signals = generateSignals(data);
         processNewSignal(signals);
       }
+      
+      // Close any existing WebSocket before initializing a new one
+      closeWebSocket();
       
       // Initialize WebSocket after getting initial data
       initializeWebSocket(
@@ -138,7 +153,9 @@ export const useWebSocketManager = ({
     setIsLoading(true);
     
     setTimeout(() => {
-      setupWebSocket().finally(() => setIsLoading(false));
+      setupWebSocket().finally(() => {
+        setIsLoading(false);
+      });
     }, 300);
   }, [setupWebSocket]);
 
@@ -154,7 +171,7 @@ export const useWebSocketManager = ({
   return {
     klineData,
     isLoading,
-    setIsLoading, // Export setIsLoading so it can be used in useWebSocketData
+    setIsLoading,
     setupWebSocket,
     fetchData,
     handleRefresh,

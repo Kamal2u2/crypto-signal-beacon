@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   CoinPair, 
   TimeInterval,
@@ -36,6 +36,10 @@ export const useWebSocketData = ({
   playSignalSound,
   sendSignalNotification
 }: UseWebSocketDataProps) => {
+  // Track previous values to prevent unnecessary resets
+  const prevPairRef = useRef<string>(selectedPair.symbol);
+  const prevIntervalRef = useRef<string>(selectedInterval);
+  
   // Use the signal processor hook
   const {
     signalData,
@@ -70,33 +74,59 @@ export const useWebSocketData = ({
     processNewSignal
   });
 
-  // Reset WebSocket connection when pair or interval changes
+  // Reset WebSocket connection only when pair or interval actually changes
   useEffect(() => {
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
+    // Only trigger WebSocket reset if the pair or interval has actually changed
+    if (prevPairRef.current !== selectedPair.symbol || prevIntervalRef.current !== selectedInterval) {
+      // Update refs with new values
+      prevPairRef.current = selectedPair.symbol;
+      prevIntervalRef.current = selectedInterval;
+      
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      
+      if (webSocketInitializedRef.current) {
+        closeWebSocket();
+        webSocketInitializedRef.current = false;
+      }
+      
+      // Add a small delay to avoid rapid reconnections when multiple properties change at once
+      setIsLoading(true);
+      const initTimeout = setTimeout(() => {
+        setupWebSocket().finally(() => {
+          if (setIsLoading) {
+            setIsLoading(false);
+          }
+        });
+      }, 300);
+      
+      return () => {
+        clearTimeout(initTimeout);
+      };
     }
     
-    if (webSocketInitializedRef.current) {
-      closeWebSocket();
-    }
-    
-    webSocketInitializedRef.current = false;
-    
-    // Add a small delay to avoid rapid reconnections when multiple properties change at once
-    setIsLoading(true);
-    const initTimeout = setTimeout(() => {
+    // Initial setup if not yet initialized
+    if (!webSocketInitializedRef.current) {
+      setIsLoading(true);
       setupWebSocket().finally(() => {
         if (setIsLoading) {
           setIsLoading(false);
         }
       });
-    }, 300);
+    }
     
     return () => {
-      clearTimeout(initTimeout);
+      // No need to clean up on every render
+    };
+  }, [selectedPair.symbol, selectedInterval, setupWebSocket, setIsLoading]);
+
+  // Clean up resources when component unmounts
+  useEffect(() => {
+    return () => {
       cleanupResources();
     };
-  }, [selectedPair.symbol, selectedInterval, setupWebSocket, cleanupResources, setIsLoading]);
+  }, [cleanupResources]);
 
   return {
     klineData,

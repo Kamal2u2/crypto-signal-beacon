@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { memo } from 'react';
 import { cn } from '@/lib/utils';
 import MainChart from './MainChart';
 import RSIChart from './RSIChart';
@@ -76,4 +76,5 @@ const ChartLayout: React.FC<ChartLayoutProps> = ({
   );
 };
 
-export default ChartLayout;
+// Use memo to prevent unnecessary re-renders
+export default memo(ChartLayout);

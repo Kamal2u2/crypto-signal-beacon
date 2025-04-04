@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, memo } from 'react';
 import { cn } from '@/lib/utils';
 import { ArrowUp, ArrowDown, RefreshCw, TrendingUp, TrendingDown, Clock } from 'lucide-react';
 
@@ -24,6 +24,7 @@ const LiveCoinPrice: React.FC<LiveCoinPriceProps> = ({ price, symbol, className 
   // Track 24h price changes (simulated for now)
   const [dailyChange, setDailyChange] = useState<number>(0);
   const [dailyChangePercent, setDailyChangePercent] = useState<number>(0);
+  const simulatedRef = useRef<boolean>(false);
   
   // Update the time since last update display
   useEffect(() => {
@@ -56,8 +57,9 @@ const LiveCoinPrice: React.FC<LiveCoinPriceProps> = ({ price, symbol, className 
   }, [lastUpdateTime]);
   
   // Simulate 24h price changes (in a real app, you would get this from the API)
+  // We only do this once when component mounts to avoid re-renders
   useEffect(() => {
-    if (displayPrice) {
+    if (displayPrice && !simulatedRef.current) {
       // Simulate a random 24h change between -5% and +5%
       const randomPercent = (Math.random() * 10) - 5;
       setDailyChangePercent(randomPercent);
@@ -65,6 +67,8 @@ const LiveCoinPrice: React.FC<LiveCoinPriceProps> = ({ price, symbol, className 
       // Calculate the absolute change
       const absChange = (displayPrice * randomPercent) / 100;
       setDailyChange(absChange);
+      
+      simulatedRef.current = true;
     }
   }, [displayPrice]);
   
@@ -81,7 +85,6 @@ const LiveCoinPrice: React.FC<LiveCoinPriceProps> = ({ price, symbol, className 
       
       // Only update if price actually changed
       if (price !== displayPrice) {
-        console.log(`Price update received: ${symbol} = $${price}`);
         setPreviousPrice(displayPrice);
         setDisplayPrice(price);
         setPriceDirection(price > displayPrice ? 'up' : 'down');
@@ -106,7 +109,7 @@ const LiveCoinPrice: React.FC<LiveCoinPriceProps> = ({ price, symbol, className 
         timeoutRef.current = null;
       }
     };
-  }, [price, displayPrice, symbol]);
+  }, [price, displayPrice]);
 
   // Don't render anything if we don't have a price
   if (displayPrice === null) return null;
@@ -194,4 +197,5 @@ const LiveCoinPrice: React.FC<LiveCoinPriceProps> = ({ price, symbol, className 
   );
 };
 
-export default LiveCoinPrice;
+// Use React.memo to prevent unnecessary re-renders
+export default memo(LiveCoinPrice);

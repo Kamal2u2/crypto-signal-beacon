@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { memo } from 'react';
 import {
   ComposedChart,
   XAxis,
@@ -167,4 +167,5 @@ const MainChart: React.FC<MainChartProps> = ({
   );
 };
 
-export default MainChart;
+// Use memo to prevent unnecessary re-renders
+export default memo(MainChart);

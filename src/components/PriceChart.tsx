@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { memo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { KlineData } from '@/services/binanceService';
 import { SignalSummary } from '@/services/technicalAnalysisService';
@@ -34,19 +34,17 @@ const PriceChart: React.FC<PriceChartProps> = ({
   const hasData = data && data.length > 0;
 
   // Early return for loading or no data states
-  const loadingState = (
-    <Card className="chart-container">
-      <CardHeader>
-        <CardTitle className="text-lg font-medium">
-          Price Chart
-        </CardTitle>
-      </CardHeader>
-      <ChartLoadingState isPending={isPending} hasData={hasData} />
-    </Card>
-  );
-
   if (isPending || !hasData) {
-    return loadingState;
+    return (
+      <Card className="chart-container">
+        <CardHeader>
+          <CardTitle className="text-lg font-medium">
+            Price Chart
+          </CardTitle>
+        </CardHeader>
+        <ChartLoadingState isPending={isPending} hasData={hasData} />
+      </Card>
+    );
   }
 
   return (
@@ -72,4 +70,5 @@ const PriceChart: React.FC<PriceChartProps> = ({
   );
 };
 
-export default PriceChart;
+// Use memo to prevent unnecessary re-renders
+export default memo(PriceChart);

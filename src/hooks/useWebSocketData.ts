@@ -43,45 +43,41 @@ export const useWebSocketData = ({
   const [signalData, setSignalData] = useState<SignalSummary | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   
+  const webSocketInitializedRef = useRef<boolean>(false);
+  const reconnectAttemptsRef = useRef<number>(0);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const debugCounterRef = useRef<number>(0);
 
-  const handleKlineUpdate = useCallback((newKline: KlineData) => {
-    setKlineData(prevData => {
-      const updatedData = updateKlineData(newKline);
-      
-      // Generate new signals with the updated data
-      const newSignals = generateSignals(updatedData);
-      setSignalData(newSignals);
-      
-      // Check for new valid signals
-      const isSignalValid = newSignals.overallSignal !== 'NEUTRAL' && 
-                           newSignals.overallSignal !== 'HOLD' && 
-                           newSignals.confidence >= confidenceThreshold;
-      
-      if (isAudioInitialized && alertsEnabled && isSignalValid && newSignals.overallSignal !== lastSignalType) {
-        if (newSignals.overallSignal === 'BUY' || newSignals.overallSignal === 'SELL') {
-          playSignalSound(newSignals.overallSignal, alertVolume);
-          
-          if (notificationsEnabled) {
-            sendSignalNotification(
-              newSignals.overallSignal, 
-              selectedPair.label, 
-              newSignals.confidence
-            );
-          }
-          
-          toast({
-            title: `${newSignals.overallSignal} Signal Detected`,
-            description: `${selectedPair.label} - Confidence: ${newSignals.confidence.toFixed(0)}%`,
-            variant: newSignals.overallSignal === 'BUY' ? 'default' : 'destructive',
-          });
-          
-          setLastSignalType(newSignals.overallSignal);
+  // Memoize the signal processing to prevent unnecessary rerenders
+  const processNewSignal = useCallback((newSignals: SignalSummary) => {
+    setSignalData(newSignals);
+    
+    // Check for new valid signals
+    const isSignalValid = newSignals.overallSignal !== 'NEUTRAL' && 
+                         newSignals.overallSignal !== 'HOLD' && 
+                         newSignals.confidence >= confidenceThreshold;
+    
+    if (isAudioInitialized && alertsEnabled && isSignalValid && newSignals.overallSignal !== lastSignalType) {
+      if (newSignals.overallSignal === 'BUY' || newSignals.overallSignal === 'SELL') {
+        playSignalSound(newSignals.overallSignal, alertVolume);
+        
+        if (notificationsEnabled) {
+          sendSignalNotification(
+            newSignals.overallSignal, 
+            selectedPair.label, 
+            newSignals.confidence
+          );
         }
+        
+        toast({
+          title: `${newSignals.overallSignal} Signal Detected`,
+          description: `${selectedPair.label} - Confidence: ${newSignals.confidence.toFixed(0)}%`,
+          variant: newSignals.overallSignal === 'BUY' ? 'default' : 'destructive',
+        });
+        
+        setLastSignalType(newSignals.overallSignal);
       }
-      
-      return updatedData;
-    });
+    }
   }, [
     selectedPair.label,
     confidenceThreshold,
@@ -94,6 +90,66 @@ export const useWebSocketData = ({
     playSignalSound,
     sendSignalNotification
   ]);
+
+  const handleKlineUpdate = useCallback((newKline: KlineData) => {
+    setKlineData(prevData => {
+      const updatedData = updateKlineData(newKline);
+      
+      // Generate new signals with the updated data
+      const newSignals = generateSignals(updatedData);
+      processNewSignal(newSignals);
+      
+      return updatedData;
+    });
+  }, [processNewSignal]);
+
+  const setupWebSocket = useCallback(async () => {
+    try {
+      const data = await fetchKlineData(selectedPair.symbol, selectedInterval);
+      if (data && data.length > 0) {
+        setKlineData(data);
+        
+        const signals = generateSignals(data);
+        processNewSignal(signals);
+      }
+      
+      // Initialize WebSocket after getting initial data
+      initializeWebSocket(
+        selectedPair.symbol,
+        selectedInterval,
+        handleKlineUpdate
+      );
+      
+      webSocketInitializedRef.current = true;
+      reconnectAttemptsRef.current = 0;
+    } catch (error) {
+      console.error('Error setting up WebSocket:', error);
+      
+      if (reconnectAttemptsRef.current === 0 || reconnectAttemptsRef.current > 5) {
+        toast({
+          title: "Connection Issue",
+          description: "Attempting to reconnect chart data...",
+          variant: "destructive"
+        });
+      }
+      
+      reconnectAttemptsRef.current++;
+      
+      // Use exponential backoff for reconnections
+      const backoffTime = Math.min(1000 * Math.pow(1.5, reconnectAttemptsRef.current), 30000);
+      
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      
+      reconnectTimeoutRef.current = setTimeout(() => {
+        if (reconnectAttemptsRef.current < 10) {
+          closeWebSocket();
+          setupWebSocket();
+        }
+      }, backoffTime);
+    }
+  }, [selectedPair.symbol, selectedInterval, handleKlineUpdate, processNewSignal]);
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
@@ -109,32 +165,7 @@ export const useWebSocketData = ({
         setKlineData(data);
         
         const signals = generateSignals(data);
-        setSignalData(signals);
-        
-        const isSignalValid = signals.overallSignal !== 'NEUTRAL' && 
-                             signals.overallSignal !== 'HOLD' && 
-                             signals.confidence >= confidenceThreshold;
-        
-        if (isAudioInitialized && alertsEnabled && isSignalValid && signals.overallSignal !== lastSignalType) {
-          if (signals.overallSignal === 'BUY' || signals.overallSignal === 'SELL') {
-            playSignalSound(signals.overallSignal, alertVolume);
-            
-            if (notificationsEnabled) {
-              sendSignalNotification(
-                signals.overallSignal, 
-                selectedPair.label, 
-                signals.confidence
-              );
-            }
-            
-            toast({
-              title: `${signals.overallSignal} Signal Detected`,
-              description: `${selectedPair.label} - Confidence: ${signals.confidence.toFixed(0)}%`,
-              variant: signals.overallSignal === 'BUY' ? 'default' : 'destructive',
-            });
-          }
-          setLastSignalType(signals.overallSignal);
-        }
+        processNewSignal(signals);
         
         console.log(`[Cycle ${cycleNumber}] Signal: ${signals.overallSignal}, Confidence: ${signals.confidence.toFixed(0)}%, Threshold: ${confidenceThreshold}%`);
       } else {
@@ -157,54 +188,48 @@ export const useWebSocketData = ({
   }, [
     selectedPair,
     selectedInterval,
-    isAudioInitialized,
-    lastSignalType,
-    alertsEnabled,
-    alertVolume,
     confidenceThreshold,
-    notificationsEnabled,
-    playSignalSound,
-    sendSignalNotification,
-    setLastSignalType
+    processNewSignal
   ]);
 
+  // Reset WebSocket connection when pair or interval changes
   useEffect(() => {
-    const setupKlineWebSocket = async () => {
-      try {
-        const data = await fetchKlineData(selectedPair.symbol, selectedInterval);
-        setKlineData(data);
-        
-        const signals = generateSignals(data);
-        setSignalData(signals);
-        
-        // Initialize WebSocket after getting initial data
-        initializeWebSocket(
-          selectedPair.symbol,
-          selectedInterval,
-          handleKlineUpdate
-        );
-      } catch (error) {
-        console.error('Error initializing kline data:', error);
-        toast({
-          title: "Connection Error",
-          description: "Failed to load chart data. Please try again.",
-          variant: "destructive"
-        });
-      }
-    };
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+    }
     
-    setupKlineWebSocket();
+    if (webSocketInitializedRef.current) {
+      closeWebSocket();
+    }
     
-    // Cleanup WebSocket on unmount or when pair/interval changes
+    webSocketInitializedRef.current = false;
+    reconnectAttemptsRef.current = 0;
+    
+    // Add a small delay to avoid rapid reconnections when multiple properties change at once
+    setIsLoading(true);
+    const initTimeout = setTimeout(() => {
+      setupWebSocket().finally(() => setIsLoading(false));
+    }, 300);
+    
     return () => {
+      clearTimeout(initTimeout);
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
       closeWebSocket();
     };
-  }, [selectedPair.symbol, selectedInterval, handleKlineUpdate]);
+  }, [selectedPair.symbol, selectedInterval, setupWebSocket]);
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     closeWebSocket();
-    initializeWebSocket(selectedPair.symbol, selectedInterval, handleKlineUpdate);
-  };
+    webSocketInitializedRef.current = false;
+    reconnectAttemptsRef.current = 0;
+    setIsLoading(true);
+    
+    setTimeout(() => {
+      setupWebSocket().finally(() => setIsLoading(false));
+    }, 300);
+  }, [setupWebSocket]);
 
   return {
     klineData,

@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { memo } from 'react';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -66,6 +66,7 @@ const RSIChart: React.FC<RSIChartProps> = ({ chartData }) => {
             dot={false} 
             strokeWidth={2} 
             animationDuration={500}
+            isAnimationActive={false} // Disable animation to reduce flickering
           />
           <ReferenceLine y={70} stroke="#ef4444" strokeDasharray="3 3" strokeWidth={1.5} />
           <ReferenceLine y={30} stroke="#22c55e" strokeDasharray="3 3" strokeWidth={1.5} />
@@ -76,4 +77,5 @@ const RSIChart: React.FC<RSIChartProps> = ({ chartData }) => {
   );
 };
 
-export default RSIChart;
+// Use memo to prevent unnecessary re-renders
+export default memo(RSIChart);

@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { memo } from 'react';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -67,6 +67,7 @@ const MACDChart: React.FC<MACDChartProps> = ({ chartData }) => {
             dot={false} 
             strokeWidth={2}
             name="MACD Line"
+            isAnimationActive={false} // Disable animation to reduce flickering
           />
           <Line 
             type="monotone" 
@@ -75,11 +76,13 @@ const MACDChart: React.FC<MACDChartProps> = ({ chartData }) => {
             dot={false} 
             strokeWidth={2}
             name="Signal Line"
+            isAnimationActive={false} // Disable animation to reduce flickering
           />
           <Bar 
             dataKey="histogram" 
             name="Histogram"
             radius={[2, 2, 0, 0]}
+            isAnimationActive={false} // Disable animation to reduce flickering
           >
             {chartData.map((entry, index) => (
               <Cell 
@@ -95,4 +98,5 @@ const MACDChart: React.FC<MACDChartProps> = ({ chartData }) => {
   );
 };
 
-export default MACDChart;
+// Use memo to prevent unnecessary re-renders
+export default memo(MACDChart);

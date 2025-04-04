@@ -56,7 +56,7 @@ const ChartSection = memo(({
         symbol={symbol}
         signalData={signalData}
         currentPrice={currentPrice}
-        key={`chart-${symbol}-${Date.now()}`} // Force re-render on price update
+        // Remove the key prop that was forcing a re-render on every price update
       />
     </div>
   );

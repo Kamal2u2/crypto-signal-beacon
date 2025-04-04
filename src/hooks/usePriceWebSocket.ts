@@ -20,6 +20,7 @@ export const usePriceWebSocket = (selectedPair: CoinPair) => {
   const priceUpdateRef = useRef<number | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const batchUpdatesTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastRenderedPriceRef = useRef<number | null>(null);
 
   const handlePriceUpdate = useCallback((price: number) => {
     if (price !== priceUpdateRef.current) {
@@ -38,12 +39,28 @@ export const usePriceWebSocket = (selectedPair: CoinPair) => {
       
       // Use rAF for smooth updates that don't block the UI
       animationFrameRef.current = requestAnimationFrame(() => {
-        // Only update the state (which triggers renders) if no update has occurred in the last 100ms
-        // This batches rapid price updates to prevent excessive rendering
-        batchUpdatesTimeoutRef.current = setTimeout(() => {
-          setCurrentPrice(priceUpdateRef.current);
-          batchUpdatesTimeoutRef.current = null;
-        }, 100);
+        // Only update the state (which triggers renders) if price has changed by a meaningful amount
+        // or if a certain time has passed since the last render
+        const priceDiffPercent = lastRenderedPriceRef.current ? 
+          Math.abs((price - lastRenderedPriceRef.current) / lastRenderedPriceRef.current) * 100 : 100;
+        
+        const timeSinceLastUpdate = Date.now() - (lastRenderedPriceRef.current ? lastPriceUpdateRef.current : 0);
+        
+        // Update immediately if price change is significant or if no update in a while
+        if (priceDiffPercent > 0.01 || timeSinceLastUpdate > 3000 || lastRenderedPriceRef.current === null) {
+          setCurrentPrice(price);
+          lastRenderedPriceRef.current = price;
+        } else {
+          // For small changes, batch updates to prevent too many renders
+          batchUpdatesTimeoutRef.current = setTimeout(() => {
+            if (priceUpdateRef.current !== lastRenderedPriceRef.current) {
+              setCurrentPrice(priceUpdateRef.current);
+              lastRenderedPriceRef.current = priceUpdateRef.current;
+            }
+            batchUpdatesTimeoutRef.current = null;
+          }, 500); // Batch updates over a 500ms window
+        }
+        
         animationFrameRef.current = null;
       });
     }
@@ -56,6 +73,7 @@ export const usePriceWebSocket = (selectedPair: CoinPair) => {
       if (initialPrice !== null) {
         priceUpdateRef.current = initialPrice;
         setCurrentPrice(initialPrice);
+        lastRenderedPriceRef.current = initialPrice;
         lastPriceUpdateRef.current = Date.now();
       }
       
@@ -126,6 +144,7 @@ export const usePriceWebSocket = (selectedPair: CoinPair) => {
     
     initializedRef.current = false;
     reconnectAttemptsRef.current = 0;
+    lastRenderedPriceRef.current = null;
     
     setupPriceWebSocket();
     
@@ -140,7 +159,15 @@ export const usePriceWebSocket = (selectedPair: CoinPair) => {
           .then(price => {
             if (price !== null && price !== priceUpdateRef.current) {
               priceUpdateRef.current = price;
-              setCurrentPrice(price);
+              
+              // Only update UI if meaningful change or enough time has passed
+              if (lastRenderedPriceRef.current === null || 
+                  Math.abs((price - (lastRenderedPriceRef.current || 0)) / (lastRenderedPriceRef.current || 1)) > 0.001 ||
+                  now - lastPriceUpdateRef.current > 5000) {
+                setCurrentPrice(price);
+                lastRenderedPriceRef.current = price;
+              }
+              
               lastPriceUpdateRef.current = now;
             }
           })

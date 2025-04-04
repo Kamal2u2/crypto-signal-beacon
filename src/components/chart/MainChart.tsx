@@ -295,7 +295,7 @@ const MainChart: React.FC<MainChartProps> = memo(({
         }}
         className="h-full w-full"
       >
-        {/* Fix: Wrap ComposedChart in a fragment to pass a single React element instead of an array */}
+        {/* Wrap ComposedChart in a fragment to pass a single React element instead of an array */}
         <>
           <ComposedChart
             data={chartData}

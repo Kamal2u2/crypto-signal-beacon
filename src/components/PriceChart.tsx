@@ -67,7 +67,7 @@ const PriceChart = memo(({
     showMACD: chartState.showMACD,
     showSupportResistance: chartState.showSupportResistance,
     showPriceLabels: chartState.showPriceLabels,
-    showSignals: chartState.showSignals // Added the missing property
+    showSignals: chartState.showSignals
   };
 
   return (
@@ -92,6 +92,31 @@ const PriceChart = memo(({
       </CardContent>
     </Card>
   );
+}, (prevProps, nextProps) => {
+  // Custom comparison to prevent unnecessary re-renders
+  // Only re-render when something important changes, not just when the price updates
+  if (prevProps.isPending !== nextProps.isPending) return false;
+  if (prevProps.symbol !== nextProps.symbol) return false;
+  
+  // Deep compare data array length (avoiding full comparison for performance)
+  if (prevProps.data?.length !== nextProps.data?.length) return false;
+  
+  // Only check the last data point if arrays have the same length
+  if (prevProps.data?.length && nextProps.data?.length) {
+    const lastPrev = prevProps.data[prevProps.data.length - 1];
+    const lastNext = nextProps.data[nextProps.data.length - 1];
+    
+    // If the last candle data has changed, re-render
+    if (lastPrev.openTime !== lastNext.openTime || 
+        lastPrev.close !== lastNext.close || 
+        lastPrev.high !== lastNext.high || 
+        lastPrev.low !== lastNext.low) {
+      return false;
+    }
+  }
+  
+  // Skip re-renders for price updates alone - our useEffect will handle them
+  return true;
 });
 
 // Add displayName to help with debugging

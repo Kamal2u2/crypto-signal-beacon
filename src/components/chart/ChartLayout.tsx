@@ -85,9 +85,9 @@ const ChartLayout: React.FC<ChartLayoutProps> = ({
 export default memo(ChartLayout, (prevProps, nextProps) => {
   // Only re-render if something other than currentPrice has changed
   if (prevProps.currentPrice !== nextProps.currentPrice && 
-      prevProps.chartData === nextProps.chartData &&
-      prevProps.yDomain === nextProps.yDomain &&
-      prevProps.supportResistanceLevels === nextProps.supportResistanceLevels &&
+      JSON.stringify(prevProps.chartData) === JSON.stringify(nextProps.chartData) &&
+      JSON.stringify(prevProps.yDomain) === JSON.stringify(nextProps.yDomain) &&
+      JSON.stringify(prevProps.supportResistanceLevels) === JSON.stringify(nextProps.supportResistanceLevels) &&
       JSON.stringify(prevProps.chartState) === JSON.stringify(nextProps.chartState)) {
     return true; // Skip re-render if only the price changed
   }

@@ -9,7 +9,6 @@ import {
   Legend,
   Area,
   Line,
-  Bar,
   ReferenceLine
 } from 'recharts';
 import { ChartContainer } from '@/components/ui/chart';
@@ -117,68 +116,19 @@ const MainChart: React.FC<MainChartProps> = ({
           
           <Tooltip content={<CustomTooltip />} />
           
-          {/* Simple price area chart */}
+          {/* Simple price line chart */}
           <Area 
             yAxisId="left" 
             type="monotone" 
             dataKey="close" 
             stroke="#8B5CF6" 
-            strokeWidth={2}
+            strokeWidth={3}
             fill="url(#colorPrice)" 
             name="Price"
             animationDuration={500}
             dot={false}
             activeDot={{ r: 6, fill: "#8B5CF6", stroke: "white", strokeWidth: 2 }}
           />
-          
-          {/* Candlesticks */}
-          {chartData.map((entry, index) => (
-            <React.Fragment key={`candle-${index}`}>
-              {/* Vertical line from low to high */}
-              <Line
-                yAxisId="left"
-                data={[{ ...entry, lowHigh: [entry.low, entry.high] }]}
-                dataKey="lowHigh"
-                stroke={entry.close >= entry.open ? "#22c55e" : "#ef4444"}
-                strokeWidth={1}
-                dot={false}
-                activeDot={false}
-                isAnimationActive={false}
-              />
-              {/* Rectangle for open-close */}
-              <Bar
-                yAxisId="left"
-                data={[entry]}
-                dataKey={(item) => Math.abs(item.open - item.close)}
-                barSize={6}
-                fill={entry.close >= entry.open ? "#22c55e" : "#ef4444"}
-                stroke="none"
-                isAnimationActive={false}
-                stackId={`stack-${index}`}
-                minPointSize={0}
-                background={{ fill: "transparent" }}
-                // Use a transform to position the bar at the correct spot
-                shape={(props: any) => {
-                  const { x, y, width, height, fill } = props;
-                  const entry = props.payload;
-                  const baseY = entry.close >= entry.open 
-                    ? props.y + props.height 
-                    : props.y;
-                  
-                  return (
-                    <rect
-                      x={x - width/2}
-                      y={baseY - (entry.close >= entry.open ? height : 0)}
-                      width={width}
-                      height={height}
-                      fill={fill}
-                      className="candle-body"
-                    />
-                  );
-                }}
-              />
-            </React.Fragment>
-          ))}
           
           {showPriceLabels && chartData.length > 0 && (
             <Line
@@ -270,14 +220,16 @@ const MainChart: React.FC<MainChartProps> = ({
           )}
           
           {showVolume && (
-            <Bar 
+            <Area
               yAxisId="right" 
               dataKey="normalizedVolume" 
               name="Volume"
               animationDuration={500}
-              radius={[2, 2, 0, 0]}
               isAnimationActive={false}
               fill="url(#colorVolume)"
+              stroke="#0EA5E9"
+              strokeWidth={1}
+              dot={false}
               opacity={0.6}
             />
           )}
@@ -316,7 +268,7 @@ const MainChart: React.FC<MainChartProps> = ({
                 fontWeight: 'bold'
               }}
             />
-          ))}
+          )}
           
           <Legend 
             verticalAlign="top" 

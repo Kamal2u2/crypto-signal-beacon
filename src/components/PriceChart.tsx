@@ -471,7 +471,7 @@ const PriceChart: React.FC<PriceChartProps> = ({
                   orientation="left" 
                   domain={yDomain} 
                   tick={{fontSize: 12, fill: "#64748B"}}
-                  tickFormatter={(value) => value.toFixed(0)}
+                  tickFormatter={(value) => value.toString()}
                   stroke="#94A3B8"
                   strokeWidth={1.5}
                   width={60}
@@ -661,41 +661,7 @@ const PriceChart: React.FC<PriceChartProps> = ({
                   />
                 ))}
                 
-                {showSignals && signalPoints.length > 0 && (
-                  <Scatter
-                    yAxisId="left"
-                    name="Signals"
-                    data={signalPoints}
-                    shape={(props) => {
-                      if (!props || !props.payload) return null;
-                      
-                      const { cx, cy, payload } = props;
-                      const signalType = payload.signalType;
-                      
-                      const yScale = props.yAxis.scale;
-                      const explicitY = yScale(payload.signalY);
-                      
-                      if (signalType === 'BUY') {
-                        return (
-                          <svg x={cx - 15} y={explicitY - 15} width="30" height="30" viewBox="0 0 30 30">
-                            <circle cx="15" cy="15" r="12" fill="#22c55e" opacity="0.9" />
-                            <path d="M15 7 L15 23 M9 13 L15 7 L21 13" stroke="white" strokeWidth="2" fill="none" />
-                          </svg>
-                        );
-                      } 
-                      else if (signalType === 'SELL') {
-                        return (
-                          <svg x={cx - 15} y={explicitY - 15} width="30" height="30" viewBox="0 0 30 30">
-                            <circle cx="15" cy="15" r="12" fill="#ef4444" opacity="0.9" />
-                            <path d="M15 7 L15 23 M9 17 L15 23 L21 17" stroke="white" strokeWidth="2" fill="none" />
-                          </svg>
-                        );
-                      }
-                      
-                      return null;
-                    }}
-                  />
-                )}
+                {/* Removed the Scatter plot component that was generating the red and green dots */}
                 
                 <Legend 
                   verticalAlign="top" 
@@ -735,9 +701,10 @@ const PriceChart: React.FC<PriceChartProps> = ({
                     tick={{fontSize: 12, fill: "#64748B"}}
                     width={30}
                     stroke="#94A3B8" 
+                    tickFormatter={(value) => value.toString()}
                   />
                   <Tooltip 
-                    formatter={(value) => [parseFloat(value).toFixed(2), 'RSI']}
+                    formatter={(value) => [parseFloat(value.toString()).toFixed(2), 'RSI']}
                     labelFormatter={(time) => {
                       const dataPoint = chartData.find(item => item.formattedTime === time);
                       return dataPoint ? formatTooltipTime(dataPoint.time) : 'Unknown time';
@@ -790,10 +757,11 @@ const PriceChart: React.FC<PriceChartProps> = ({
                   <YAxis 
                     tick={{fontSize: 12, fill: "#64748B"}}
                     width={30}
-                    stroke="#94A3B8" 
+                    stroke="#94A3B8"
+                    tickFormatter={(value) => value.toString()}
                   />
                   <Tooltip 
-                    formatter={(value) => [parseFloat(value).toFixed(4), 'MACD']}
+                    formatter={(value) => [parseFloat(value.toString()).toFixed(4), 'MACD']}
                     labelFormatter={(time) => {
                       const dataPoint = chartData.find(item => item.formattedTime === time);
                       return dataPoint ? formatTooltipTime(dataPoint.time) : 'Unknown time';

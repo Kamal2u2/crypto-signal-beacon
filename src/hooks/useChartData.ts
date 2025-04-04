@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+
+import { useState, useMemo, useCallback, useRef } from 'react';
 import { KlineData } from '@/services/binanceService';
 import { SignalSummary } from '@/services/technicalAnalysisService';
 import { 
@@ -36,33 +37,64 @@ export const useChartData = (data: KlineData[], signalData?: SignalSummary | nul
     showPriceLabels: true
   });
 
-  const toggleSetting = (setting: keyof ChartState) => {
+  // Use refs to track previous values to avoid unnecessary recalculations
+  const lastDataLengthRef = useRef<number>(0);
+  const lastSignalFingerprintRef = useRef<string | null>(null);
+  const cachedResultRef = useRef<any>(null);
+  
+  // Create a fingerprint for the current data and signal state
+  const currentFingerprint = useMemo(() => {
+    const dataLength = data.length;
+    const lastCandleFingerprint = dataLength > 0 
+      ? `${data[dataLength - 1].close}-${data[dataLength - 1].high}-${data[dataLength - 1].low}`
+      : '';
+    
+    const signalFingerprint = signalData 
+      ? `${signalData.overallSignal}-${signalData.confidence}` 
+      : 'no-signal';
+      
+    return `${dataLength}-${lastCandleFingerprint}-${signalFingerprint}-${chartState.zoomLevel}`;
+  }, [data, signalData, chartState.zoomLevel]);
+
+  const toggleSetting = useCallback((setting: keyof ChartState) => {
     setChartState(prev => ({
       ...prev,
       [setting]: !prev[setting]
     }));
-  };
+  }, []);
 
-  const handleZoomIn = () => {
+  const handleZoomIn = useCallback(() => {
     setChartState(prev => ({
       ...prev,
       zoomLevel: Math.max(10, prev.zoomLevel - 20)
     }));
-  };
+  }, []);
   
-  const handleZoomOut = () => {
+  const handleZoomOut = useCallback(() => {
     setChartState(prev => ({
       ...prev,
       zoomLevel: Math.min(100, prev.zoomLevel + 20)
     }));
-  };
+  }, []);
 
   const processedData = useMemo(() => {
-    if (!data || data.length === 0) return { 
-      chartData: [], 
-      yDomain: [0, 1] as [number, number], 
-      supportResistanceLevels: { support: [], resistance: [] } 
-    };
+    // Use cache if nothing has changed
+    if (currentFingerprint === lastSignalFingerprintRef.current && cachedResultRef.current) {
+      return cachedResultRef.current;
+    }
+    
+    lastSignalFingerprintRef.current = currentFingerprint;
+    lastDataLengthRef.current = data.length;
+    
+    if (!data || data.length === 0) {
+      const emptyResult = { 
+        chartData: [], 
+        yDomain: [0, 1] as [number, number], 
+        supportResistanceLevels: { support: [], resistance: [] } 
+      };
+      cachedResultRef.current = emptyResult;
+      return emptyResult;
+    }
     
     const prices = data.map(item => item.close);
     const highs = data.map(item => item.high);
@@ -121,13 +153,16 @@ export const useChartData = (data: KlineData[], signalData?: SignalSummary | nul
       }
     }
 
-    return {
+    const result = {
       chartData,
       yDomain,
       supportResistanceLevels,
       signalMap
     };
-  }, [data, chartState.zoomLevel, signalData]);
+    
+    cachedResultRef.current = result;
+    return result;
+  }, [data, chartState.zoomLevel, signalData, currentFingerprint]);
 
   return {
     chartState,

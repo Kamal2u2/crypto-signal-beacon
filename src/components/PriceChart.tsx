@@ -15,6 +15,42 @@ interface PriceChartProps {
   signalData?: SignalSummary | null;
 }
 
+// Custom deep compare function for chart data to prevent unnecessary re-renders
+const arePropsEqual = (prevProps: PriceChartProps, nextProps: PriceChartProps) => {
+  // If loading state changed, we need to re-render
+  if (prevProps.isPending !== nextProps.isPending) return false;
+  
+  // If symbol changed, we need to re-render
+  if (prevProps.symbol !== nextProps.symbol) return false;
+  
+  // Deep compare signalData
+  const prevSignal = prevProps.signalData;
+  const nextSignal = nextProps.signalData;
+  
+  if (!!prevSignal !== !!nextSignal) return false;
+  
+  if (prevSignal && nextSignal) {
+    if (prevSignal.overallSignal !== nextSignal.overallSignal) return false;
+    if (prevSignal.confidence !== nextSignal.confidence) return false;
+  }
+  
+  // If data length changed, we need to re-render
+  if (prevProps.data.length !== nextProps.data.length) return false;
+  
+  // Check only the last candle for changes as that's what typically updates
+  if (prevProps.data.length > 0 && nextProps.data.length > 0) {
+    const prevLastCandle = prevProps.data[prevProps.data.length - 1];
+    const nextLastCandle = nextProps.data[nextProps.data.length - 1];
+    
+    if (prevLastCandle.close !== nextLastCandle.close) return false;
+    if (prevLastCandle.high !== nextLastCandle.high) return false;
+    if (prevLastCandle.low !== nextLastCandle.low) return false;
+  }
+  
+  // If we got here, consider props equal
+  return true;
+};
+
 const PriceChart: React.FC<PriceChartProps> = ({ 
   data, 
   isPending, 
@@ -70,5 +106,5 @@ const PriceChart: React.FC<PriceChartProps> = ({
   );
 };
 
-// Use memo to prevent unnecessary re-renders
-export default memo(PriceChart);
+// Use memo with custom comparison function to prevent unnecessary re-renders
+export default memo(PriceChart, arePropsEqual);

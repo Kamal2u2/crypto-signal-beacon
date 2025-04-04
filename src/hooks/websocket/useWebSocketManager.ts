@@ -32,6 +32,8 @@ export const useWebSocketManager = ({
   const debugCounterRef = useRef<number>(0);
   const previousPairRef = useRef<string>(selectedPair.symbol);
   const previousIntervalRef = useRef<string>(selectedInterval);
+  const isInitialMount = useRef<boolean>(true);
+  const fetchInProgressRef = useRef<boolean>(false);
 
   const handleKlineUpdate = useCallback((newKline: KlineData) => {
     setKlineData(prevData => {
@@ -46,13 +48,25 @@ export const useWebSocketManager = ({
   }, [processNewSignal]);
 
   const setupWebSocket = useCallback(async () => {
+    // Skip setup if there's already a fetch in progress to avoid simultaneous requests
+    if (fetchInProgressRef.current) {
+      console.log('Fetch already in progress, skipping WebSocket setup');
+      return;
+    }
+    
+    // Set the flag to true to prevent concurrent setups
+    fetchInProgressRef.current = true;
+    
     try {
       // Prevent duplicate setups for the same pair and interval
       if (webSocketInitializedRef.current && 
           previousPairRef.current === selectedPair.symbol && 
           previousIntervalRef.current === selectedInterval) {
+        fetchInProgressRef.current = false;
         return;
       }
+      
+      console.log(`Setting up WebSocket for ${selectedPair.symbol} at ${selectedInterval} interval`);
       
       previousPairRef.current = selectedPair.symbol;
       previousIntervalRef.current = selectedInterval;
@@ -103,10 +117,19 @@ export const useWebSocketManager = ({
           setupWebSocket();
         }
       }, backoffTime);
+    } finally {
+      // Always reset the fetch in progress flag
+      fetchInProgressRef.current = false;
     }
   }, [selectedPair.symbol, selectedInterval, handleKlineUpdate, processNewSignal]);
 
   const fetchData = useCallback(async () => {
+    if (fetchInProgressRef.current) {
+      console.log('Fetch already in progress, skipping duplicate fetch request');
+      return;
+    }
+    
+    fetchInProgressRef.current = true;
     setIsLoading(true);
     debugCounterRef.current += 1;
     const cycleNumber = debugCounterRef.current;
@@ -139,6 +162,7 @@ export const useWebSocketManager = ({
       });
     } finally {
       setIsLoading(false);
+      fetchInProgressRef.current = false;
     }
   }, [
     selectedPair,
@@ -147,11 +171,17 @@ export const useWebSocketManager = ({
   ]);
 
   const handleRefresh = useCallback(() => {
+    if (fetchInProgressRef.current) {
+      console.log('Fetch already in progress, skipping refresh request');
+      return;
+    }
+    
     closeWebSocket();
     webSocketInitializedRef.current = false;
     reconnectAttemptsRef.current = 0;
     setIsLoading(true);
     
+    // Add a small delay to prevent rapid consecutive refreshes
     setTimeout(() => {
       setupWebSocket().finally(() => {
         setIsLoading(false);
@@ -177,6 +207,7 @@ export const useWebSocketManager = ({
     handleRefresh,
     cleanupResources,
     webSocketInitializedRef,
-    reconnectTimeoutRef
+    reconnectTimeoutRef,
+    isInitialMount
   };
 };

@@ -39,6 +39,7 @@ export const useWebSocketData = ({
   // Track previous values to prevent unnecessary resets
   const prevPairRef = useRef<string>(selectedPair.symbol);
   const prevIntervalRef = useRef<string>(selectedInterval);
+  const setupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Use the signal processor hook
   const {
@@ -67,7 +68,8 @@ export const useWebSocketData = ({
     handleRefresh,
     cleanupResources,
     webSocketInitializedRef,
-    reconnectTimeoutRef
+    reconnectTimeoutRef,
+    isInitialMount
   } = useWebSocketManager({
     selectedPair,
     selectedInterval,
@@ -78,6 +80,8 @@ export const useWebSocketData = ({
   useEffect(() => {
     // Only trigger WebSocket reset if the pair or interval has actually changed
     if (prevPairRef.current !== selectedPair.symbol || prevIntervalRef.current !== selectedInterval) {
+      console.log(`Pair or interval changed: ${prevPairRef.current} -> ${selectedPair.symbol} or ${prevIntervalRef.current} -> ${selectedInterval}`);
+      
       // Update refs with new values
       prevPairRef.current = selectedPair.symbol;
       prevIntervalRef.current = selectedInterval;
@@ -91,18 +95,27 @@ export const useWebSocketData = ({
         webSocketInitializedRef.current = false;
       }
       
+      // Clear any previous setup timeout
+      if (setupTimeoutRef.current) {
+        clearTimeout(setupTimeoutRef.current);
+      }
+      
       // Add a small delay to avoid rapid reconnections when multiple properties change at once
       setIsLoading(true);
-      const initTimeout = setTimeout(() => {
+      setupTimeoutRef.current = setTimeout(() => {
         setupWebSocket().finally(() => {
           if (setIsLoading) {
             setIsLoading(false);
           }
         });
-      }, 300);
+        setupTimeoutRef.current = null;
+      }, 500);
       
       return () => {
-        clearTimeout(initTimeout);
+        if (setupTimeoutRef.current) {
+          clearTimeout(setupTimeoutRef.current);
+          setupTimeoutRef.current = null;
+        }
       };
     }
     
@@ -116,14 +129,14 @@ export const useWebSocketData = ({
       });
     }
     
-    return () => {
-      // No need to clean up on every render
-    };
   }, [selectedPair.symbol, selectedInterval, setupWebSocket, setIsLoading]);
 
   // Clean up resources when component unmounts
   useEffect(() => {
     return () => {
+      if (setupTimeoutRef.current) {
+        clearTimeout(setupTimeoutRef.current);
+      }
       cleanupResources();
     };
   }, [cleanupResources]);

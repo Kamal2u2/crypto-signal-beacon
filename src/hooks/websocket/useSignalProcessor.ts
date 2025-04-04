@@ -30,6 +30,8 @@ export const useSignalProcessor = ({
 }: SignalProcessorProps) => {
   const [signalData, setSignalData] = useState<SignalSummary | null>(null);
   const lastProcessedSignalRef = useRef<string | null>(null);
+  const lastToastTimeRef = useRef<number>(0);
+  const MIN_TOAST_INTERVAL = 5000; // Minimum 5 seconds between toasts
   
   // Memoize the signal processing to prevent unnecessary rerenders
   const processNewSignal = useCallback((newSignals: SignalSummary) => {
@@ -39,14 +41,29 @@ export const useSignalProcessor = ({
     // Only update state if signal has changed
     if (lastProcessedSignalRef.current !== signalFingerprint) {
       lastProcessedSignalRef.current = signalFingerprint;
-      setSignalData(newSignals);
+      
+      // Use functional update to prevent closure issues
+      setSignalData(prevSignalData => {
+        // Skip update if the data is identical
+        if (prevSignalData && 
+            prevSignalData.overallSignal === newSignals.overallSignal && 
+            prevSignalData.confidence === newSignals.confidence) {
+          return prevSignalData;
+        }
+        return newSignals;
+      });
       
       // Check for new valid signals
       const isSignalValid = newSignals.overallSignal !== 'NEUTRAL' && 
                           newSignals.overallSignal !== 'HOLD' && 
                           newSignals.confidence >= confidenceThreshold;
       
-      if (isAudioInitialized && alertsEnabled && isSignalValid && newSignals.overallSignal !== lastSignalType) {
+      const shouldPlaySound = isAudioInitialized && 
+                             alertsEnabled && 
+                             isSignalValid && 
+                             newSignals.overallSignal !== lastSignalType;
+      
+      if (shouldPlaySound) {
         if (newSignals.overallSignal === 'BUY' || newSignals.overallSignal === 'SELL') {
           playSignalSound(newSignals.overallSignal, alertVolume);
           
@@ -58,11 +75,16 @@ export const useSignalProcessor = ({
             );
           }
           
-          toast({
-            title: `${newSignals.overallSignal} Signal Detected`,
-            description: `${selectedPairLabel} - Confidence: ${newSignals.confidence.toFixed(0)}%`,
-            variant: newSignals.overallSignal === 'BUY' ? 'default' : 'destructive',
-          });
+          // Limit toast frequency
+          const now = Date.now();
+          if (now - lastToastTimeRef.current > MIN_TOAST_INTERVAL) {
+            toast({
+              title: `${newSignals.overallSignal} Signal Detected`,
+              description: `${selectedPairLabel} - Confidence: ${newSignals.confidence.toFixed(0)}%`,
+              variant: newSignals.overallSignal === 'BUY' ? 'default' : 'destructive',
+            });
+            lastToastTimeRef.current = now;
+          }
           
           setLastSignalType(newSignals.overallSignal);
         }

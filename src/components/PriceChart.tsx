@@ -58,6 +58,17 @@ const PriceChart = memo(({
     );
   }
 
+  // Pass only the chart state properties needed by ChartLayout
+  const chartLayoutState = {
+    showMA: chartState.showMA,
+    showBollinger: chartState.showBollinger,
+    showVolume: chartState.showVolume,
+    showRSI: chartState.showRSI,
+    showMACD: chartState.showMACD,
+    showSupportResistance: chartState.showSupportResistance,
+    showPriceLabels: chartState.showPriceLabels
+  };
+
   return (
     <Card className="chart-container shadow-lg h-full border border-indigo-50">
       <CardHeader className="bg-gradient-to-r from-indigo-50/70 to-purple-50/70 rounded-t-xl border-b pb-2">
@@ -72,7 +83,7 @@ const PriceChart = memo(({
       <CardContent className="bg-white p-0 flex-1 min-h-0 h-full overflow-hidden">
         <ChartLayout
           chartData={chartData}
-          chartState={chartState}
+          chartState={chartLayoutState}
           yDomain={yDomain}
           supportResistanceLevels={supportResistanceLevels}
           currentPrice={currentPrice}

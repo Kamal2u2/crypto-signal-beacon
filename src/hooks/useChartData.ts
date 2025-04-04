@@ -1,7 +1,8 @@
+
 import { useState, useCallback, useMemo } from 'react';
 import { KlineData } from '@/services/binanceService';
 import { SignalSummary } from '@/services/technicalAnalysisService';
-import { calculateSupportResistanceLevels } from '@/services/technical/supportResistance';
+import { findSupportResistanceLevels } from '@/services/technical/supportResistance';
 
 // Define types for the chart settings
 interface ChartState {
@@ -13,6 +14,10 @@ interface ChartState {
   candlesticks: boolean;
   darkMode: boolean;
   zoomLevel: number;
+  showMA: boolean;
+  showBollinger: boolean;
+  showSupportResistance: boolean;
+  showPriceLabels: boolean;
 }
 
 export const useChartData = (klineData: KlineData[], signalData?: SignalSummary | null) => {
@@ -26,6 +31,10 @@ export const useChartData = (klineData: KlineData[], signalData?: SignalSummary 
     candlesticks: true,
     darkMode: false,
     zoomLevel: 1,
+    showMA: true,
+    showBollinger: false,
+    showSupportResistance: true,
+    showPriceLabels: true
   });
 
   // Generic function to toggle chart settings
@@ -86,19 +95,24 @@ export const useChartData = (klineData: KlineData[], signalData?: SignalSummary 
 
   // Determine the Y-axis domain based on chart data
   const yDomain = useMemo(() => {
-    if (!chartData || chartData.length === 0) return [0, 100]; // Default domain
+    if (!chartData || chartData.length === 0) return [0, 100] as [number, number]; // Default domain
     
     const prices = chartData.map(item => item.close);
     const minPrice = Math.min(...prices);
     const maxPrice = Math.max(...prices);
     const padding = (maxPrice - minPrice) * 0.05; // 5% padding
     
-    return [minPrice - padding, maxPrice + padding];
+    return [minPrice - padding, maxPrice + padding] as [number, number];
   }, [chartData]);
 
   const supportResistanceLevels = useMemo(() => {
-    if (!chartData || chartData.length === 0) return [];
-    return calculateSupportResistanceLevels(chartData);
+    if (!chartData || chartData.length === 0) return { support: [], resistance: [] };
+    
+    const highs = chartData.map(item => item.high);
+    const lows = chartData.map(item => item.low);
+    const closes = chartData.map(item => item.close);
+    
+    return findSupportResistanceLevels(highs, lows, closes);
   }, [chartData]);
 
   return {

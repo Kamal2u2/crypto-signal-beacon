@@ -86,6 +86,13 @@ const PriceChart: React.FC<PriceChartProps> = ({
     showPriceLabels
   } = chartState;
 
+  // Calculate dynamic height for the main chart container based on which indicator charts are shown
+  const getMainChartHeight = () => {
+    if (showRSI && showMACD) return 'h-[60%]';
+    if (showRSI || showMACD) return 'h-[70%]';
+    return 'h-full';
+  };
+
   return (
     <Card className="chart-container shadow-xl h-full border border-indigo-100/50">
       <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-t-xl border-b">
@@ -197,20 +204,30 @@ const PriceChart: React.FC<PriceChartProps> = ({
       </CardHeader>
       <CardContent className="bg-white p-4 flex-1 min-h-0 h-full">
         <div className="flex flex-col gap-4 h-full">
-          <MainChart 
-            chartData={chartData}
-            showMA={showMA}
-            showBollinger={showBollinger}
-            showVolume={showVolume}
-            showSupportResistance={showSupportResistance}
-            yDomain={yDomain}
-            supportResistanceLevels={supportResistanceLevels}
-            showPriceLabels={showPriceLabels}
-          />
+          <div className={cn("w-full", getMainChartHeight())}>
+            <MainChart 
+              chartData={chartData}
+              showMA={showMA}
+              showBollinger={showBollinger}
+              showVolume={showVolume}
+              showSupportResistance={showSupportResistance}
+              yDomain={yDomain}
+              supportResistanceLevels={supportResistanceLevels}
+              showPriceLabels={showPriceLabels}
+            />
+          </div>
           
-          {showRSI && <RSIChart chartData={chartData} />}
+          {showRSI && (
+            <div className="w-full h-[150px]">
+              <RSIChart chartData={chartData} />
+            </div>
+          )}
           
-          {showMACD && <MACDChart chartData={chartData} />}
+          {showMACD && (
+            <div className="w-full h-[150px]">
+              <MACDChart chartData={chartData} />
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

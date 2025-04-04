@@ -29,6 +29,9 @@ interface MainChartProps {
 
 const MainChart: React.FC<MainChartProps> = ({
   chartData,
+  showMA,
+  showBollinger,
+  showVolume,
   showSupportResistance,
   yDomain,
   supportResistanceLevels,
@@ -147,7 +150,7 @@ const MainChart: React.FC<MainChartProps> = ({
                 fontWeight: 'bold'
               }}
             />
-          ))}
+          )}
           
           <Legend 
             verticalAlign="top" 

@@ -154,6 +154,7 @@ export const useWebSocketManager = ({
   return {
     klineData,
     isLoading,
+    setIsLoading, // Export setIsLoading so it can be used in useWebSocketData
     setupWebSocket,
     fetchData,
     handleRefresh,

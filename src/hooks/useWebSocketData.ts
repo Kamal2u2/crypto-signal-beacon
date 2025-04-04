@@ -57,6 +57,7 @@ export const useWebSocketData = ({
   const {
     klineData,
     isLoading,
+    setIsLoading, // Added this to fix the undefined setIsLoading error
     setupWebSocket,
     fetchData,
     handleRefresh,
@@ -82,7 +83,7 @@ export const useWebSocketData = ({
     webSocketInitializedRef.current = false;
     
     // Add a small delay to avoid rapid reconnections when multiple properties change at once
-    setIsLoading(true);
+    setIsLoading(true); // Using the setIsLoading from useWebSocketManager
     const initTimeout = setTimeout(() => {
       setupWebSocket().finally(() => setIsLoading(false));
     }, 300);
@@ -91,7 +92,7 @@ export const useWebSocketData = ({
       clearTimeout(initTimeout);
       cleanupResources();
     };
-  }, [selectedPair.symbol, selectedInterval, setupWebSocket, cleanupResources]);
+  }, [selectedPair.symbol, selectedInterval, setupWebSocket, cleanupResources, setIsLoading]);
 
   return {
     klineData,

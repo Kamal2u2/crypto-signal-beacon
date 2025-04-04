@@ -63,18 +63,15 @@ const Index = () => {
   const { toast } = useToast();
   const { userId, getToken } = useAuth();
 
-  // Load coin pairs on component mount
   useEffect(() => {
     loadCoinPairs();
     requestNotificationPermission();
   }, []);
 
-  // Load initial chart data
   useEffect(() => {
     loadInitialChartData();
   }, [selectedCoinPair, interval]);
 
-  // Initialize WebSocket when the component mounts or when dependencies change
   useEffect(() => {
     if (realtimeDataEnabled) {
       initializeDataStream();
@@ -90,7 +87,6 @@ const Index = () => {
     };
   }, [selectedCoinPair, interval, realtimeDataEnabled]);
 
-  // Function to load coin pairs
   const loadCoinPairs = async () => {
     try {
       const pairs = await fetchAllCoinPairs();
@@ -105,7 +101,6 @@ const Index = () => {
     }
   };
 
-  // Function to load initial chart data
   const loadInitialChartData = async () => {
     try {
       const data = await fetchKlineData(selectedCoinPair.symbol, interval);
@@ -120,27 +115,23 @@ const Index = () => {
     }
   };
 
-  // Function to initialize WebSocket data stream
   const initializeDataStream = () => {
     initializeWebSocket(
       selectedCoinPair.symbol,
       interval,
       (kline) => {
         setKlineData((prevData) => {
-          // Check if the new kline's openTime already exists in the array
           const existingIndex = prevData.findIndex(
             (item) => item.openTime === kline.openTime
           );
 
           if (existingIndex > -1) {
-            // If it exists, update the existing kline
             const newData = [...prevData];
             newData[existingIndex] = kline;
             return newData;
           } else {
-            // If it doesn't exist, add the new kline to the end of the array
             const newData = [...prevData, kline];
-            return newData.slice(-500); // Limit to the last 500 data points
+            return newData.slice(-500);
           }
         });
       }
@@ -153,32 +144,26 @@ const Index = () => {
     });
   };
 
-  // Handler for coin pair selection
   const handleCoinPairSelect = (coinPair: CoinPair) => {
     setSelectedCoinPair(coinPair);
   };
 
-  // Handler for interval selection
   const handleIntervalSelect = (interval: TimeInterval) => {
     setInterval(interval);
   };
 
-  // Handler for volume change
   const handleVolumeChange = (value: number[]) => {
     setVolume(value[0] / 100);
   };
 
-  // Handler for notification toggle
   const handleNotificationsToggle = () => {
     setNotificationsEnabled((prev) => !prev);
   };
 
-  // Handler for realtime data toggle
   const handleRealtimeDataToggle = () => {
     setRealtimeDataEnabled((prev) => !prev);
   };
 
-  // Handler for signal analysis
   const handleSignalAnalysis = (signalData: any) => {
     setSignal(signalData.signal);
     setConfidence(signalData.confidence);
@@ -188,14 +173,17 @@ const Index = () => {
     }
   };
 
-  // Handler for signal trigger
   const handleSignalTrigger = (signalType: string, symbol: string, confidence: number) => {
+    const validSignalType: "BUY" | "SELL" | "HOLD" | "NEUTRAL" = 
+      signalType === "BUY" ? "BUY" :
+      signalType === "SELL" ? "SELL" :
+      signalType === "HOLD" ? "HOLD" : "NEUTRAL";
+    
     if (notificationsEnabled) {
-      playSignalSound(signalType, volume);
+      playSignalSound(validSignalType, volume);
     }
   };
 
-  // Handler for chart loaded event
   const handleChartLoaded = () => {
     setChartLoaded(true);
   };
@@ -205,9 +193,7 @@ const Index = () => {
       <Navigation />
       
       <main className="min-h-screen flex flex-col">
-        {/* Show different content based on auth status */}
         <SignedIn>
-          {/* Content for authenticated users */}
           <div className="bg-primary/10 py-4 px-6 mb-4">
             <div className="container mx-auto">
               <p className="text-center font-semibold">
@@ -218,7 +204,6 @@ const Index = () => {
         </SignedIn>
         
         <SignedOut>
-          {/* Authentication CTA for visitors */}
           <div className="bg-primary/10 py-8 px-6 mb-4">
             <div className="container mx-auto text-center">
               <h2 className="text-2xl font-bold mb-3">Welcome to Signal Analysis</h2>
@@ -241,9 +226,7 @@ const Index = () => {
           </div>
         </SignedOut>
         
-        {/* The rest of your existing Index page content */}
         <div className="container mx-auto px-4 py-8 flex flex-col lg:flex-row">
-          {/* Chart Section */}
           <div className="lg:w-3/4 mb-4 lg:mb-0 lg:pr-4">
             <Card>
               <CardHeader>
@@ -271,9 +254,7 @@ const Index = () => {
             </Card>
           </div>
 
-          {/* Analysis and Settings Section */}
           <div className="lg:w-1/4">
-            {/* Signal Analysis Card */}
             <Card className="mb-4">
               <CardHeader>
                 <CardTitle>Signal Analysis</CardTitle>
@@ -300,7 +281,6 @@ const Index = () => {
               </CardContent>
             </Card>
 
-            {/* Settings Accordion */}
             <Accordion type="single" collapsible>
               <AccordionItem value="settings">
                 <AccordionTrigger>Settings</AccordionTrigger>

@@ -34,9 +34,6 @@ const Index = () => {
   const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(false);
   const [lastSignalType, setLastSignalType] = useState<SignalType | null>(null);
   
-  // UI state
-  const [fullscreenChart, setFullscreenChart] = useState<boolean>(false);
-  
   // Use custom hooks for data fetching and websocket management
   const { currentPrice } = usePriceWebSocket(selectedPair);
   
@@ -72,10 +69,6 @@ const Index = () => {
     setSelectedPair(pair);
     setLastSignalType(null);
     console.log(`Switching to pair: ${pair.symbol}`);
-  };
-
-  const toggleFullscreenChart = () => {
-    setFullscreenChart(!fullscreenChart);
   };
 
   // Initialize audio on first user interaction
@@ -122,10 +115,7 @@ const Index = () => {
         setNotificationsEnabled={setNotificationsEnabled} 
       />
       
-      <main className={cn(
-        "container py-8",
-        fullscreenChart && "h-screen overflow-hidden"
-      )}>
+      <main className="container py-8">
         <div className="flex flex-col md:flex-row gap-4 mb-6">
           <LiveCoinPrice 
             price={currentPrice} 
@@ -149,8 +139,8 @@ const Index = () => {
             signalData={signalData}
             currentPrice={currentPrice}
             confidenceThreshold={confidenceThreshold}
-            fullscreenChart={fullscreenChart}
-            toggleFullscreenChart={toggleFullscreenChart}
+            fullscreenChart={false}
+            toggleFullscreenChart={() => {}}
           />
           
           <SidebarSection

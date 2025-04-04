@@ -1,7 +1,6 @@
 
 import React from 'react';
 import SignalDisplay from '@/components/SignalDisplay';
-import ChartSection from '@/components/layout/ChartSection';
 import { KlineData } from '@/services/binanceService';
 import { SignalSummary } from '@/services/technicalAnalysisService';
 
@@ -23,21 +22,9 @@ const MainContentSection: React.FC<MainContentSectionProps> = ({
   signalData,
   currentPrice,
   confidenceThreshold,
-  fullscreenChart,
-  toggleFullscreenChart
 }) => {
   return (
     <div className="xl:col-span-3 order-2 xl:order-1">
-      <ChartSection 
-        klineData={klineData}
-        isLoading={isLoading}
-        symbol={symbol}
-        signalData={signalData}
-        fullscreenChart={fullscreenChart}
-        toggleFullscreenChart={toggleFullscreenChart}
-        currentPrice={currentPrice}
-      />
-      
       <div className="grid grid-cols-1 gap-6">
         <SignalDisplay
           signalData={signalData}

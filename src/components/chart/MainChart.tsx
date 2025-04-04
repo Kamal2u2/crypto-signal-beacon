@@ -10,7 +10,6 @@ import {
   Area,
   Line,
   Bar,
-  Cell,
   ReferenceLine
 } from 'recharts';
 import { ChartContainer } from '@/components/ui/chart';
@@ -22,7 +21,7 @@ interface MainChartProps {
   showBollinger: boolean;
   showVolume: boolean;
   showSupportResistance: boolean;
-  yDomain: [number, number];  // Explicitly typed as tuple with exactly 2 numbers
+  yDomain: [number, number];
   supportResistanceLevels: {
     support: number[];
     resistance: number[];
@@ -81,15 +80,6 @@ const MainChart: React.FC<MainChartProps> = ({
               <stop offset="5%" stopColor="#0EA5E9" stopOpacity={0.8}/>
               <stop offset="95%" stopColor="#0EA5E9" stopOpacity={0.2}/>
             </linearGradient>
-            
-            <linearGradient id="upCandle" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#22c55e" stopOpacity={0.8}/>
-              <stop offset="95%" stopColor="#22c55e" stopOpacity={0.2}/>
-            </linearGradient>
-            <linearGradient id="downCandle" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8}/>
-              <stop offset="95%" stopColor="#ef4444" stopOpacity={0.2}/>
-            </linearGradient>
           </defs>
           
           <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" opacity={0.6} />
@@ -127,21 +117,33 @@ const MainChart: React.FC<MainChartProps> = ({
           
           <Tooltip content={<CustomTooltip />} />
           
-          {/* Candlestick representation */}
+          {/* Simple price area chart */}
+          <Area 
+            yAxisId="left" 
+            type="monotone" 
+            dataKey="close" 
+            stroke="#8B5CF6" 
+            strokeWidth={2}
+            fill="url(#colorPrice)" 
+            name="Price"
+            animationDuration={500}
+            dot={false}
+            activeDot={{ r: 6, fill: "#8B5CF6", stroke: "white", strokeWidth: 2 }}
+          />
+          
+          {/* Candlesticks */}
           {chartData.map((entry, index) => (
             <React.Fragment key={`candle-${index}`}>
               {/* Vertical line from low to high */}
               <Line
                 yAxisId="left"
                 data={[{ ...entry, lowHigh: [entry.low, entry.high] }]}
-                type="monotone"
                 dataKey="lowHigh"
                 stroke={entry.close >= entry.open ? "#22c55e" : "#ef4444"}
                 strokeWidth={1}
                 dot={false}
                 activeDot={false}
                 isAnimationActive={false}
-                connectNulls={true}
               />
               {/* Rectangle for open-close */}
               <Bar
@@ -152,8 +154,28 @@ const MainChart: React.FC<MainChartProps> = ({
                 fill={entry.close >= entry.open ? "#22c55e" : "#ef4444"}
                 stroke="none"
                 isAnimationActive={false}
-                baseValue={Math.min(entry.open, entry.close)}
-                style={{ opacity: 0.8 }}
+                stackId={`stack-${index}`}
+                minPointSize={0}
+                background={{ fill: "transparent" }}
+                // Use a transform to position the bar at the correct spot
+                shape={(props: any) => {
+                  const { x, y, width, height, fill } = props;
+                  const entry = props.payload;
+                  const baseY = entry.close >= entry.open 
+                    ? props.y + props.height 
+                    : props.y;
+                  
+                  return (
+                    <rect
+                      x={x - width/2}
+                      y={baseY - (entry.close >= entry.open ? height : 0)}
+                      width={width}
+                      height={height}
+                      fill={fill}
+                      className="candle-body"
+                    />
+                  );
+                }}
               />
             </React.Fragment>
           ))}
@@ -184,20 +206,6 @@ const MainChart: React.FC<MainChartProps> = ({
               }}
             />
           )}
-          
-          <Area 
-            yAxisId="left" 
-            type="monotone" 
-            dataKey="close" 
-            stroke="#8B5CF6" 
-            strokeWidth={2}
-            fill="url(#colorPrice)" 
-            name="Price"
-            animationDuration={500}
-            isAnimationActive={false}
-            dot={false}
-            activeDot={true}
-          />
           
           {showBollinger && (
             <>
@@ -269,14 +277,9 @@ const MainChart: React.FC<MainChartProps> = ({
               animationDuration={500}
               radius={[2, 2, 0, 0]}
               isAnimationActive={false}
-            >
-              {chartData.map((entry, index) => (
-                <Cell 
-                  key={`cell-${index}`} 
-                  fill={entry.close >= entry.open ? "#22c55e70" : "#ef444470"} 
-                />
-              ))}
-            </Bar>
+              fill="url(#colorVolume)"
+              opacity={0.6}
+            />
           )}
           
           {showSupportResistance && supportResistanceLevels.support.map((level, index) => (

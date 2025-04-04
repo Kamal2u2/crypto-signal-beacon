@@ -41,10 +41,15 @@ const MainChart: React.FC<MainChartProps> = memo(({
   showPriceLabels,
   currentPrice: externalCurrentPrice
 }) => {
-  // Track current price in state to force rerender when it changes
+  // Track current price in state to minimize rendering
   const [localCurrentPrice, setLocalCurrentPrice] = useState<number | null>(null);
   const lastPriceRef = useRef<number | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const priceLineRef = useRef<SVGLineElement | null>(null);
+  const priceRefLineRef = useRef<SVGGElement | null>(null);
+  
+  // Use a separate ref for DOM manipulation of price line
+  const svgRef = useRef<SVGSVGElement | null>(null);
   
   // Update local state when external price changes, using requestAnimationFrame for smooth updates
   useEffect(() => {
@@ -62,6 +67,33 @@ const MainChart: React.FC<MainChartProps> = memo(({
       // Schedule price update on next animation frame for smoother rendering
       animationFrameRef.current = requestAnimationFrame(() => {
         setLocalCurrentPrice(externalCurrentPrice);
+        
+        // Direct DOM manipulation for price reference line (much faster than re-rendering)
+        if (priceRefLineRef.current && showPriceLabels) {
+          const svg = svgRef.current?.querySelector('.recharts-wrapper svg');
+          if (svg) {
+            const height = svg.height.baseVal.value;
+            const width = svg.width.baseVal.value;
+            const yScale = height / (yDomain[1] - yDomain[0]);
+            const yPos = height - (externalCurrentPrice - yDomain[0]) * yScale;
+            
+            // Update the line position directly
+            if (priceLineRef.current) {
+              priceLineRef.current.setAttribute('y1', yPos.toString());
+              priceLineRef.current.setAttribute('y2', yPos.toString());
+              priceLineRef.current.setAttribute('x2', width.toString());
+            }
+            
+            // Find and update the text element
+            const textElement = priceRefLineRef.current.querySelector('text');
+            if (textElement) {
+              textElement.textContent = `$${formatPrice(externalCurrentPrice)}`;
+              textElement.setAttribute('y', (yPos - 5).toString());
+              textElement.setAttribute('x', (width - 5).toString());
+            }
+          }
+        }
+        
         animationFrameRef.current = null;
       });
     }
@@ -72,7 +104,7 @@ const MainChart: React.FC<MainChartProps> = memo(({
         animationFrameRef.current = null;
       }
     };
-  }, [externalCurrentPrice]);
+  }, [externalCurrentPrice, showPriceLabels, yDomain]);
   
   // Calculate current price to display
   const currentPrice = useMemo(() => {
@@ -128,24 +160,36 @@ const MainChart: React.FC<MainChartProps> = memo(({
     ));
   }, [supportResistanceLevels.resistance, showSupportResistance]);
 
-  // Memoize price reference line to avoid re-renders
-  const priceReferenceLine = useMemo(() => {
+  // Create a custom price reference line that uses refs for direct DOM manipulation
+  const PriceReferenceLineWithRef = useMemo(() => {
     if (!currentPrice || !showPriceLabels) return null;
+    
     return (
-      <ReferenceLine
-        y={currentPrice}
-        yAxisId="left"
-        stroke="#8B5CF6"
-        strokeDasharray="3 3"
-        ifOverflow="hidden"
-        label={{
-          value: `$${formatPrice(currentPrice)}`,
-          position: 'right',
-          fill: '#8B5CF6',
-          fontSize: 11,
-          fontWeight: 'bold'
-        }}
-      />
+      <g 
+        ref={priceRefLineRef}
+        className="recharts-reference-line recharts-price-line"
+      >
+        <line
+          ref={priceLineRef}
+          x1="0"
+          y1="0" // Will be updated via ref
+          x2="0" // Will be updated via ref
+          y2="0" // Will be updated via ref
+          stroke="#8B5CF6"
+          strokeWidth="1.5"
+          strokeDasharray="3 3"
+        />
+        <text
+          x="0" // Will be updated via ref
+          y="0" // Will be updated via ref
+          fill="#8B5CF6"
+          fontSize="11"
+          fontWeight="bold"
+          textAnchor="end"
+        >
+          ${formatPrice(currentPrice)}
+        </text>
+      </g>
     );
   }, [currentPrice, showPriceLabels]);
 
@@ -239,7 +283,7 @@ const MainChart: React.FC<MainChartProps> = memo(({
   }, [showMA, showBollinger]);
 
   return (
-    <div className="h-[500px] w-full">
+    <div className="h-[500px] w-full" ref={ref => { svgRef.current = ref?.querySelector('.recharts-wrapper svg') || null; }}>
       <ChartContainer 
         config={{
           price: {
@@ -301,8 +345,23 @@ const MainChart: React.FC<MainChartProps> = memo(({
           {/* Technical indicators */}
           {technicalLines}
           
-          {/* Current price label */}
-          {priceReferenceLine}
+          {/* Price reference line - fallback to standard component if DOM manipulation fails */}
+          {!PriceReferenceLineWithRef && currentPrice && showPriceLabels && (
+            <ReferenceLine
+              y={currentPrice}
+              yAxisId="left"
+              stroke="#8B5CF6"
+              strokeDasharray="3 3"
+              ifOverflow="hidden"
+              label={{
+                value: `$${formatPrice(currentPrice)}`,
+                position: 'right',
+                fill: '#8B5CF6',
+                fontSize: 11,
+                fontWeight: 'bold'
+              }}
+            />
+          )}
           
           {/* Support/Resistance lines */}
           {supportLines}
@@ -318,15 +377,30 @@ const MainChart: React.FC<MainChartProps> = memo(({
             )}
           />
         </ComposedChart>
+        
+        {/* Custom price reference line for DOM manipulation */}
+        {PriceReferenceLineWithRef}
       </ChartContainer>
     </div>
   );
 }, (prevProps, nextProps) => {
   // Custom comparison function to prevent unnecessary rerenders
   
-  // Always rerender if the current price changes
-  if (prevProps.currentPrice !== nextProps.currentPrice) return false;
+  // Skip rerenders if only the current price has changed - we'll handle that via refs
+  if (prevProps.currentPrice !== nextProps.currentPrice && 
+      Object.keys(prevProps).length === Object.keys(nextProps).length &&
+      prevProps.chartData === nextProps.chartData &&
+      prevProps.showMA === nextProps.showMA &&
+      prevProps.showBollinger === nextProps.showBollinger &&
+      prevProps.showVolume === nextProps.showVolume &&
+      prevProps.showSupportResistance === nextProps.showSupportResistance &&
+      prevProps.showPriceLabels === nextProps.showPriceLabels &&
+      prevProps.yDomain[0] === nextProps.yDomain[0] &&
+      prevProps.yDomain[1] === nextProps.yDomain[1]) {
+    return true; // Skip rerender for price-only changes
+  }
   
+  // Standard comparison
   if (prevProps.chartData.length !== nextProps.chartData.length) return false;
   
   // Compare chart options

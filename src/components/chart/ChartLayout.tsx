@@ -81,5 +81,16 @@ const ChartLayout: React.FC<ChartLayoutProps> = ({
   );
 };
 
-// Use memo to prevent unnecessary re-renders
-export default memo(ChartLayout);
+// Use memo with custom comparison function to prevent unnecessary re-renders
+export default memo(ChartLayout, (prevProps, nextProps) => {
+  // Only re-render if something other than currentPrice has changed
+  if (prevProps.currentPrice !== nextProps.currentPrice && 
+      prevProps.chartData === nextProps.chartData &&
+      prevProps.yDomain === nextProps.yDomain &&
+      prevProps.supportResistanceLevels === nextProps.supportResistanceLevels &&
+      JSON.stringify(prevProps.chartState) === JSON.stringify(nextProps.chartState)) {
+    return true; // Skip re-render if only the price changed
+  }
+  
+  return false; // Re-render for any other prop change
+});

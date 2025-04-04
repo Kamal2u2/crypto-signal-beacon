@@ -15,20 +15,46 @@ export const usePriceWebSocket = (selectedPair: CoinPair) => {
   const reconnectAttemptsRef = useRef<number>(0);
   const reconnectIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const checkPriceUpdateIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Use a separate ref to track price updates without triggering renders
+  const priceUpdateRef = useRef<number | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const batchUpdatesTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const handlePriceUpdate = useCallback((price: number) => {
-    if (price !== currentPrice) {
-      setCurrentPrice(price);
+    if (price !== priceUpdateRef.current) {
+      priceUpdateRef.current = price;
       lastPriceUpdateRef.current = Date.now();
       reconnectAttemptsRef.current = 0; // Reset reconnect attempts on successful update
+      
+      // Cancel any pending updates
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      
+      if (batchUpdatesTimeoutRef.current) {
+        clearTimeout(batchUpdatesTimeoutRef.current);
+      }
+      
+      // Use rAF for smooth updates that don't block the UI
+      animationFrameRef.current = requestAnimationFrame(() => {
+        // Only update the state (which triggers renders) if no update has occurred in the last 100ms
+        // This batches rapid price updates to prevent excessive rendering
+        batchUpdatesTimeoutRef.current = setTimeout(() => {
+          setCurrentPrice(priceUpdateRef.current);
+          batchUpdatesTimeoutRef.current = null;
+        }, 100);
+        animationFrameRef.current = null;
+      });
     }
-  }, [currentPrice]);
+  }, []);
 
   const setupPriceWebSocket = useCallback(async () => {
     try {
       // Get initial price
       const initialPrice = await fetchCurrentPrice(selectedPair.symbol);
       if (initialPrice !== null) {
+        priceUpdateRef.current = initialPrice;
         setCurrentPrice(initialPrice);
         lastPriceUpdateRef.current = Date.now();
       }
@@ -72,14 +98,27 @@ export const usePriceWebSocket = (selectedPair: CoinPair) => {
   }, [selectedPair.symbol, handlePriceUpdate]);
 
   useEffect(() => {
-    // Clear any existing intervals and connections when the pair changes
-    if (checkPriceUpdateIntervalRef.current) {
-      clearInterval(checkPriceUpdateIntervalRef.current);
-    }
+    // Clean up any existing timers and animation frames
+    const cleanupTimers = () => {
+      if (checkPriceUpdateIntervalRef.current) {
+        clearInterval(checkPriceUpdateIntervalRef.current);
+      }
+      
+      if (reconnectIntervalRef.current) {
+        clearTimeout(reconnectIntervalRef.current);
+      }
+      
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      
+      if (batchUpdatesTimeoutRef.current) {
+        clearTimeout(batchUpdatesTimeoutRef.current);
+      }
+    };
     
-    if (reconnectIntervalRef.current) {
-      clearTimeout(reconnectIntervalRef.current);
-    }
+    // Clear existing connections when the pair changes
+    cleanupTimers();
     
     if (initializedRef.current) {
       closePriceWebSocket();
@@ -95,11 +134,12 @@ export const usePriceWebSocket = (selectedPair: CoinPair) => {
       const now = Date.now();
       const timeSinceLastUpdate = now - lastPriceUpdateRef.current;
       
-      // If no price update for 10 seconds, manually fetch a new price
-      if (timeSinceLastUpdate > 10000 && reconnectAttemptsRef.current < 5) {
+      // If no price update for 5 seconds (reduced from 10s), manually fetch a new price
+      if (timeSinceLastUpdate > 5000 && reconnectAttemptsRef.current < 5) {
         fetchCurrentPrice(selectedPair.symbol)
           .then(price => {
-            if (price !== null && price !== currentPrice) {
+            if (price !== null && price !== priceUpdateRef.current) {
+              priceUpdateRef.current = price;
               setCurrentPrice(price);
               lastPriceUpdateRef.current = now;
             }
@@ -107,26 +147,19 @@ export const usePriceWebSocket = (selectedPair: CoinPair) => {
           .catch(err => console.error("Error fetching fallback price:", err));
           
         // Try to reconnect the WebSocket if we haven't had an update in a while
-        if (timeSinceLastUpdate > 20000) {
+        if (timeSinceLastUpdate > 15000) { // Reduced from 20s
           reconnectAttemptsRef.current++;
           closePriceWebSocket();
           setupPriceWebSocket();
         }
       }
-    }, 5000);
+    }, 3000); // Check more frequently (reduced from 5s)
     
     return () => {
-      if (checkPriceUpdateIntervalRef.current) {
-        clearInterval(checkPriceUpdateIntervalRef.current);
-      }
-      
-      if (reconnectIntervalRef.current) {
-        clearTimeout(reconnectIntervalRef.current);
-      }
-      
+      cleanupTimers();
       closePriceWebSocket();
     };
-  }, [selectedPair.symbol, setupPriceWebSocket, currentPrice]);
+  }, [selectedPair.symbol, setupPriceWebSocket]);
 
   return { currentPrice };
 };

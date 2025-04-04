@@ -10,3 +10,4 @@ export * from './trendIndicators';
 export * from './supportResistance';
 export * from './atr';
 export * from './signalGeneration';
+

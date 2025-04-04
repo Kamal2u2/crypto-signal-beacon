@@ -11,3 +11,4 @@ export * from './technical/trendIndicators';
 export * from './technical/supportResistance';
 export * from './technical/atr';
 export * from './technical/signalGeneration';
+

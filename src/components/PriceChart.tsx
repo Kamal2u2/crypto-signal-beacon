@@ -1,5 +1,5 @@
 
-import React, { memo } from 'react';
+import React, { memo, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { KlineData } from '@/services/binanceService';
 import { SignalSummary } from '@/services/technicalAnalysisService';
@@ -31,8 +31,16 @@ const PriceChart = memo(({
     handleZoomOut,
     chartData,
     yDomain,
-    supportResistanceLevels
+    supportResistanceLevels,
+    updateCurrentPrice
   } = useChartData(data, signalData);
+
+  // Update the chart when currentPrice changes
+  useEffect(() => {
+    if (currentPrice !== undefined && currentPrice !== null) {
+      updateCurrentPrice(currentPrice);
+    }
+  }, [currentPrice, updateCurrentPrice]);
 
   const hasData = data && data.length > 0;
 

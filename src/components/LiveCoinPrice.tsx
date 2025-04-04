@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, memo } from 'react';
 import { cn } from '@/lib/utils';
-import { ArrowUp, ArrowDown, RefreshCw, TrendingUp, TrendingDown, Clock } from 'lucide-react';
+import { ArrowUp, ArrowDown, RefreshCw, Clock } from 'lucide-react';
 
 interface LiveCoinPriceProps {
   price: number | null;
@@ -20,11 +20,6 @@ const LiveCoinPrice: React.FC<LiveCoinPriceProps> = ({ price, symbol, className 
   // Track time since last update
   const [timeSinceUpdate, setTimeSinceUpdate] = useState<string>('');
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  
-  // Track 24h price changes (simulated for now)
-  const [dailyChange, setDailyChange] = useState<number>(0);
-  const [dailyChangePercent, setDailyChangePercent] = useState<number>(0);
-  const simulatedRef = useRef<boolean>(false);
   
   // Update the time since last update display
   useEffect(() => {
@@ -55,22 +50,6 @@ const LiveCoinPrice: React.FC<LiveCoinPriceProps> = ({ price, symbol, className 
       }
     };
   }, [lastUpdateTime]);
-  
-  // Simulate 24h price changes (in a real app, you would get this from the API)
-  // We only do this once when component mounts to avoid re-renders
-  useEffect(() => {
-    if (displayPrice && !simulatedRef.current) {
-      // Simulate a random 24h change between -5% and +5%
-      const randomPercent = (Math.random() * 10) - 5;
-      setDailyChangePercent(randomPercent);
-      
-      // Calculate the absolute change
-      const absChange = (displayPrice * randomPercent) / 100;
-      setDailyChange(absChange);
-      
-      simulatedRef.current = true;
-    }
-  }, [displayPrice]);
   
   // Immediately update display price when we get a new price
   useEffect(() => {
@@ -174,23 +153,6 @@ const LiveCoinPrice: React.FC<LiveCoinPriceProps> = ({ price, symbol, className 
               )}
             </span>
           )}
-        </div>
-        
-        <div className="flex items-center justify-between mt-2">
-          <div className="flex items-center">
-            <span className="text-sm text-gray-500 mr-2">24h Change:</span>
-            <span className={cn(
-              "flex items-center text-sm font-medium",
-              dailyChangePercent > 0 ? "text-green-600" : "text-red-600"
-            )}>
-              {dailyChangePercent > 0 ? (
-                <TrendingUp className="h-3 w-3 mr-1" />
-              ) : (
-                <TrendingDown className="h-3 w-3 mr-1" />
-              )}
-              ${Math.abs(dailyChange).toFixed(2)} ({dailyChangePercent.toFixed(2)}%)
-            </span>
-          </div>
         </div>
       </div>
     </div>

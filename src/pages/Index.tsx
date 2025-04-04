@@ -7,7 +7,6 @@ import {
   initializeAudio, 
   playSignalSound,
   sendSignalNotification,
-  debugSignalSystem,
   requestNotificationPermission
 } from '@/services/notificationService';
 import LiveCoinPrice from '@/components/LiveCoinPrice';
@@ -98,6 +97,23 @@ const Index = () => {
       document.removeEventListener('click', initAudio);
     };
   }, [fetchData]);
+
+  // Add auto-refresh functionality
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout | null = null;
+    
+    if (isAutoRefreshEnabled && refreshInterval > 0) {
+      intervalId = setInterval(() => {
+        handleRefresh();
+      }, refreshInterval);
+    }
+    
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [isAutoRefreshEnabled, refreshInterval, handleRefresh]);
 
   return (
     <div className="min-h-screen bg-background text-foreground transition-colors duration-300">

@@ -56,6 +56,7 @@ const ChartSection = memo(({
         symbol={symbol}
         signalData={signalData}
         currentPrice={currentPrice}
+        key={`chart-${currentPrice}`} 
       />
     </div>
   );

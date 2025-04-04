@@ -52,18 +52,7 @@ export const Navigation = () => {
               </div>
             ) : (
               <div className="flex items-center space-x-2">
-                <Link
-                  to="/sign-in"
-                  className="text-gray-700 hover:text-primary px-3 py-2 rounded-md text-sm font-medium"
-                >
-                  Sign In
-                </Link>
-                <Link
-                  to="/sign-up"
-                  className="bg-primary text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-primary/90"
-                >
-                  Sign Up
-                </Link>
+                {/* Sign-in and sign-up buttons removed */}
               </div>
             )}
           </div>

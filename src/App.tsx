@@ -7,8 +7,6 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ClerkLoaded, ClerkLoading, useAuth } from "@clerk/clerk-react";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
-import SignIn from "./pages/SignIn";
-import SignUp from "./pages/SignUp";
 import AdminPanel from "./pages/AdminPanel";
 import UserProfile from "./pages/UserProfile";
 import { ProtectedRoute } from "./components/ProtectedRoute";
@@ -30,12 +28,10 @@ const App = () => {
           <ClerkLoaded>
             <Routes>
               {/* Public routes */}
-              <Route path="/sign-in" element={<SignIn />} />
-              <Route path="/sign-up" element={<SignUp />} />
+              <Route path="/" element={<Index />} />
               
               {/* Protected routes */}
               <Route element={<ProtectedRoute requireAuth={true} />}>
-                <Route path="/" element={<Index />} />
                 <Route path="/profile" element={<UserProfile />} />
                 {/* Add other protected routes here */}
               </Route>

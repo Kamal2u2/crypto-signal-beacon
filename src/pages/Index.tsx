@@ -37,7 +37,7 @@ import {
 } from "@/components/ui/accordion"
 
 import { Navigation } from "@/components/Navigation";
-import { SignedIn, SignedOut, useAuth } from "@clerk/clerk-react";
+import { SignedIn, useAuth } from "@clerk/clerk-react";
 import { Link } from "react-router-dom";
 
 const Index = () => {
@@ -202,29 +202,6 @@ const Index = () => {
             </div>
           </div>
         </SignedIn>
-        
-        <SignedOut>
-          <div className="bg-primary/10 py-8 px-6 mb-4">
-            <div className="container mx-auto text-center">
-              <h2 className="text-2xl font-bold mb-3">Welcome to Signal Analysis</h2>
-              <p className="mb-6">Sign up to access premium trading signals and analysis tools.</p>
-              <div className="flex justify-center space-x-4">
-                <Link 
-                  to="/sign-in" 
-                  className="bg-white text-primary border border-primary px-6 py-2 rounded-lg font-medium hover:bg-primary/10"
-                >
-                  Sign In
-                </Link>
-                <Link 
-                  to="/sign-up" 
-                  className="bg-primary text-white px-6 py-2 rounded-lg font-medium hover:bg-primary/90"
-                >
-                  Sign Up
-                </Link>
-              </div>
-            </div>
-          </div>
-        </SignedOut>
         
         <div className="container mx-auto px-4 py-8 flex flex-col lg:flex-row">
           <div className="lg:w-3/4 mb-4 lg:mb-0 lg:pr-4">

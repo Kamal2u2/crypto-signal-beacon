@@ -1,10 +1,7 @@
 
 import { SignIn as ClerkSignIn } from "@clerk/clerk-react";
-import { useNavigate } from "react-router-dom";
 
 const SignIn = () => {
-  const navigate = useNavigate();
-  
   return (
     <div className="flex flex-col min-h-screen items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-md">
@@ -18,7 +15,7 @@ const SignIn = () => {
             routing="path" 
             path="/sign-in" 
             signUpUrl="/sign-up" 
-            redirectUrl="/"
+            fallbackRedirectUrl="/"
             appearance={{
               elements: {
                 rootBox: "w-full",

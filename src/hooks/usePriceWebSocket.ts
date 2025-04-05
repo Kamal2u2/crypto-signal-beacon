@@ -40,27 +40,9 @@ export const usePriceWebSocket = (selectedPair: AssetPair) => {
       
       // Use rAF for smooth updates that don't block the UI
       animationFrameRef.current = requestAnimationFrame(() => {
-        // Only update the state (which triggers renders) if price has changed by a meaningful amount
-        // or if a certain time has passed since the last render
-        const priceDiffPercent = lastRenderedPriceRef.current ? 
-          Math.abs((price - lastRenderedPriceRef.current) / lastRenderedPriceRef.current) * 100 : 100;
-        
-        const timeSinceLastUpdate = Date.now() - (lastRenderedPriceRef.current ? lastPriceUpdateRef.current : 0);
-        
-        // Update immediately if price change is significant or if no update in a while
-        if (priceDiffPercent > 0.01 || timeSinceLastUpdate > 3000 || lastRenderedPriceRef.current === null) {
-          setCurrentPrice(price);
-          lastRenderedPriceRef.current = price;
-        } else {
-          // For small changes, batch updates to prevent too many renders
-          batchUpdatesTimeoutRef.current = setTimeout(() => {
-            if (priceUpdateRef.current !== lastRenderedPriceRef.current) {
-              setCurrentPrice(priceUpdateRef.current);
-              lastRenderedPriceRef.current = priceUpdateRef.current;
-            }
-            batchUpdatesTimeoutRef.current = null;
-          }, 500); // Batch updates over a 500ms window
-        }
+        // Update immediately regardless of price difference for real-time display
+        setCurrentPrice(price);
+        lastRenderedPriceRef.current = price;
         
         animationFrameRef.current = null;
       });
@@ -104,8 +86,8 @@ export const usePriceWebSocket = (selectedPair: AssetPair) => {
       // Schedule a reconnect
       reconnectAttemptsRef.current++;
       
-      // Exponential backoff for reconnection attempts
-      const backoffTime = Math.min(1000 * Math.pow(1.5, reconnectAttemptsRef.current), 30000);
+      // Faster backoff for reconnection attempts
+      const backoffTime = Math.min(1000 * Math.pow(1.3, reconnectAttemptsRef.current), 15000);
       
       if (reconnectIntervalRef.current) {
         clearTimeout(reconnectIntervalRef.current);
@@ -158,34 +140,27 @@ export const usePriceWebSocket = (selectedPair: AssetPair) => {
       const now = Date.now();
       const timeSinceLastUpdate = now - lastPriceUpdateRef.current;
       
-      // If no price update for 5 seconds (reduced from 10s), manually fetch a new price
-      if (timeSinceLastUpdate > 5000 && reconnectAttemptsRef.current < 5) {
+      // If no price update for 3 seconds (reduced from 5s), manually fetch a new price
+      if (timeSinceLastUpdate > 3000 && reconnectAttemptsRef.current < 5) {
         fetchCurrentPrice(selectedPair.symbol)
           .then(price => {
             if (price !== null && price !== priceUpdateRef.current) {
               priceUpdateRef.current = price;
-              
-              // Only update UI if meaningful change or enough time has passed
-              if (lastRenderedPriceRef.current === null || 
-                  Math.abs((price - (lastRenderedPriceRef.current || 0)) / (lastRenderedPriceRef.current || 1)) > 0.001 ||
-                  now - lastPriceUpdateRef.current > 5000) {
-                setCurrentPrice(price);
-                lastRenderedPriceRef.current = price;
-              }
-              
+              setCurrentPrice(price); // Update UI immediately
+              lastRenderedPriceRef.current = price;
               lastPriceUpdateRef.current = now;
             }
           })
           .catch(err => console.error("Error fetching fallback price:", err));
           
         // Try to reconnect the WebSocket if we haven't had an update in a while
-        if (timeSinceLastUpdate > 15000) { // Reduced from 20s
+        if (timeSinceLastUpdate > 8000) { // Reduced from 15s
           reconnectAttemptsRef.current++;
           closePriceWebSocket();
           setupPriceWebSocket();
         }
       }
-    }, 3000); // Check more frequently (reduced from 5s)
+    }, 2000); // Check more frequently (reduced from 3s)
     
     return () => {
       cleanupTimers();

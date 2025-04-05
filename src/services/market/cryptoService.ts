@@ -1,4 +1,3 @@
-
 import { KlineData, TimeInterval } from './types';
 
 // WebSocket instances for crypto
@@ -10,12 +9,19 @@ let klineDataCache: KlineData[] = [];
 
 // Debug flag to track WebSocket calls
 const DEBUG = false;
+const WEBSOCKET_PING_INTERVAL = 20000; // 20 seconds
 
 // Fetch current price for crypto
 export const fetchCryptoPrice = async (symbol: string): Promise<number | null> => {
   try {
     if (DEBUG) console.log(`Fetching current price for crypto: ${symbol}`);
     const response = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`);
+    
+    if (!response.ok) {
+      console.error(`Error response from Binance: ${response.status} ${response.statusText}`);
+      return null;
+    }
+    
     const data = await response.json();
     const price = data && data.price ? parseFloat(data.price) : null;
     if (DEBUG) console.log(`Crypto price received for ${symbol}: ${price}`);
@@ -55,41 +61,65 @@ export const fetchCryptoKlineData = async (symbol: string, interval: TimeInterva
   }
 };
 
-// Initialize WebSocket for crypto price updates
+// Initialize WebSocket for crypto price updates with improved connection handling
 export const initializeCryptoPriceWebSocket = (symbol: string, onPriceUpdate: (price: number) => void) => {
   const wsEndpoint = `wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@ticker`;
   
   if (priceWebSocket) {
     priceWebSocket.close();
+    if (priceWebSocketInterval) {
+      clearInterval(priceWebSocketInterval);
+      priceWebSocketInterval = null;
+    }
   }
   
-  priceWebSocket = new WebSocket(wsEndpoint);
-  
-  priceWebSocket.onopen = () => {
-    console.log(`Price WebSocket opened for ${symbol}`);
-  };
-  
-  priceWebSocket.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      if (data && data.c) {
-        const price = parseFloat(data.c);
-        if (!isNaN(price)) {
-          onPriceUpdate(price);
+  try {
+    priceWebSocket = new WebSocket(wsEndpoint);
+    
+    priceWebSocket.onopen = () => {
+      console.log(`Price WebSocket opened for ${symbol}`);
+      
+      // Set up ping interval to keep connection alive
+      if (priceWebSocketInterval) clearInterval(priceWebSocketInterval);
+      
+      priceWebSocketInterval = setInterval(() => {
+        if (priceWebSocket && priceWebSocket.readyState === WebSocket.OPEN) {
+          priceWebSocket.send(JSON.stringify({ method: "PING" }));
         }
+      }, WEBSOCKET_PING_INTERVAL);
+    };
+    
+    priceWebSocket.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        // Skip ping/pong messages
+        if (data && data.c) {
+          const price = parseFloat(data.c);
+          if (!isNaN(price)) {
+            onPriceUpdate(price);
+          }
+        }
+      } catch (error) {
+        console.error('Error parsing WebSocket message:', error);
       }
-    } catch (error) {
-      console.error('Error parsing WebSocket message:', error);
-    }
-  };
-  
-  priceWebSocket.onerror = (error) => {
-    console.error('Price WebSocket error:', error);
-  };
-  
-  priceWebSocket.onclose = () => {
-    console.log('Price WebSocket closed');
-  };
+    };
+    
+    priceWebSocket.onerror = (error) => {
+      console.error('Price WebSocket error:', error);
+    };
+    
+    priceWebSocket.onclose = (event) => {
+      console.log(`Price WebSocket closed with code: ${event.code}, reason: ${event.reason}`);
+      
+      // Clear ping interval if connection closes
+      if (priceWebSocketInterval) {
+        clearInterval(priceWebSocketInterval);
+        priceWebSocketInterval = null;
+      }
+    };
+  } catch (error) {
+    console.error('Error creating WebSocket connection:', error);
+  }
 };
 
 // Initialize WebSocket for crypto kline data
@@ -206,7 +236,7 @@ export const testCryptoWebSocketConnection = () => {
 // Ping WebSocket to keep it alive
 export const pingCryptoWebSocket = () => {
   if (priceWebSocket && priceWebSocket.readyState === WebSocket.OPEN) {
-    priceWebSocket.send('ping');
+    priceWebSocket.send(JSON.stringify({ method: "PING" }));
     console.log('Ping message sent to Price WebSocket server.');
   }
 };

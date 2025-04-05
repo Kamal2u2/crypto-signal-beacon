@@ -50,14 +50,16 @@ export const formatPrice = (price: number | null | undefined): string => {
   }
   
   // Enhanced formatting based on price magnitude - with more precision for small values
-  if (price < 0.0001) {
+  if (price < 0.00001) {
+    return price.toLocaleString(undefined, { minimumFractionDigits: 8, maximumFractionDigits: 9 });
+  } else if (price < 0.0001) {
     return price.toLocaleString(undefined, { minimumFractionDigits: 8, maximumFractionDigits: 8 });
   } else if (price < 0.001) {
-    return price.toLocaleString(undefined, { minimumFractionDigits: 6, maximumFractionDigits: 6 });
+    return price.toLocaleString(undefined, { minimumFractionDigits: 6, maximumFractionDigits: 7 });
   } else if (price < 0.01) {
     return price.toLocaleString(undefined, { minimumFractionDigits: 6, maximumFractionDigits: 6 });
   } else if (price < 0.1) {
-    return price.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+    return price.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 5 });
   } else if (price < 1) {
     return price.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 4 });
   } else if (price < 10) {

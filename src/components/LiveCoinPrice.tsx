@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, memo } from 'react';
 import { cn } from '@/lib/utils';
 import { ArrowUp, ArrowDown, RefreshCw, Clock, Cpu } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { formatPrice } from '@/utils/chartFormatters';
 
 interface LiveCoinPriceProps {
   price: number | null;
@@ -28,7 +29,7 @@ const LiveCoinPrice: React.FC<LiveCoinPriceProps> = ({
   const [timeSinceUpdate, setTimeSinceUpdate] = useState<string>('');
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   
-  // Update the time since last update display
+  // Update the time since last update display more frequently
   useEffect(() => {
     // Clear any existing interval
     if (intervalRef.current) {
@@ -48,7 +49,7 @@ const LiveCoinPrice: React.FC<LiveCoinPriceProps> = ({
         } else {
           setTimeSinceUpdate(`${Math.floor(seconds / 3600)}h ago`);
         }
-      }, 1000);
+      }, 500); // Update every 0.5 seconds for smoother countdown
     }
     
     return () => {
@@ -58,7 +59,7 @@ const LiveCoinPrice: React.FC<LiveCoinPriceProps> = ({
     };
   }, [lastUpdateTime]);
   
-  // Immediately update display price when we get a new price - optimized to be more responsive
+  // Immediately update display price with high-priority rendering
   useEffect(() => {
     if (price !== null) {
       // First time initialization
@@ -69,12 +70,11 @@ const LiveCoinPrice: React.FC<LiveCoinPriceProps> = ({
         return;
       }
       
-      // Always update immediately, even if the price is the same
-      // This ensures we're showing the most current data
+      // Always update immediately
       setPreviousPrice(displayPrice);
       setDisplayPrice(price);
       
-      // Only set direction and flash if the price actually changed
+      // Set direction and flash for any price change
       if (price !== displayPrice) {
         setPriceDirection(price > displayPrice ? 'up' : 'down');
         setFlashAnimation(true);
@@ -91,7 +91,7 @@ const LiveCoinPrice: React.FC<LiveCoinPriceProps> = ({
       timeoutRef.current = setTimeout(() => {
         setFlashAnimation(false);
         timeoutRef.current = null;
-      }, 800); // Reduced from 1000ms to 800ms for quicker animation
+      }, 500); // Reduced to 500ms for quicker animation refresh
     }
     
     return () => {
@@ -105,35 +105,25 @@ const LiveCoinPrice: React.FC<LiveCoinPriceProps> = ({
   // Don't render anything if we don't have a price
   if (displayPrice === null) return null;
   
-  // Function to format price with appropriate decimal places
-  const formatPrice = (price: number): string => {
-    if (price >= 1000) return price.toFixed(2);
-    if (price >= 100) return price.toFixed(3);
-    if (price >= 1) return price.toFixed(4);
-    if (price >= 0.1) return price.toFixed(5);
-    if (price >= 0.01) return price.toFixed(6);
-    return price.toFixed(8);
-  };
-  
   return (
     <div 
       className={cn(
-        "flex items-center gap-4 px-6 py-4 rounded-lg transition-all duration-300",
-        flashAnimation && priceDirection === 'up' && "bg-green-50",
-        flashAnimation && priceDirection === 'down' && "bg-red-50",
-        "bg-white shadow-md border border-gray-200",
+        "flex items-center gap-4 px-6 py-4 rounded-lg transition-all duration-150", // Reduced animation duration
+        flashAnimation && priceDirection === 'up' && "bg-green-50 dark:bg-green-900/20",
+        flashAnimation && priceDirection === 'down' && "bg-red-50 dark:bg-red-900/20",
+        "bg-white dark:bg-gray-800 shadow-md border border-gray-200 dark:border-gray-700",
         className
       )}
     >
       <div className="flex flex-col flex-grow">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-1">
-            <span className="text-base text-gray-600 font-medium">{symbol}</span>
+            <span className="text-base text-gray-600 dark:text-gray-300 font-medium">{symbol}</span>
             {lastUpdateTime && (
               <div className="flex items-center text-xs text-gray-400 ml-2">
                 <Clock className="h-3 w-3 mr-1" />
                 {timeSinceUpdate}
-                {lastUpdateTime && new Date().getTime() - lastUpdateTime.getTime() > 5000 && (
+                {lastUpdateTime && new Date().getTime() - lastUpdateTime.getTime() > 3000 && (
                   <span className="ml-2 text-amber-500 animate-pulse">
                     <RefreshCw className="h-3 w-3" />
                   </span>
@@ -162,9 +152,9 @@ const LiveCoinPrice: React.FC<LiveCoinPriceProps> = ({
         <div className="flex items-center justify-between">
           <span className={cn(
             "text-3xl font-bold",
-            priceDirection === 'up' && "text-green-600",
-            priceDirection === 'down' && "text-red-600",
-            !priceDirection && "text-gray-800"
+            priceDirection === 'up' && "text-green-600 dark:text-green-500",
+            priceDirection === 'down' && "text-red-600 dark:text-red-500",
+            !priceDirection && "text-gray-800 dark:text-gray-200"
           )}>
             ${formatPrice(displayPrice)}
           </span>
@@ -172,7 +162,8 @@ const LiveCoinPrice: React.FC<LiveCoinPriceProps> = ({
           {priceDirection && (
             <span className={cn(
               "flex items-center gap-1 px-2 py-1 rounded-full ml-3",
-              priceDirection === 'up' ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"
+              priceDirection === 'up' ? "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400" : 
+                                       "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400"
             )}>
               {priceDirection === 'up' ? (
                 <ArrowUp className="h-4 w-4" />

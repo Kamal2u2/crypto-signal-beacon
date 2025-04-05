@@ -1,7 +1,7 @@
 import { toast } from '@/components/ui/use-toast';
 
 // Define types for Binance API responses
-export type TimeInterval = '1m' | '3m' | '5m' | '15m' | '30m' | '1h' | '4h' | '1d';
+export type TimeInterval = '1m' | '3m' | '5m' | '15m' | '30m' | '1h' | '2h' | '4h' | '6h' | '8h' | '12h' | '1d' | '3d' | '1w' | '1M';
 
 export interface KlineData {
   openTime: number;
@@ -122,8 +122,15 @@ const mapIntervalForStocks = (interval: TimeInterval): string => {
     '15m': '15min',
     '30m': '30min',
     '1h': '60min',
+    '2h': '60min', // Alpha Vantage doesn't support 2h, using 1h as fallback
     '4h': '60min', // Alpha Vantage doesn't support 4h, using 1h as fallback
-    '1d': 'daily'
+    '6h': '60min', // Alpha Vantage doesn't support 6h, using 1h as fallback
+    '8h': '60min', // Alpha Vantage doesn't support 8h, using 1h as fallback
+    '12h': '60min', // Alpha Vantage doesn't support 12h, using 1h as fallback
+    '1d': 'daily',
+    '3d': 'daily', // Alpha Vantage doesn't support 3d, using daily as fallback
+    '1w': 'weekly',
+    '1M': 'monthly'
   };
   return intervalMap[interval] || '15min';
 };
@@ -221,8 +228,15 @@ const getIntervalMilliseconds = (interval: TimeInterval): number => {
     case '15m': return 15 * 60 * 1000;
     case '30m': return 30 * 60 * 1000;
     case '1h': return 60 * 60 * 1000;
+    case '2h': return 2 * 60 * 60 * 1000;
     case '4h': return 4 * 60 * 60 * 1000;
+    case '6h': return 6 * 60 * 60 * 1000;
+    case '8h': return 8 * 60 * 60 * 1000;
+    case '12h': return 12 * 60 * 60 * 1000;
     case '1d': return 24 * 60 * 60 * 1000;
+    case '3d': return 3 * 24 * 60 * 60 * 1000;
+    case '1w': return 7 * 24 * 60 * 60 * 1000;
+    case '1M': return 30 * 24 * 60 * 60 * 1000; // Approximation
     default: return 15 * 60 * 1000;
   }
 };

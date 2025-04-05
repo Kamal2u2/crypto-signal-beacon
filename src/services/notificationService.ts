@@ -106,7 +106,8 @@ export const playSignalSound = (
   if (signalType === 'BUY' || signalType === 'SELL') {
     try {
       // Set the volume (between 0.0 and 1.0)
-      signalSounds[signalType].volume = Math.max(0, Math.min(1, volume));
+      const adjustedVolume = Math.max(0, Math.min(1, volume));
+      signalSounds[signalType].volume = adjustedVolume;
       // Reset the audio to the beginning
       signalSounds[signalType].currentTime = 0;
       
@@ -117,7 +118,7 @@ export const playSignalSound = (
         playPromise.catch(error => {
           console.warn(`Could not play audio file, using fallback:`, error);
           // Use the Web Audio API fallback if the audio file fails to play
-          generateTone(signalType, volume);
+          generateTone(signalType, adjustedVolume);
         });
       }
     } catch (error) {

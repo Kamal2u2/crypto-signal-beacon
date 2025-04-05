@@ -50,7 +50,8 @@ export const useSignalProcessor = ({
     notificationsEnabled,
     playSignalSound,
     sendSignalNotification,
-    selectedPairLabel
+    selectedPairLabel,
+    confidenceThreshold // Pass the threshold to the notifications hook
   });
   
   // Memoize the signal processing to prevent unnecessary rerenders
@@ -72,21 +73,26 @@ export const useSignalProcessor = ({
       return newSignals;
     });
     
-    // Check if this is a valid actionable signal
-    const isSignalValid = shouldProcessSignal(
-      newSignals.overallSignal,
-      newSignals.confidence,
-      signalFingerprint
-    );
-    
-    if (isSignalValid) {
-      // Show notifications
-      showNotifications(newSignals.overallSignal, newSignals.confidence);
+    // Only process actionable signals above threshold
+    if (newSignals.confidence >= confidenceThreshold) {
+      // Check if this is a valid actionable signal
+      const isSignalValid = shouldProcessSignal(
+        newSignals.overallSignal,
+        newSignals.confidence,
+        signalFingerprint
+      );
       
-      // Track this signal
-      trackSignal(newSignals.overallSignal, signalFingerprint);
+      if (isSignalValid) {
+        // Show notifications only for signals above threshold
+        showNotifications(newSignals.overallSignal, newSignals.confidence);
+        
+        // Track this signal
+        trackSignal(newSignals.overallSignal, signalFingerprint);
+      }
+    } else {
+      console.log(`Signal ${newSignals.overallSignal} skipped: below threshold (${newSignals.confidence.toFixed(0)}% < ${confidenceThreshold}%)`);
     }
-  }, [shouldProcessSignal, showNotifications, trackSignal]);
+  }, [confidenceThreshold, shouldProcessSignal, showNotifications, trackSignal]);
 
   return {
     signalData,

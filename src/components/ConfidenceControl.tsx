@@ -4,8 +4,9 @@ import { cn } from '@/lib/utils';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
-import { Bell, BellOff } from 'lucide-react';
+import { Bell, BellOff, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { testAudioAlert } from '@/services/notificationService';
 
 interface ConfidenceControlProps {
@@ -33,8 +34,29 @@ const ConfidenceControl: React.FC<ConfidenceControlProps> = ({
       <CardContent className="space-y-4">
         <div className="space-y-2">
           <div className="flex justify-between items-center">
-            <span className="text-sm font-medium">Confidence Threshold</span>
-            <span className="text-sm font-medium text-gray-500">{confidenceThreshold}%</span>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">Confidence Threshold</span>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <p className="max-w-sm text-xs">
+                      Signals with confidence below this threshold will not trigger notifications. 
+                      Higher values mean fewer but more reliable signals.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <span className={cn(
+              "text-sm font-medium",
+              confidenceThreshold < 50 ? "text-yellow-500" : 
+              confidenceThreshold < 70 ? "text-green-500" : "text-blue-500"
+            )}>
+              {confidenceThreshold}%
+            </span>
           </div>
           <Slider
             value={[confidenceThreshold]}
@@ -44,7 +66,10 @@ const ConfidenceControl: React.FC<ConfidenceControlProps> = ({
             onValueChange={(values) => setConfidenceThreshold(values[0])}
             className="w-full"
           />
-          <p className="text-xs text-gray-500">Signals with confidence below this threshold will be ignored</p>
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>More signals</span>
+            <span>Higher quality</span>
+          </div>
         </div>
 
         <div className="space-y-2 pt-2 border-t border-gray-100">
@@ -81,7 +106,7 @@ const ConfidenceControl: React.FC<ConfidenceControlProps> = ({
                   variant="outline" 
                   size="sm"
                   onClick={() => testAudioAlert('BUY', alertVolume)}
-                  className="text-crypto-buy border-crypto-buy"
+                  className="text-crypto-buy border-crypto-buy hover:bg-crypto-buy/10"
                 >
                   Test Buy Alert
                 </Button>
@@ -89,7 +114,7 @@ const ConfidenceControl: React.FC<ConfidenceControlProps> = ({
                   variant="outline" 
                   size="sm"
                   onClick={() => testAudioAlert('SELL', alertVolume)}
-                  className="text-crypto-sell border-crypto-sell"
+                  className="text-crypto-sell border-crypto-sell hover:bg-crypto-sell/10"
                 >
                   Test Sell Alert
                 </Button>

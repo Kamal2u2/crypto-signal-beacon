@@ -49,9 +49,11 @@ export const formatPrice = (price: number | null | undefined): string => {
     return 'N/A';
   }
   
-  // Enhanced formatting based on price magnitude - with more precision for small values
-  if (price < 0.00001) {
-    return price.toLocaleString(undefined, { minimumFractionDigits: 8, maximumFractionDigits: 9 });
+  // Enhanced formatting based on price magnitude with more precision
+  if (price < 0.000001) {
+    return price.toLocaleString(undefined, { minimumFractionDigits: 10, maximumFractionDigits: 12 });
+  } else if (price < 0.00001) {
+    return price.toLocaleString(undefined, { minimumFractionDigits: 8, maximumFractionDigits: 10 });
   } else if (price < 0.0001) {
     return price.toLocaleString(undefined, { minimumFractionDigits: 8, maximumFractionDigits: 8 });
   } else if (price < 0.001) {

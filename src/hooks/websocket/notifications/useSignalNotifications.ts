@@ -1,3 +1,4 @@
+
 import { useCallback, useRef, useEffect } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import { SignalType } from '@/services/technical/types';
@@ -10,6 +11,7 @@ interface SignalNotificationProps {
   playSignalSound: (type: 'BUY' | 'SELL', volume: number) => void;
   sendSignalNotification: (type: string, symbol: string, confidence: number) => void;
   selectedPairLabel: string;
+  confidenceThreshold: number; // Added confidence threshold
 }
 
 export const useSignalNotifications = ({
@@ -19,7 +21,8 @@ export const useSignalNotifications = ({
   notificationsEnabled,
   playSignalSound,
   sendSignalNotification,
-  selectedPairLabel
+  selectedPairLabel,
+  confidenceThreshold
 }: SignalNotificationProps) => {
   const lastToastTimeRef = useRef<number>(0);
   const MIN_TOAST_INTERVAL = 5000; // Minimum 5 seconds between toasts
@@ -30,7 +33,8 @@ export const useSignalNotifications = ({
     alertsEnabled,
     alertVolume,
     notificationsEnabled,
-    selectedPairLabel
+    selectedPairLabel,
+    confidenceThreshold
   });
 
   // Update props ref when they change
@@ -40,14 +44,16 @@ export const useSignalNotifications = ({
       alertsEnabled,
       alertVolume,
       notificationsEnabled,
-      selectedPairLabel
+      selectedPairLabel,
+      confidenceThreshold
     };
   }, [
     isAudioInitialized,
     alertsEnabled,
     alertVolume,
     notificationsEnabled,
-    selectedPairLabel
+    selectedPairLabel,
+    confidenceThreshold
   ]);
 
   const showNotifications = useCallback((
@@ -60,8 +66,15 @@ export const useSignalNotifications = ({
       alertsEnabled,
       notificationsEnabled,
       alertVolume,
-      selectedPairLabel
+      selectedPairLabel,
+      confidenceThreshold
     } = propsRef.current;
+    
+    // Skip notifications for signals below threshold
+    if (confidence < confidenceThreshold) {
+      console.log(`Skipping notification for ${signalType} signal (${confidence.toFixed(0)}% < ${confidenceThreshold}%)`);
+      return;
+    }
     
     if (signalType !== 'BUY' && signalType !== 'SELL') return;
     

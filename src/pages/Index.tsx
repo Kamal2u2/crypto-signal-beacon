@@ -16,6 +16,7 @@ import MainContentSection from '@/components/layout/MainContentSection';
 import SidebarSection from '@/components/layout/SidebarSection';
 import { useWebSocketData } from '@/hooks/useWebSocketData';
 import { usePriceWebSocket } from '@/hooks/usePriceWebSocket';
+import { isUsingSimulatedStockData } from '@/services/market/stockService';
 
 import './index.css';
 
@@ -37,8 +38,32 @@ const Index = () => {
   const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(false);
   const [lastSignalType, setLastSignalType] = useState<SignalType | null>(null);
   
+  // State to track if we're using simulated data
+  const [isSimulatedData, setIsSimulatedData] = useState<boolean>(false);
+  
   // Use custom hooks for data fetching and websocket management
   const { currentPrice } = usePriceWebSocket(selectedPair);
+  
+  // Update simulated data state based on asset type
+  useEffect(() => {
+    // For crypto, simulated data is always false
+    // For stocks, check the stockService
+    if (selectedAssetType === AssetType.STOCK) {
+      const checkSimulationStatus = () => {
+        setIsSimulatedData(isUsingSimulatedStockData());
+      };
+      
+      // Check immediately
+      checkSimulationStatus();
+      
+      // And set up an interval to check periodically
+      const interval = setInterval(checkSimulationStatus, 5000);
+      
+      return () => clearInterval(interval);
+    } else {
+      setIsSimulatedData(false);
+    }
+  }, [selectedAssetType, selectedPair.symbol]);
   
   // Handle asset type change
   const handleAssetTypeChange = (type: AssetType) => {
@@ -132,6 +157,7 @@ const Index = () => {
             price={currentPrice} 
             symbol={selectedPair.label}
             className="glass-card rounded-lg shadow-md border border-border flex-grow md:flex-grow-0"
+            isSimulated={selectedAssetType === AssetType.STOCK && isSimulatedData}
           />
           
           <SignalBanner

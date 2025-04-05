@@ -8,6 +8,7 @@ const FINNHUB_BASE_URL = 'https://finnhub.io/api/v1';
 
 // Track if we've shown the fallback notice
 let fallbackNoticeShown = false;
+let usingSimulatedData = false;
 
 // Convert our interval format to Finnhub's format
 const convertIntervalForFinnhub = (interval: TimeInterval): string => {
@@ -57,12 +58,15 @@ const generateHistoricalStockData = (
   const intervalMs = getIntervalMs(interval);
   const basePrice = getBasePrice(symbol);
   
+  // Set the flag that we're using simulated data
+  usingSimulatedData = true;
+  
   if (!fallbackNoticeShown) {
     toast({
       title: "Using simulated stock data",
       description: "Real-time stock data is unavailable. Using simulated data for demonstration purposes.",
-      variant: "destructive",
-      duration: 5000,
+      variant: "destructive", 
+      duration: 10000, // Increased duration so it's more noticeable
     });
     fallbackNoticeShown = true;
   }
@@ -128,6 +132,7 @@ export const fetchStockPrice = async (symbol: string): Promise<number | null> =>
     
     if (!response.ok) {
       console.error(`Finnhub API error: ${response.status} ${response.statusText}`);
+      usingSimulatedData = true;
       // Return the base price as a fallback
       return getBasePrice(symbol);
     }
@@ -136,14 +141,17 @@ export const fetchStockPrice = async (symbol: string): Promise<number | null> =>
     
     if (data && typeof data.c === 'number') {
       console.log(`Stock price received for ${symbol}: ${data.c}`);
+      usingSimulatedData = false;
       return data.c; // Current price
     } else {
       console.error('Invalid data received from Finnhub API:', data);
+      usingSimulatedData = true;
       // Return the base price as a fallback
       return getBasePrice(symbol);
     }
   } catch (error) {
     console.error('Error fetching stock price from Finnhub:', error);
+    usingSimulatedData = true;
     // Return the base price as a fallback
     return getBasePrice(symbol);
   }
@@ -172,6 +180,7 @@ export const fetchStockKlineData = async (symbol: string, interval: TimeInterval
     const data = await response.json();
     
     if (data && data.s === "ok" && Array.isArray(data.t) && data.t.length > 0) {
+      usingSimulatedData = false;
       const klineData: KlineData[] = [];
       
       for (let i = 0; i < data.t.length; i++) {
@@ -305,4 +314,9 @@ export const closeStockPolling = () => {
     clearInterval(stockKlineInterval);
     stockKlineInterval = null;
   }
+};
+
+// Export whether we're using simulated data
+export const isUsingSimulatedStockData = (): boolean => {
+  return usingSimulatedData;
 };

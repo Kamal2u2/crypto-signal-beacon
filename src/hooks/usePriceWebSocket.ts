@@ -7,6 +7,7 @@ import {
   initializePriceWebSocket,
   closePriceWebSocket
 } from '@/services/binanceService';
+import { isUsingSimulatedStockData } from '@/services/market/stockService';
 
 export const usePriceWebSocket = (selectedPair: AssetPair) => {
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);

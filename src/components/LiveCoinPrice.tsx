@@ -1,15 +1,22 @@
 
 import React, { useState, useEffect, useRef, memo } from 'react';
 import { cn } from '@/lib/utils';
-import { ArrowUp, ArrowDown, RefreshCw, Clock } from 'lucide-react';
+import { ArrowUp, ArrowDown, RefreshCw, Clock, Cpu } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface LiveCoinPriceProps {
   price: number | null;
   symbol: string;
   className?: string;
+  isSimulated?: boolean;
 }
 
-const LiveCoinPrice: React.FC<LiveCoinPriceProps> = ({ price, symbol, className }) => {
+const LiveCoinPrice: React.FC<LiveCoinPriceProps> = ({ 
+  price, 
+  symbol, 
+  className, 
+  isSimulated = false 
+}) => {
   const [displayPrice, setDisplayPrice] = useState<number | null>(null);
   const [previousPrice, setPreviousPrice] = useState<number | null>(null);
   const [priceDirection, setPriceDirection] = useState<'up' | 'down' | null>(null);
@@ -132,6 +139,22 @@ const LiveCoinPrice: React.FC<LiveCoinPriceProps> = ({ price, symbol, className 
                   </span>
                 )}
               </div>
+            )}
+            
+            {isSimulated && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="ml-2 px-2 py-1 bg-amber-100 text-amber-700 rounded-full flex items-center gap-1 text-xs">
+                      <Cpu className="h-3 w-3" />
+                      <span>Simulated</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Using simulated data. Real market data is unavailable.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
           </div>
         </div>

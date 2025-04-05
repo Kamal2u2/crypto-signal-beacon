@@ -151,6 +151,7 @@ export const getAIPrediction = (klineData: KlineData[]): {
   predictedChangePercent: number;
   shortTermPrediction: 'UP' | 'DOWN' | 'NEUTRAL';
   mediumTermPrediction: 'UP' | 'DOWN' | 'NEUTRAL';
+  explanation?: string;
 } => {
   // Get base prediction from the model
   const shortTermPrediction = predictPriceMovement(klineData);

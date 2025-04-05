@@ -1,20 +1,39 @@
+
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
+import { SignalType } from "@/services/technical/types"
+
+// Extended Card interface to support signal styling
+interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+  signal?: SignalType;
+  highlightSignal?: boolean;
+}
 
 const Card = React.forwardRef<
   HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn(
-      "rounded-lg border bg-card text-card-foreground shadow-sm",
-      className
-    )}
-    {...props}
-  />
-))
+  CardProps
+>(({ className, signal, highlightSignal = false, ...props }, ref) => {
+  // Apply signal-specific styling if signal is provided and highlighting is enabled
+  const signalStyleClasses = signal && highlightSignal ? {
+    'BUY': 'border-crypto-buy/80 border-2 bg-crypto-buy/5',
+    'SELL': 'border-crypto-sell/80 border-2 bg-crypto-sell/5',
+    'HOLD': 'border-crypto-hold/80 border-2 bg-crypto-hold/5', 
+    'NEUTRAL': 'border-border bg-card'
+  }[signal] : '';
+
+  return (
+    <div
+      ref={ref}
+      className={cn(
+        "rounded-lg border bg-card text-card-foreground shadow-sm",
+        signalStyleClasses,
+        className
+      )}
+      {...props}
+    />
+  );
+})
 Card.displayName = "Card"
 
 const CardHeader = React.forwardRef<

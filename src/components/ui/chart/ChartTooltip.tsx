@@ -1,3 +1,4 @@
+
 import * as React from "react"
 import * as RechartsPrimitive from "recharts"
 import { cn } from "@/lib/utils"
@@ -86,12 +87,22 @@ export const ChartTooltipContent = React.forwardRef<
     const signalInfo = signalKey && payload[0].payload?.[signalKey] 
       ? { type: payload[0].payload[signalKey], shown: true } 
       : null;
+    
+    // Define signal-specific styles
+    const signalBadgeStyle = signalInfo ? {
+      'BUY': "bg-green-100 text-green-800 border border-green-300",
+      'SELL': "bg-red-100 text-red-800 border border-red-300",
+      'HOLD': "bg-amber-100 text-amber-800 border border-amber-300",
+      'NEUTRAL': "bg-gray-100 text-gray-800 border border-gray-300"
+    }[signalInfo.type] : "";
 
     return (
       <div
         ref={ref}
         className={cn(
           "grid min-w-[8rem] items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl",
+          signalInfo && signalInfo.type === 'BUY' && "border-crypto-buy/70",
+          signalInfo && signalInfo.type === 'SELL' && "border-crypto-sell/70",
           className
         )}
       >
@@ -102,8 +113,7 @@ export const ChartTooltipContent = React.forwardRef<
           <div className="mb-1 flex justify-center">
             <div className={cn(
               "text-xs font-bold px-2 py-1 rounded-full",
-              signalInfo.type === 'BUY' ? "bg-green-100 text-green-800 border border-green-300" : 
-              signalInfo.type === 'SELL' ? "bg-red-100 text-red-800 border border-red-300" : ""
+              signalBadgeStyle
             )}>
               {signalInfo.type}
             </div>

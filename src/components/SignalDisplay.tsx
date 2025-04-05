@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { SignalSummary, TradingSignal, PatternDetection } from '@/services/technicalAnalysisService';
 import { cn } from '@/lib/utils';
@@ -77,12 +76,11 @@ const SignalDisplay: React.FC<SignalDisplayProps> = ({
   });
 
   return (
-    <Card className={cn(
-      "signal-card w-full h-full shadow-lg", 
-      signalBorderColor[overallSignal as keyof typeof signalBorderColor],
-      "border-2",
-      isBelowThreshold && "opacity-90"
-    )}>
+    <Card 
+      className="signal-card w-full h-full shadow-lg"
+      signal={overallSignal}
+      highlightSignal={true}
+    >
       <CardHeader className={cn(
         "pb-2 rounded-t-xl",
         signalBackgroundColor[overallSignal as keyof typeof signalBackgroundColor]

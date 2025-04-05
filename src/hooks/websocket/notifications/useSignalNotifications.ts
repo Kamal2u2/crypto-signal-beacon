@@ -11,7 +11,7 @@ interface SignalNotificationProps {
   playSignalSound: (type: 'BUY' | 'SELL', volume: number) => void;
   sendSignalNotification: (type: string, symbol: string, confidence: number) => void;
   selectedPairLabel: string;
-  confidenceThreshold: number; // Added confidence threshold
+  confidenceThreshold: number;
 }
 
 export const useSignalNotifications = ({

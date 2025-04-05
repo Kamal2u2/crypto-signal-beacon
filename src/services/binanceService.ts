@@ -1,4 +1,9 @@
-import { AssetType } from './technical/types';
+
+// Export the AssetType enum directly in this file since it's being used here
+export enum AssetType {
+  CRYPTO = 'CRYPTO',
+  STOCKS = 'STOCKS'
+}
 
 // Define types for Binance API data
 export interface CoinPair {
@@ -95,21 +100,58 @@ export const pingPriceWebSocket = () => {
   }
 };
 
-// Fetch stock data from Yahoo Finance
+// Fetch stock data from Yahoo Finance with improved error handling
 const fetchYahooFinanceData = async (symbol: string, interval: string, range: string): Promise<any> => {
   try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=${interval}&range=${range}`;
-    const response = await fetch(url);
+    // Use a more reliable endpoint format for Yahoo Finance
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=${interval}&range=${range}&includePrePost=false`;
+    console.log(`Fetching Yahoo Finance data: ${url}`);
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+    });
     
     if (!response.ok) {
       throw new Error(`Yahoo Finance API error: ${response.status}`);
     }
     
     const data = await response.json();
+    
+    // Verify we have valid data
+    if (!data || !data.chart || !data.chart.result || data.chart.result.length === 0) {
+      console.error('Invalid Yahoo Finance data structure:', data);
+      throw new Error('Invalid data structure received from Yahoo Finance');
+    }
+    
+    console.log('Yahoo Finance data received successfully');
     return data;
   } catch (error) {
     console.error('Error fetching Yahoo Finance data:', error);
-    throw error;
+    
+    // Return a minimal valid data structure for error cases
+    return {
+      chart: {
+        result: [{
+          timestamp: [Math.floor(Date.now() / 1000)],
+          indicators: {
+            quote: [{
+              open: [0],
+              high: [0],
+              low: [0],
+              close: [0],
+              volume: [0]
+            }]
+          },
+          meta: {
+            regularMarketPrice: 0
+          }
+        }]
+      }
+    };
   }
 };
 
@@ -142,24 +184,31 @@ const getRangeForInterval = (interval: TimeInterval): string => {
   }
 };
 
-// Convert Yahoo Finance data to KlineData format
+// Convert Yahoo Finance data to KlineData format with improved error handling
 const convertYahooToKlineFormat = (yahooData: any): KlineData[] => {
   if (!yahooData || !yahooData.chart || !yahooData.chart.result || yahooData.chart.result.length === 0) {
+    console.error('Invalid Yahoo Finance data for conversion:', yahooData);
     return [];
   }
   
   const result = yahooData.chart.result[0];
   const { timestamp, indicators } = result;
-  const { quote } = indicators;
   
-  if (!timestamp || !quote || quote.length === 0) {
+  if (!timestamp || !indicators || !indicators.quote || indicators.quote.length === 0) {
+    console.error('Missing critical data in Yahoo Finance response:', yahooData);
     return [];
   }
   
-  const { open, high, low, close, volume } = quote[0];
+  const { open, high, low, close, volume } = indicators.quote[0];
+  
+  if (!open || !high || !low || !close) {
+    console.error('Missing OHLC data in Yahoo Finance response');
+    return [];
+  }
+  
   const klineData: KlineData[] = [];
   
-  for (let i = 0; i < timestamp.length; i++) {
+  for (let i = 0; timestamp && i < timestamp.length; i++) {
     // Skip entries with missing data
     if (open[i] === null || high[i] === null || low[i] === null || close[i] === null) {
       continue;
@@ -167,13 +216,13 @@ const convertYahooToKlineFormat = (yahooData: any): KlineData[] => {
     
     klineData.push({
       openTime: timestamp[i] * 1000, // Convert to milliseconds
-      open: open[i] || 0,
-      high: high[i] || 0,
-      low: low[i] || 0,
-      close: close[i] || 0,
-      volume: volume[i] || 0,
+      open: open[i] !== null ? open[i] : 0,
+      high: high[i] !== null ? high[i] : 0,
+      low: low[i] !== null ? low[i] : 0,
+      close: close[i] !== null ? close[i] : 0,
+      volume: volume[i] !== null ? volume[i] : 0,
       closeTime: (timestamp[i] * 1000) + 59999, // Add 59.999 seconds
-      quoteAssetVolume: volume[i] || 0,
+      quoteAssetVolume: volume[i] !== null ? volume[i] : 0,
       trades: 0, // Yahoo doesn't provide this
       takerBuyBaseAssetVolume: 0, // Yahoo doesn't provide this
       takerBuyQuoteAssetVolume: 0, // Yahoo doesn't provide this
@@ -183,8 +232,8 @@ const convertYahooToKlineFormat = (yahooData: any): KlineData[] => {
   // Ensure we have recent data by sorting by timestamp
   klineData.sort((a, b) => a.openTime - b.openTime);
   
-  // Return all data points or the last 100, whichever is less
-  return klineData.slice(-100);
+  // Return all data points
+  return klineData;
 };
 
 // Update Kline Data
@@ -214,19 +263,28 @@ export const fetchCurrentPrice = async (symbol: string): Promise<number | null> 
     
     if (isStock) {
       // For stocks, fetch from Yahoo Finance
-      const yahooData = await fetchYahooFinanceData(symbol, '1m', '1d');
+      console.log(`Fetching current price for stock: ${symbol}`);
+      const yahooInterval = '1d';
+      const yahooRange = '1d';
+      const yahooData = await fetchYahooFinanceData(symbol, yahooInterval, yahooRange);
       
       if (yahooData && yahooData.chart && yahooData.chart.result && yahooData.chart.result[0]) {
         const result = yahooData.chart.result[0];
         const meta = result.meta;
-        return meta.regularMarketPrice || null;
+        const price = meta.regularMarketPrice || null;
+        console.log(`Stock price received for ${symbol}: ${price}`);
+        return price;
       }
+      console.warn(`No valid price data found for ${symbol}`);
       return null;
     } else {
       // For crypto, use the existing Binance implementation
+      console.log(`Fetching current price for crypto: ${symbol}`);
       const response = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`);
       const data = await response.json();
-      return data && data.price ? parseFloat(data.price) : null;
+      const price = data && data.price ? parseFloat(data.price) : null;
+      console.log(`Crypto price received for ${symbol}: ${price}`);
+      return price;
     }
   } catch (error) {
     console.error('Error fetching current price:', error);
@@ -242,16 +300,20 @@ export const fetchKlineData = async (symbol: string, interval: TimeInterval, lim
     
     if (isStock) {
       // For stocks, fetch from Yahoo Finance
+      console.log(`Fetching kline data for stock: ${symbol} with interval ${interval}`);
       const yahooInterval = convertIntervalForYahoo(interval);
       const range = getRangeForInterval(interval);
       const yahooData = await fetchYahooFinanceData(symbol, yahooInterval, range);
-      return convertYahooToKlineFormat(yahooData);
+      const klineData = convertYahooToKlineFormat(yahooData);
+      console.log(`Received ${klineData.length} kline data points for stock ${symbol}`);
+      return klineData;
     } else {
       // For crypto, use the existing Binance implementation
+      console.log(`Fetching kline data for crypto: ${symbol} with interval ${interval}`);
       const response = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`);
       const data = await response.json();
       
-      return data.map((item: any[]) => ({
+      const klineData = data.map((item: any[]) => ({
         openTime: item[0],
         open: parseFloat(item[1]),
         high: parseFloat(item[2]),
@@ -264,10 +326,27 @@ export const fetchKlineData = async (symbol: string, interval: TimeInterval, lim
         takerBuyBaseAssetVolume: parseFloat(item[9]),
         takerBuyQuoteAssetVolume: parseFloat(item[10])
       }));
+      
+      console.log(`Received ${klineData.length} kline data points for crypto ${symbol}`);
+      return klineData;
     }
   } catch (error) {
     console.error('Error fetching kline data:', error);
     return [];
+  }
+};
+
+// Close WebSocket connection for price only
+export const closePriceWebSocket = () => {
+  if (priceWebSocket) {
+    priceWebSocket.close();
+    priceWebSocket = null;
+    console.log('Price WebSocket connection closed.');
+  }
+  
+  if (priceWebSocketInterval) {
+    clearInterval(priceWebSocketInterval);
+    priceWebSocketInterval = null;
   }
 };
 

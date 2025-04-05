@@ -1,14 +1,12 @@
 
 import { useCallback } from 'react';
-import { 
-  initializeWebSocket,
-  closeWebSocket,
-} from '@/services/binanceService';
+import { closeWebSocket } from '@/services/binanceService';
 import { AssetPair, TimeInterval, KlineData } from '@/services/market/types';
-import { toast } from '@/components/ui/use-toast';
 import { handleKlineUpdate } from './utils/klineUpdateUtils';
 import { handleReconnection } from './utils/reconnectionUtils';
-import { fetchData as fetchKlineData } from './utils/dataFetchUtils';
+import { fetchData } from './utils/dataFetchUtils';
+import { setupWebSocket as setupWebSocketUtil } from './utils/setupUtils';
+import { handleRefresh as handleRefreshUtil, cleanupResources as cleanupResourcesUtil } from './utils/refreshUtils';
 
 interface WebSocketOperationsProps {
   selectedPair: AssetPair;
@@ -54,64 +52,27 @@ export const useWebSocketOperations = ({
     );
   }, [klineDataRef, setKlineData, processNewSignal]);
 
-  // Setup WebSocket connection
+  // Setup WebSocket connection using the utility
   const setupWebSocket = useCallback(async () => {
-    if (fetchInProgressRef.current) {
-      console.log('Fetch already in progress, skipping WebSocket setup');
-      return;
-    }
-    
-    const now = Date.now();
-    if (now - lastFetchTimeRef.current < 2000) {
-      console.log('Too many requests, throttling API calls');
-      return;
-    }
-    
-    fetchInProgressRef.current = true;
-    lastFetchTimeRef.current = now;
-    
     try {
-      if (webSocketInitializedRef.current && 
-          previousPairRef.current === selectedPair.symbol && 
-          previousIntervalRef.current === selectedInterval) {
-        fetchInProgressRef.current = false;
-        return;
-      }
-      
-      console.log(`Setting up WebSocket for ${selectedPair.symbol} at ${selectedInterval} interval`);
-      
-      previousPairRef.current = selectedPair.symbol;
-      previousIntervalRef.current = selectedInterval;
-      
-      closeWebSocket();
-      webSocketInitializedRef.current = false;
-      
-      // Delegate to the fetchData utility function
-      await fetchKlineData(
-        selectedPair.symbol,
+      await setupWebSocketUtil({
+        selectedPair,
         selectedInterval,
+        processNewSignal,
         klineDataRef,
         setKlineData,
-        processNewSignal,
-        lastFetchTimeRef,
+        webSocketInitializedRef,
+        reconnectAttemptsRef,
+        previousPairRef,
+        previousIntervalRef,
         fetchInProgressRef,
+        lastFetchTimeRef,
         setIsLoading,
-        debugCounterRef
-      );
-      
-      // Initialize WebSocket after data is fetched
-      initializeWebSocket(
-        selectedPair.symbol,
-        selectedInterval,
-        handleKlineUpdateCallback
-      );
-      
-      webSocketInitializedRef.current = true;
-      reconnectAttemptsRef.current = 0;
+        debugCounterRef,
+        handleKlineUpdate: handleKlineUpdateCallback
+      });
     } catch (error) {
-      console.error('Error setting up WebSocket:', error);
-      
-      // Delegate to reconnection utility
+      // Handle reconnection using the utility
       handleReconnection(
         reconnectAttemptsRef,
         reconnectTimeoutRef,
@@ -119,16 +80,13 @@ export const useWebSocketOperations = ({
         closeWebSocket,
         webSocketInitializedRef
       );
-    } finally {
-      fetchInProgressRef.current = false;
     }
   }, [
-    selectedPair.symbol,
+    selectedPair,
     selectedInterval,
-    handleKlineUpdateCallback,
+    processNewSignal,
     klineDataRef,
     setKlineData,
-    processNewSignal,
     webSocketInitializedRef,
     reconnectAttemptsRef,
     reconnectTimeoutRef,
@@ -137,12 +95,13 @@ export const useWebSocketOperations = ({
     fetchInProgressRef,
     lastFetchTimeRef,
     setIsLoading,
-    debugCounterRef
+    debugCounterRef,
+    handleKlineUpdateCallback
   ]);
 
   // Fetch data directly using the utility function
-  const fetchData = useCallback(async () => {
-    await fetchKlineData(
+  const fetchDataCallback = useCallback(async () => {
+    await fetchData(
       selectedPair.symbol,
       selectedInterval,
       klineDataRef,
@@ -165,33 +124,17 @@ export const useWebSocketOperations = ({
     debugCounterRef
   ]);
 
-  // Handle manual refresh
+  // Handle manual refresh using the utility
   const handleRefresh = useCallback(() => {
-    const now = Date.now();
-    if (now - lastFetchTimeRef.current < 2000) {
-      console.log('Too many refreshes, throttling API calls');
-      toast({
-        title: "Please wait",
-        description: "Refreshing too quickly, please wait a moment",
-      });
-      return;
-    }
-    
-    if (fetchInProgressRef.current) {
-      console.log('Fetch already in progress, skipping refresh request');
-      return;
-    }
-    
-    closeWebSocket();
-    webSocketInitializedRef.current = false;
-    reconnectAttemptsRef.current = 0;
-    setIsLoading(true);
-    
-    setTimeout(() => {
-      setupWebSocket().finally(() => {
-        setIsLoading(false);
-      });
-    }, 500);
+    handleRefreshUtil({
+      lastFetchTimeRef,
+      fetchInProgressRef,
+      closeWebSocket,
+      webSocketInitializedRef,
+      reconnectAttemptsRef,
+      setIsLoading,
+      setupWebSocket
+    });
   }, [
     setupWebSocket,
     webSocketInitializedRef,
@@ -201,20 +144,19 @@ export const useWebSocketOperations = ({
     setIsLoading
   ]);
 
-  // Clean up resources
+  // Clean up resources using the utility
   const cleanupResources = useCallback(() => {
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
-    }
-    closeWebSocket();
-    webSocketInitializedRef.current = false;
+    cleanupResourcesUtil({
+      reconnectTimeoutRef,
+      closeWebSocket,
+      webSocketInitializedRef
+    });
   }, [reconnectTimeoutRef, webSocketInitializedRef]);
 
   return {
     handleKlineUpdate: handleKlineUpdateCallback,
     setupWebSocket,
-    fetchData,
+    fetchData: fetchDataCallback,
     handleRefresh,
     cleanupResources
   };

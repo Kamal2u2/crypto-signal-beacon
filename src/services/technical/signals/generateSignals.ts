@@ -15,6 +15,7 @@ import { generateOscillatorSignals } from './oscillatorSignals';
 import { generateVolatilitySignals } from './volatilitySignals';
 import { generateVolumeSignals } from './volumeSignals';
 import { generateSupportResistanceSignals } from './supportResistanceSignals';
+import { getAIPrediction } from '../aiPrediction';
 
 export const generateSignals = (klineData: KlineData[]): SignalSummary => {
   // Debug start time for performance tracking
@@ -100,8 +101,24 @@ export const generateSignals = (klineData: KlineData[]): SignalSummary => {
   };
   console.log(`Signal counts by type:`, signalCounts);
   
-  // Calculate signal weights
-  const weights = computeSignalWeights(indicators);
+  // Get AI prediction and add it to signals
+  const aiPrediction = getAIPrediction(klineData);
+  signals.push({
+    indicator: 'AI Model',
+    type: aiPrediction.prediction,
+    message: `AI predicts price will ${aiPrediction.shortTermPrediction === 'UP' ? 'increase' : aiPrediction.shortTermPrediction === 'DOWN' ? 'decrease' : 'remain stable'} short-term (${aiPrediction.predictedChangePercent}%) and ${aiPrediction.mediumTermPrediction === 'UP' ? 'increase' : aiPrediction.mediumTermPrediction === 'DOWN' ? 'decrease' : 'remain stable'} medium-term.`,
+    strength: aiPrediction.confidence > 70 ? 5 : aiPrediction.confidence > 50 ? 4 : 3
+  });
+  
+  // Add AI prediction to indicators
+  indicators['aiModel'] = {
+    signal: aiPrediction.prediction,
+    weight: aiPrediction.confidence / 40, // Scale confidence to reasonable weight
+    confidence: aiPrediction.confidence
+  };
+  
+  // Calculate signal weights - pass klineData for AI integration
+  const weights = computeSignalWeights(indicators, klineData);
   
   // Determine overall signal
   const { overallSignal, confidence } = determineOverallSignal(weights);
@@ -116,7 +133,7 @@ export const generateSignals = (klineData: KlineData[]): SignalSummary => {
   signals.unshift({
     indicator: 'Combined Strategy',
     type: overallSignal,
-    message: `Overall signal based on multiple indicators with ${confidence.toFixed(0)}% confidence.`,
+    message: `Overall signal based on technical indicators and AI prediction with ${confidence.toFixed(0)}% confidence.`,
     strength: 5
   });
   

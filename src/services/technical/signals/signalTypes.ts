@@ -7,6 +7,13 @@ export interface TradingSignalWeight {
   holdWeight: number;
   neutralWeight: number;
   totalWeight: number;
+  aiPrediction?: {
+    prediction: 'BUY' | 'SELL' | 'HOLD' | 'NEUTRAL';
+    confidence: number;
+    predictedChangePercent: number;
+    shortTermPrediction: 'UP' | 'DOWN' | 'NEUTRAL';
+    mediumTermPrediction: 'UP' | 'DOWN' | 'NEUTRAL';
+  };
 }
 
 export interface PriceTarget {

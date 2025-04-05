@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
-import { CoinPair, COIN_PAIRS, TimeInterval } from '@/services/binanceService';
+import { AssetPair, CRYPTO_PAIRS, STOCK_PAIRS, TimeInterval, AssetType } from '@/services/binanceService';
 import { SignalType } from '@/services/technicalAnalysisService';
 import { 
   initializeAudio, 
@@ -20,8 +20,11 @@ import { usePriceWebSocket } from '@/hooks/usePriceWebSocket';
 import './index.css';
 
 const Index = () => {
+  // State for asset type
+  const [selectedAssetType, setSelectedAssetType] = useState<AssetType>(AssetType.CRYPTO);
+  
   // State for trading controls
-  const [selectedPair, setSelectedPair] = useState<CoinPair>(COIN_PAIRS[0]);
+  const [selectedPair, setSelectedPair] = useState<AssetPair>(CRYPTO_PAIRS[0]);
   const [selectedInterval, setSelectedInterval] = useState<TimeInterval>('15m');
   const [refreshInterval, setRefreshInterval] = useState<number>(30000); // 30 seconds
   const [isAutoRefreshEnabled, setIsAutoRefreshEnabled] = useState<boolean>(false);
@@ -36,6 +39,14 @@ const Index = () => {
   
   // Use custom hooks for data fetching and websocket management
   const { currentPrice } = usePriceWebSocket(selectedPair);
+  
+  // Handle asset type change
+  const handleAssetTypeChange = (type: AssetType) => {
+    setSelectedAssetType(type);
+    // Select the first pair of the selected asset type
+    setSelectedPair(type === AssetType.CRYPTO ? CRYPTO_PAIRS[0] : STOCK_PAIRS[0]);
+    setLastSignalType(null);
+  };
   
   // Define a type-safe wrapper function for setLastSignalType
   const handleSetLastSignalType = (type: string | null) => {
@@ -65,7 +76,7 @@ const Index = () => {
   });
   
   // Handle pair change
-  const handlePairChange = (pair: CoinPair) => {
+  const handlePairChange = (pair: AssetPair) => {
     setSelectedPair(pair);
     setLastSignalType(null);
     console.log(`Switching to pair: ${pair.symbol}`);
@@ -152,6 +163,8 @@ const Index = () => {
             alertVolume={alertVolume}
             alertsEnabled={alertsEnabled}
             isLoading={isLoading}
+            selectedAssetType={selectedAssetType}
+            setSelectedAssetType={handleAssetTypeChange}
             setSelectedPair={handlePairChange}
             setSelectedInterval={setSelectedInterval}
             setRefreshInterval={setRefreshInterval}

@@ -4,10 +4,10 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import ControlPanel from '@/components/ControlPanel';
 import ConfidenceControl from '@/components/ConfidenceControl';
 import IndicatorsPanel from '@/components/BacktestPanel';
-import { CoinPair, TimeInterval } from '@/services/binanceService';
+import { AssetPair, AssetType, TimeInterval } from '@/services/binanceService';
 
 interface SidebarSectionProps {
-  selectedPair: CoinPair;
+  selectedPair: AssetPair;
   selectedInterval: TimeInterval;
   refreshInterval: number;
   isAutoRefreshEnabled: boolean;
@@ -15,7 +15,9 @@ interface SidebarSectionProps {
   alertVolume: number;
   alertsEnabled: boolean;
   isLoading: boolean;
-  setSelectedPair: (pair: CoinPair) => void;
+  selectedAssetType: AssetType;
+  setSelectedAssetType: (type: AssetType) => void;
+  setSelectedPair: (pair: AssetPair) => void;
   setSelectedInterval: (interval: TimeInterval) => void;
   setRefreshInterval: (interval: number) => void;
   setIsAutoRefreshEnabled: (enabled: boolean) => void;
@@ -34,6 +36,8 @@ const SidebarSection: React.FC<SidebarSectionProps> = ({
   alertVolume,
   alertsEnabled,
   isLoading,
+  selectedAssetType,
+  setSelectedAssetType,
   setSelectedPair,
   setSelectedInterval,
   setRefreshInterval,
@@ -64,6 +68,8 @@ const SidebarSection: React.FC<SidebarSectionProps> = ({
               setIsAutoRefreshEnabled={setIsAutoRefreshEnabled}
               onRefresh={onRefresh}
               isLoading={isLoading}
+              selectedAssetType={selectedAssetType}
+              setSelectedAssetType={setSelectedAssetType}
             />
             
             <div className="mt-4">

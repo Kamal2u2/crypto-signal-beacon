@@ -2,13 +2,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import {
-  CoinPair,
+  AssetPair,
   fetchCurrentPrice,
   initializePriceWebSocket,
   closePriceWebSocket
 } from '@/services/binanceService';
 
-export const usePriceWebSocket = (selectedPair: CoinPair) => {
+export const usePriceWebSocket = (selectedPair: AssetPair) => {
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const lastPriceUpdateRef = useRef<number>(Date.now());
   const initializedRef = useRef<boolean>(false);

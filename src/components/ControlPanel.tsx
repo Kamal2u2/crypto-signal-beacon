@@ -7,14 +7,22 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { RefreshCw, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { COIN_PAIRS, CoinPair, TimeInterval, fetchAllCoinPairs } from '@/services/binanceService';
+import { 
+  CRYPTO_PAIRS, 
+  STOCK_PAIRS,
+  AssetPair, 
+  AssetType,
+  TimeInterval, 
+  fetchAllAssetPairs 
+} from '@/services/binanceService';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from '@/components/ui/command';
+import AssetTypeSelector from './AssetTypeSelector';
 
 interface ControlPanelProps {
-  selectedPair: CoinPair;
-  setSelectedPair: (pair: CoinPair) => void;
+  selectedPair: AssetPair;
+  setSelectedPair: (pair: AssetPair) => void;
   selectedInterval: TimeInterval;
   setSelectedInterval: (interval: TimeInterval) => void;
   refreshInterval: number;
@@ -23,6 +31,8 @@ interface ControlPanelProps {
   setIsAutoRefreshEnabled: (enabled: boolean) => void;
   onRefresh: () => void;
   isLoading: boolean;
+  selectedAssetType: AssetType;
+  setSelectedAssetType: (type: AssetType) => void;
 }
 
 const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -31,21 +41,25 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   selectedInterval,
   setSelectedInterval,
   onRefresh,
-  isLoading
+  isLoading,
+  selectedAssetType,
+  setSelectedAssetType
 }) => {
-  // State for all available coin pairs
-  const [allCoinPairs, setAllCoinPairs] = useState<CoinPair[]>(COIN_PAIRS);
+  // State for all available asset pairs
+  const [allAssetPairs, setAllAssetPairs] = useState<AssetPair[]>(
+    selectedAssetType === AssetType.CRYPTO ? CRYPTO_PAIRS : STOCK_PAIRS
+  );
   const [isLoadingPairs, setIsLoadingPairs] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [openCoinSearch, setOpenCoinSearch] = useState(false);
+  const [openAssetSearch, setOpenAssetSearch] = useState(false);
 
-  // Fetch all coin pairs on component mount
+  // Fetch all pairs on component mount
   useEffect(() => {
     const loadAllPairs = async () => {
       setIsLoadingPairs(true);
       try {
-        const pairs = await fetchAllCoinPairs();
-        setAllCoinPairs(pairs);
+        const pairs = await fetchAllAssetPairs();
+        setAllAssetPairs(pairs);
       } catch (error) {
         console.error('Failed to load all pairs:', error);
       } finally {
@@ -55,14 +69,26 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 
     loadAllPairs();
   }, []);
+  
+  // Effect to filter pairs when asset type changes
+  useEffect(() => {
+    // When asset type changes, update the pairs list
+    const filteredPairs = allAssetPairs.filter(pair => pair.assetType === selectedAssetType);
+    
+    // If the current selected pair doesn't match the selected asset type, switch to first pair of the new type
+    if (selectedPair.assetType !== selectedAssetType && filteredPairs.length > 0) {
+      setSelectedPair(filteredPairs[0]);
+    }
+  }, [selectedAssetType, allAssetPairs]);
 
-  // Filtered coin pairs based on search term
+  // Filtered pairs based on search term and selected asset type
   const filteredPairs = searchTerm 
-    ? allCoinPairs.filter(pair => 
-        pair.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        pair.label.toLowerCase().includes(searchTerm.toLowerCase())
+    ? allAssetPairs.filter(pair => 
+        pair.assetType === selectedAssetType &&
+        (pair.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
+         pair.label.toLowerCase().includes(searchTerm.toLowerCase()))
       )
-    : allCoinPairs.slice(0, 50); // Limit initial display to prevent lag
+    : allAssetPairs.filter(pair => pair.assetType === selectedAssetType).slice(0, 50); // Limit initial display
 
   return (
     <Card className="control-panel-card bg-card">
@@ -70,10 +96,18 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         <CardTitle>Trading Configuration</CardTitle>
       </CardHeader>
       <CardContent className="grid gap-4">
-        {/* Coin Pair Selection with Search */}
+        {/* Asset Type Selector */}
+        <AssetTypeSelector 
+          selectedAssetType={selectedAssetType}
+          setSelectedAssetType={setSelectedAssetType}
+        />
+        
+        {/* Asset Pair Selection with Search */}
         <div className="flex flex-col gap-2">
-          <Label htmlFor="coin-pair">Coin Pair</Label>
-          <Popover open={openCoinSearch} onOpenChange={setOpenCoinSearch}>
+          <Label htmlFor="asset-pair">
+            {selectedAssetType === AssetType.CRYPTO ? 'Coin Pair' : 'Stock Symbol'}
+          </Label>
+          <Popover open={openAssetSearch} onOpenChange={setOpenAssetSearch}>
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
@@ -87,18 +121,18 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             <PopoverContent className="w-[300px] p-0 bg-popover" align="start">
               <Command className="bg-transparent">
                 <CommandInput 
-                  placeholder="Search coin pair..." 
+                  placeholder={`Search ${selectedAssetType === AssetType.CRYPTO ? 'coin pair' : 'stock'}...`}
                   value={searchTerm}
                   onValueChange={setSearchTerm}
                   className="h-9"
                 />
                 <CommandList className="command-list">
-                  <CommandEmpty>No coin pairs found.</CommandEmpty>
+                  <CommandEmpty>No {selectedAssetType === AssetType.CRYPTO ? 'coin pairs' : 'stocks'} found.</CommandEmpty>
                   <CommandGroup>
                     <ScrollArea className="h-[300px]">
                       {isLoadingPairs ? (
                         <div className="p-4 text-center text-sm text-muted-foreground">
-                          Loading available pairs...
+                          Loading available {selectedAssetType === AssetType.CRYPTO ? 'pairs' : 'stocks'}...
                         </div>
                       ) : (
                         filteredPairs.map((pair) => (
@@ -107,7 +141,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                             value={pair.symbol}
                             onSelect={() => {
                               setSelectedPair(pair);
-                              setOpenCoinSearch(false);
+                              setOpenAssetSearch(false);
                               setSearchTerm('');
                             }}
                             className="cursor-pointer hover:bg-muted"

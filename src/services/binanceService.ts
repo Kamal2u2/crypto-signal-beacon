@@ -216,8 +216,8 @@ const parseYahooFinanceData = (data: any, interval: TimeInterval): KlineData[] =
     });
   }
   
-  // Ensure we return at most the requested limit
-  return klineData.slice(-limit);
+  // Return all of the data we have, or the last 100 points if we have more
+  return klineData.length > 100 ? klineData.slice(-100) : klineData;
 };
 
 // Keep Alpha Vantage mapping for backward compatibility

@@ -1,7 +1,8 @@
+
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import { 
-  CoinPair, 
+  AssetPair as CoinPair, 
   TimeInterval, 
   fetchKlineData,
   initializeWebSocket,

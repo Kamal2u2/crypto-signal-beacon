@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CoinPair, TimeInterval, COIN_PAIRS } from '@/services/binanceService';
+import { AssetPair, TimeInterval, CRYPTO_PAIRS } from '@/services/market/assetPairs';
 import { BarChart3, Clock, LineChart, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface IndicatorsPanelProps {
-  selectedPair: CoinPair;
+  selectedPair: AssetPair;
   selectedInterval: TimeInterval;
 }
 
@@ -23,29 +23,24 @@ const IndicatorsPanel: React.FC<IndicatorsPanelProps> = ({
   selectedInterval
 }) => {
   // State for coin pair selection
-  const [indicatorPair, setIndicatorPair] = useState<CoinPair>(selectedPair);
-  const [allCoinPairs, setAllCoinPairs] = useState<CoinPair[]>(COIN_PAIRS);
+  const [indicatorPair, setIndicatorPair] = useState<AssetPair>(selectedPair);
+  const [allCoinPairs, setAllCoinPairs] = useState<AssetPair[]>(CRYPTO_PAIRS);
   const [searchTerm, setSearchTerm] = useState('');
   const [openCoinSearch, setOpenCoinSearch] = useState(false);
   
   // State for time interval selection
   const [indicatorInterval, setIndicatorInterval] = useState<TimeInterval>(selectedInterval);
-  const timeIntervals: { value: TimeInterval; label: string }[] = [
+  const timeIntervals: { value: string; label: string }[] = [
     { value: '1m', label: '1 Minute' },
     { value: '3m', label: '3 Minutes' },
     { value: '5m', label: '5 Minutes' },
     { value: '15m', label: '15 Minutes' },
     { value: '30m', label: '30 Minutes' },
     { value: '1h', label: '1 Hour' },
-    { value: '2h', label: '2 Hours' },
     { value: '4h', label: '4 Hours' },
-    { value: '6h', label: '6 Hours' },
-    { value: '8h', label: '8 Hours' },
-    { value: '12h', label: '12 Hours' },
     { value: '1d', label: '1 Day' },
-    { value: '3d', label: '3 Days' },
-    { value: '1w', label: '1 Week' },
-    { value: '1M', label: '1 Month' },
+    // Using strings instead of TimeInterval for these extended options
+    { value: 'other', label: 'Other Timeframes' }
   ];
   
   // Active indicators state
@@ -129,7 +124,12 @@ const IndicatorsPanel: React.FC<IndicatorsPanelProps> = ({
           </Label>
           <Select 
             value={indicatorInterval} 
-            onValueChange={(value) => setIndicatorInterval(value as TimeInterval)}
+            onValueChange={(value) => {
+              // Only set if it's a valid TimeInterval
+              if(['1m', '3m', '5m', '15m', '30m', '1h', '4h', '1d'].includes(value)) {
+                setIndicatorInterval(value as TimeInterval);
+              }
+            }}
           >
             <SelectTrigger className="w-full bg-white border-gray-300 hover:border-gray-400 transition-colors">
               <SelectValue placeholder="Select time frame" />

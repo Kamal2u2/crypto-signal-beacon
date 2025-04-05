@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { 
-  CoinPair, 
+  AssetPair as CoinPair, 
   TimeInterval,
   closeWebSocket 
 } from '@/services/binanceService';

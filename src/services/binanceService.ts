@@ -81,7 +81,6 @@ export const fetchKlineData = async (
 ): Promise<KlineData[]> => {
   try {
     const assetPair = ALL_ASSET_PAIRS.find(pair => pair.symbol === symbol);
-    let endpoint;
     
     if (!assetPair) {
       console.error(`Symbol ${symbol} not found in asset pairs`);
@@ -89,23 +88,18 @@ export const fetchKlineData = async (
     }
     
     if (assetPair.assetType === AssetType.CRYPTO) {
-      endpoint = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
-    } else {
-      // For stocks, we'll use a different API endpoint (Alpha Vantage as an example)
-      // Note: In a real implementation, you'd need to sign up for an Alpha Vantage API key
-      endpoint = `https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol=${symbol}&interval=${mapIntervalForStocks(interval)}&outputsize=full&apikey=demo`;
-    }
-    
-    const response = await fetch(endpoint);
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch kline data: ${response.statusText}`);
-    }
-    
-    if (assetPair.assetType === AssetType.CRYPTO) {
+      // Use Binance API for crypto
+      const endpoint = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+      const response = await fetch(endpoint);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch kline data: ${response.statusText}`);
+      }
+      
       return parseBinanceKlineData(await response.json());
     } else {
-      return parseStockKlineData(await response.json(), interval);
+      // Use Yahoo Finance API for stocks
+      return await fetchYahooFinanceKlineData(symbol, interval, limit);
     }
   } catch (error) {
     console.error('Error fetching kline data:', error);
@@ -113,7 +107,120 @@ export const fetchKlineData = async (
   }
 };
 
-// Map Binance intervals to Alpha Vantage intervals
+// New function to fetch stock data from Yahoo Finance
+const fetchYahooFinanceKlineData = async (
+  symbol: string,
+  interval: TimeInterval,
+  limit: number = 100
+): Promise<KlineData[]> => {
+  try {
+    // Convert our interval format to Yahoo Finance format
+    const yahooInterval = mapIntervalForYahooFinance(interval);
+    
+    // Calculate the start and end dates
+    const endDate = Math.floor(Date.now() / 1000);
+    const startDate = calculateStartDate(endDate, interval, limit);
+    
+    // Construct Yahoo Finance API URL
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${startDate}&period2=${endDate}&interval=${yahooInterval}&events=history`;
+    
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      console.error(`Yahoo Finance API error: ${response.statusText}`);
+      return generateDemoStockData(interval);
+    }
+    
+    const data = await response.json();
+    
+    // Check if we have valid data from Yahoo Finance
+    if (!data || 
+        !data.chart || 
+        !data.chart.result || 
+        !data.chart.result[0] || 
+        !data.chart.result[0].indicators || 
+        !data.chart.result[0].indicators.quote || 
+        !data.chart.result[0].indicators.quote[0]) {
+      console.error('Invalid data format from Yahoo Finance');
+      return generateDemoStockData(interval);
+    }
+    
+    // Parse Yahoo Finance data to our KlineData format
+    return parseYahooFinanceData(data, interval);
+  } catch (error) {
+    console.error('Error fetching Yahoo Finance data:', error);
+    // Return demo data if there's an error
+    return generateDemoStockData(interval);
+  }
+};
+
+// Map our intervals to Yahoo Finance intervals
+const mapIntervalForYahooFinance = (interval: TimeInterval): string => {
+  const intervalMap: Record<TimeInterval, string> = {
+    '1m': '1m',
+    '3m': '5m', // Yahoo doesn't have 3m, using 5m
+    '5m': '5m',
+    '15m': '15m',
+    '30m': '30m',
+    '1h': '1h',
+    '2h': '2h',
+    '4h': '4h', 
+    '6h': '1d', // Yahoo doesn't have 6h, using 1d
+    '8h': '1d', // Yahoo doesn't have 8h, using 1d
+    '12h': '1d', // Yahoo doesn't have 12h, using 1d
+    '1d': '1d',
+    '3d': '5d', // Yahoo doesn't have 3d, using 5d
+    '1w': '1wk',
+    '1M': '1mo'
+  };
+  return intervalMap[interval] || '1h';
+};
+
+// Calculate start date based on interval and limit
+const calculateStartDate = (endDate: number, interval: TimeInterval, limit: number): number => {
+  const intervalMilliseconds = getIntervalMilliseconds(interval);
+  const totalMilliseconds = intervalMilliseconds * limit;
+  return Math.floor((endDate * 1000 - totalMilliseconds) / 1000);
+};
+
+// Parse Yahoo Finance data to KlineData format
+const parseYahooFinanceData = (data: any, interval: TimeInterval): KlineData[] => {
+  const result = data.chart.result[0];
+  const quotes = result.indicators.quote[0];
+  const timestamps = result.timestamp;
+  
+  const klineData: KlineData[] = [];
+  
+  for (let i = 0; i < timestamps.length; i++) {
+    // Skip entries with missing data
+    if (!quotes.open[i] || !quotes.high[i] || !quotes.low[i] || !quotes.close[i] || !quotes.volume[i]) {
+      continue;
+    }
+    
+    const openTime = timestamps[i] * 1000;
+    const intervalMs = getIntervalMilliseconds(interval);
+    
+    klineData.push({
+      openTime,
+      open: quotes.open[i],
+      high: quotes.high[i],
+      low: quotes.low[i],
+      close: quotes.close[i],
+      volume: quotes.volume[i],
+      closeTime: openTime + intervalMs - 1,
+      quoteAssetVolume: quotes.volume[i] * quotes.close[i],
+      trades: Math.floor(Math.random() * 1000) + 100, // Not provided by Yahoo Finance
+      takerBuyBaseAssetVolume: quotes.volume[i] * 0.5, // Approximation
+      takerBuyQuoteAssetVolume: quotes.volume[i] * 0.5 * quotes.close[i], // Approximation
+      ignored: '0'
+    });
+  }
+  
+  // Ensure we return at most the requested limit
+  return klineData.slice(-limit);
+};
+
+// Keep Alpha Vantage mapping for backward compatibility
 const mapIntervalForStocks = (interval: TimeInterval): string => {
   const intervalMap: Record<TimeInterval, string> = {
     '1m': '1min',
@@ -133,52 +240,6 @@ const mapIntervalForStocks = (interval: TimeInterval): string => {
     '1M': 'monthly'
   };
   return intervalMap[interval] || '15min';
-};
-
-// Parse Alpha Vantage JSON response into our KlineData format
-const parseStockKlineData = (data: any, interval: TimeInterval): KlineData[] => {
-  // Handle API rate limit or errors
-  if (data['Error Message'] || data['Note']) {
-    console.error('Alpha Vantage API error or limit:', data['Error Message'] || data['Note']);
-    return [];
-  }
-  
-  // Get the correct time series key based on interval
-  let timeSeriesKey = 'Time Series (15min)';
-  if (interval === '1m') timeSeriesKey = 'Time Series (1min)';
-  else if (interval === '5m') timeSeriesKey = 'Time Series (5min)';
-  else if (interval === '15m') timeSeriesKey = 'Time Series (15min)';
-  else if (interval === '30m') timeSeriesKey = 'Time Series (30min)';
-  else if (interval === '1h') timeSeriesKey = 'Time Series (60min)';
-  else if (interval === '1d') timeSeriesKey = 'Time Series (Daily)';
-  
-  // Use demo data if API call failed or was rate-limited
-  if (!data[timeSeriesKey]) {
-    return generateDemoStockData(interval);
-  }
-  
-  const timeSeries = data[timeSeriesKey];
-  const timestamps = Object.keys(timeSeries).sort();
-  
-  return timestamps.map(timestamp => {
-    const candle = timeSeries[timestamp];
-    const time = new Date(timestamp).getTime();
-    
-    return {
-      openTime: time,
-      open: parseFloat(candle['1. open']),
-      high: parseFloat(candle['2. high']),
-      low: parseFloat(candle['3. low']),
-      close: parseFloat(candle['4. close']),
-      volume: parseFloat(candle['5. volume']),
-      closeTime: time + getIntervalMilliseconds(interval) - 1,
-      quoteAssetVolume: parseFloat(candle['5. volume']) * parseFloat(candle['4. close']),
-      trades: Math.floor(Math.random() * 1000) + 500, // Not provided by Alpha Vantage
-      takerBuyBaseAssetVolume: 0, // Not provided by Alpha Vantage
-      takerBuyQuoteAssetVolume: 0, // Not provided by Alpha Vantage
-      ignored: '0'
-    };
-  }).slice(-100); // Take the most recent 100 candles
 };
 
 // Generate demo stock data when API is rate-limited
@@ -259,7 +320,7 @@ export const parseBinanceKlineData = (data: any[]): KlineData[] => {
   }));
 };
 
-// Update fetchCurrentPrice to handle both crypto and stocks
+// Update fetchCurrentPrice to use Yahoo Finance for stocks
 export const fetchCurrentPrice = async (symbol: string): Promise<number | null> => {
   try {
     const assetPair = ALL_ASSET_PAIRS.find(pair => pair.symbol === symbol);
@@ -270,6 +331,7 @@ export const fetchCurrentPrice = async (symbol: string): Promise<number | null> 
     }
     
     if (assetPair.assetType === AssetType.CRYPTO) {
+      // Use Binance API for crypto
       const response = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`);
       if (!response.ok) {
         throw new Error(`Failed to fetch current price: ${response.statusText}`);
@@ -277,22 +339,28 @@ export const fetchCurrentPrice = async (symbol: string): Promise<number | null> 
       const data = await response.json();
       return parseFloat(data.price);
     } else {
-      // For stocks, we'll use Alpha Vantage's quote endpoint
-      const response = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=demo`);
+      // Use Yahoo Finance for stock prices
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
       
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`Failed to fetch stock price: ${response.statusText}`);
       }
       
       const data = await response.json();
       
-      // Check if we hit API rate limits
-      if (data['Note'] || !data['Global Quote'] || !data['Global Quote']['05. price']) {
+      if (data && 
+          data.chart && 
+          data.chart.result && 
+          data.chart.result[0] && 
+          data.chart.result[0].meta) {
+        // Get the regularMarketPrice from the meta information
+        return data.chart.result[0].meta.regularMarketPrice;
+      } else {
+        console.error('Invalid Yahoo Finance price data format');
         // Return a realistic demo price if API call fails
-        return 150 + Math.random() * 50; // Random price between 150 and 200
+        return 150 + Math.random() * 50;
       }
-      
-      return parseFloat(data['Global Quote']['05. price']);
     }
   } catch (error) {
     console.error('Error fetching current price:', error);
@@ -393,11 +461,25 @@ export const initializeWebSocket = (
       isKlineConnected = false;
     };
   } else {
-    // For stocks, we'll use periodic polling instead of WebSockets
-    // since most stock APIs don't offer WebSocket connections in free tiers
+    // For stocks, we'll use periodic polling with Yahoo Finance data
+    if (stockIntervalId) {
+      clearInterval(stockIntervalId);
+      stockIntervalId = null;
+    }
+    
+    // Initial data fetch
+    fetchYahooFinanceKlineData(symbol, interval, 1)
+      .then(data => {
+        if (data.length > 0) {
+          onUpdate(data[0]);
+        }
+      })
+      .catch(error => console.error('Error fetching initial stock data:', error));
+    
+    // Set up polling interval
     stockIntervalId = setInterval(async () => {
       try {
-        const klineData = await fetchKlineData(symbol, interval, 1);
+        const klineData = await fetchYahooFinanceKlineData(symbol, interval, 1);
         if (klineData.length > 0) {
           onUpdate(klineData[0]);
         }
@@ -464,7 +546,22 @@ export const initializePriceWebSocket = (
       isPriceConnected = false;
     };
   } else {
-    // For stocks, use polling
+    // For stocks, use Yahoo Finance polling
+    if (stockPriceIntervalId) {
+      clearInterval(stockPriceIntervalId);
+      stockPriceIntervalId = null;
+    }
+    
+    // Initial fetch
+    fetchCurrentPrice(symbol)
+      .then(price => {
+        if (price !== null) {
+          onUpdate(price);
+        }
+      })
+      .catch(error => console.error('Error fetching initial stock price:', error));
+    
+    // Set up polling
     stockPriceIntervalId = setInterval(async () => {
       try {
         const price = await fetchCurrentPrice(symbol);

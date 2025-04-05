@@ -24,7 +24,7 @@ const AssetTypeSelector: React.FC<AssetTypeSelectorProps> = ({
             value={AssetType.CRYPTO}
             className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
           >
-            Crypto
+            Crypto Pairs
           </TabsTrigger>
           <TabsTrigger 
             value={AssetType.STOCKS}

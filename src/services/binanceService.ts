@@ -33,16 +33,16 @@ export interface AssetPair {
 
 // Rename COIN_PAIRS to CRYPTO_PAIRS for clarity and consistency
 export const CRYPTO_PAIRS: AssetPair[] = [
-  { symbol: 'BTCUSDT', label: 'Bitcoin', assetType: AssetType.CRYPTO },
-  { symbol: 'ETHUSDT', label: 'Ethereum', assetType: AssetType.CRYPTO },
-  { symbol: 'BNBUSDT', label: 'Binance Coin', assetType: AssetType.CRYPTO },
-  { symbol: 'SOLUSDT', label: 'Solana', assetType: AssetType.CRYPTO },
-  { symbol: 'ADAUSDT', label: 'Cardano', assetType: AssetType.CRYPTO },
-  { symbol: 'XRPUSDT', label: 'Ripple', assetType: AssetType.CRYPTO },
-  { symbol: 'DOGEUSDT', label: 'Dogecoin', assetType: AssetType.CRYPTO },
-  { symbol: 'DOTUSDT', label: 'Polkadot', assetType: AssetType.CRYPTO },
-  { symbol: 'AVAXUSDT', label: 'Avalanche', assetType: AssetType.CRYPTO },
-  { symbol: 'MATICUSDT', label: 'Polygon', assetType: AssetType.CRYPTO }
+  { symbol: 'BTCUSDT', label: 'BTC/USDT', assetType: AssetType.CRYPTO },
+  { symbol: 'ETHUSDT', label: 'ETH/USDT', assetType: AssetType.CRYPTO },
+  { symbol: 'BNBUSDT', label: 'BNB/USDT', assetType: AssetType.CRYPTO },
+  { symbol: 'SOLUSDT', label: 'SOL/USDT', assetType: AssetType.CRYPTO },
+  { symbol: 'ADAUSDT', label: 'ADA/USDT', assetType: AssetType.CRYPTO },
+  { symbol: 'XRPUSDT', label: 'XRP/USDT', assetType: AssetType.CRYPTO },
+  { symbol: 'DOGEUSDT', label: 'DOGE/USDT', assetType: AssetType.CRYPTO },
+  { symbol: 'DOTUSDT', label: 'DOT/USDT', assetType: AssetType.CRYPTO },
+  { symbol: 'AVAXUSDT', label: 'AVAX/USDT', assetType: AssetType.CRYPTO },
+  { symbol: 'MATICUSDT', label: 'MATIC/USDT', assetType: AssetType.CRYPTO }
 ];
 
 // Add stock pairs

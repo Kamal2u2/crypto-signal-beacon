@@ -108,8 +108,5 @@ export const closeWebSocket = () => {
   closeStockPolling();
 };
 
-// Add a helper function to fetch all available asset pairs (for future development)
-export const fetchAllAssetPairs = async (): Promise<AssetPair[]> => {
-  // This would normally fetch from an API, but we'll just use our predefined lists
-  return [...STOCK_PAIRS];
-};
+// Re-export fetchAllBinancePairs from assetPairs.ts
+export { fetchAllBinancePairs } from './market/assetPairs';

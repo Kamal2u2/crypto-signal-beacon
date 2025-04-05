@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { RefreshCw, Search } from 'lucide-react';
+import { RefreshCw, Search, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
   CRYPTO_PAIRS, 
@@ -13,12 +13,14 @@ import {
   AssetPair, 
   AssetType,
   TimeInterval, 
-  fetchAllAssetPairs 
+  fetchAllAssetPairs,
+  fetchAllBinancePairs
 } from '@/services/binanceService';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from '@/components/ui/command';
 import AssetTypeSelector from './AssetTypeSelector';
+import { toast } from "sonner";
 
 interface ControlPanelProps {
   selectedPair: AssetPair;
@@ -53,22 +55,36 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [openAssetSearch, setOpenAssetSearch] = useState(false);
 
-  // Fetch all pairs on component mount
+  // Fetch all pairs on component mount and when asset type changes
   useEffect(() => {
     const loadAllPairs = async () => {
       setIsLoadingPairs(true);
       try {
-        const pairs = await fetchAllAssetPairs();
-        setAllAssetPairs(pairs);
+        if (selectedAssetType === AssetType.CRYPTO) {
+          // For crypto, fetch all Binance pairs
+          const pairs = await fetchAllBinancePairs();
+          setAllAssetPairs(pairs);
+          toast.success(`Loaded ${pairs.length} cryptocurrency pairs`, {
+            duration: 3000,
+          });
+        } else {
+          // For stocks, use predefined list
+          setAllAssetPairs(STOCK_PAIRS);
+        }
       } catch (error) {
-        console.error('Failed to load all pairs:', error);
+        console.error('Failed to load pairs:', error);
+        toast.error('Failed to load all trading pairs. Using default list.', {
+          duration: 5000,
+        });
+        // Fallback to predefined lists
+        setAllAssetPairs(selectedAssetType === AssetType.CRYPTO ? CRYPTO_PAIRS : STOCK_PAIRS);
       } finally {
         setIsLoadingPairs(false);
       }
     };
 
     loadAllPairs();
-  }, []);
+  }, [selectedAssetType]);
   
   // Effect to filter pairs when asset type changes
   useEffect(() => {
@@ -88,7 +104,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         (pair.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
          pair.label.toLowerCase().includes(searchTerm.toLowerCase()))
       )
-    : allAssetPairs.filter(pair => pair.assetType === selectedAssetType).slice(0, 50); // Limit initial display
+    : allAssetPairs.filter(pair => pair.assetType === selectedAssetType).slice(0, 100); // Show more initial pairs
 
   return (
     <Card className="control-panel-card bg-card">
@@ -126,12 +142,13 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                   onValueChange={setSearchTerm}
                   className="h-9"
                 />
-                <CommandList className="command-list">
+                <CommandList className="command-list max-h-[300px]">
                   <CommandEmpty>No {selectedAssetType === AssetType.CRYPTO ? 'coin pairs' : 'stocks'} found.</CommandEmpty>
                   <CommandGroup>
                     <ScrollArea className="h-[300px]">
                       {isLoadingPairs ? (
-                        <div className="p-4 text-center text-sm text-muted-foreground">
+                        <div className="p-4 text-center text-sm text-muted-foreground flex items-center justify-center">
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                           Loading available {selectedAssetType === AssetType.CRYPTO ? 'pairs' : 'stocks'}...
                         </div>
                       ) : (

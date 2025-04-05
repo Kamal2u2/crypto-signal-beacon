@@ -48,7 +48,7 @@ const Index = () => {
   useEffect(() => {
     // For crypto, simulated data is always false
     // For stocks, check the stockService
-    if (selectedAssetType === AssetType.STOCK) {
+    if (selectedAssetType === AssetType.STOCKS) {
       const checkSimulationStatus = () => {
         setIsSimulatedData(isUsingSimulatedStockData());
       };
@@ -157,7 +157,7 @@ const Index = () => {
             price={currentPrice} 
             symbol={selectedPair.label}
             className="glass-card rounded-lg shadow-md border border-border flex-grow md:flex-grow-0"
-            isSimulated={selectedAssetType === AssetType.STOCK && isSimulatedData}
+            isSimulated={selectedAssetType === AssetType.STOCKS && isSimulatedData}
           />
           
           <SignalBanner

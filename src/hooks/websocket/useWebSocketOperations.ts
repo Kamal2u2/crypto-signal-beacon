@@ -1,16 +1,12 @@
-
-import { useCallback } from 'react';
-import { toast } from '@/components/ui/use-toast';
+import { useCallback, useRef } from 'react';
 import { 
-  CoinPair, 
-  TimeInterval, 
-  KlineData,
-  fetchKlineData,
+  fetchKlineData, 
   initializeWebSocket,
   closeWebSocket,
-  updateKlineData,
-  generateSignals
+  updateKlineData
 } from '@/services/binanceService';
+import { KlineData } from '@/services/market/types';
+import { generateSignals } from '@/services/technical/signals/generateSignals';
 
 interface WebSocketOperationsProps {
   selectedPair: CoinPair;

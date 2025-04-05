@@ -1,5 +1,4 @@
-
-import { AssetType, AssetPair } from './types';
+import { AssetPair, AssetType } from './types';
 
 // Re-export types needed by other modules
 export { AssetPair, AssetType } from './types';

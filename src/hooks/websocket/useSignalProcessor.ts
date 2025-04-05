@@ -1,6 +1,8 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
-import { toast } from '@/components/ui/use-toast';
-import { SignalSummary, SignalType } from '@/services/technicalAnalysisService';
+
+import { useState, useCallback } from 'react';
+import { SignalSummary, SignalType } from '@/services/technical/types';
+import { useSignalNotifications } from './notifications/useSignalNotifications';
+import { useSignalTracking } from './signals/useSignalTracking';
 
 interface SignalProcessorProps {
   confidenceThreshold: number;
@@ -9,7 +11,7 @@ interface SignalProcessorProps {
   alertVolume: number;
   notificationsEnabled: boolean;
   lastSignalType: SignalType | null;
-  setLastSignalType: (type: string | null) => void;
+  setLastSignalType: (type: SignalType | null) => void;
   playSignalSound: (type: 'BUY' | 'SELL', volume: number) => void;
   sendSignalNotification: (type: string, symbol: string, confidence: number) => void;
   selectedPairLabel: string;
@@ -28,41 +30,28 @@ export const useSignalProcessor = ({
   selectedPairLabel
 }: SignalProcessorProps) => {
   const [signalData, setSignalData] = useState<SignalSummary | null>(null);
-  const lastProcessedSignalRef = useRef<string | null>(null);
-  const lastToastTimeRef = useRef<number>(0);
-  const MIN_TOAST_INTERVAL = 5000; // Minimum 5 seconds between toasts
   
-  // Keep track of props to avoid closure issues
-  const propsRef = useRef({
-    confidenceThreshold,
+  // Initialize signal tracking
+  const {
+    shouldProcessSignal,
+    trackSignal,
+    lastProcessedSignalRef
+  } = useSignalTracking({
+    lastSignalType,
+    setLastSignalType,
+    confidenceThreshold
+  });
+  
+  // Initialize notifications
+  const { showNotifications } = useSignalNotifications({
     isAudioInitialized,
     alertsEnabled,
     alertVolume,
     notificationsEnabled,
-    lastSignalType,
+    playSignalSound,
+    sendSignalNotification,
     selectedPairLabel
   });
-
-  // Update props ref when they change
-  useEffect(() => {
-    propsRef.current = {
-      confidenceThreshold,
-      isAudioInitialized,
-      alertsEnabled,
-      alertVolume,
-      notificationsEnabled,
-      lastSignalType,
-      selectedPairLabel
-    };
-  }, [
-    confidenceThreshold,
-    isAudioInitialized,
-    alertsEnabled,
-    alertVolume,
-    notificationsEnabled,
-    lastSignalType,
-    selectedPairLabel
-  ]);
   
   // Memoize the signal processing to prevent unnecessary rerenders
   const processNewSignal = useCallback((newSignals: SignalSummary) => {
@@ -72,13 +61,7 @@ export const useSignalProcessor = ({
     // Create a stringified version of the signal to compare with previous
     const signalFingerprint = `${newSignals.overallSignal}-${newSignals.confidence}`;
     
-    // Skip processing if signal hasn't changed
-    if (lastProcessedSignalRef.current === signalFingerprint) return;
-    
-    // Update the last processed signal
-    lastProcessedSignalRef.current = signalFingerprint;
-    
-    // Update the signal data state
+    // Update the signal data state regardless of other conditions
     setSignalData(prevSignalData => {
       // Skip update if the data is identical
       if (prevSignalData && 
@@ -89,62 +72,21 @@ export const useSignalProcessor = ({
       return newSignals;
     });
     
-    // Get current props from ref to avoid closure issues
-    const {
-      confidenceThreshold,
-      isAudioInitialized,
-      alertsEnabled,
-      notificationsEnabled,
-      lastSignalType,
-      alertVolume,
-      selectedPairLabel
-    } = propsRef.current;
-    
     // Check if this is a valid actionable signal
-    const isSignalValid = newSignals.overallSignal !== 'NEUTRAL' && 
-                          newSignals.overallSignal !== 'HOLD' && 
-                          newSignals.confidence >= confidenceThreshold;
+    const isSignalValid = shouldProcessSignal(
+      newSignals.overallSignal,
+      newSignals.confidence,
+      signalFingerprint
+    );
     
-    // Check if we should play a sound
-    const shouldPlaySound = isAudioInitialized && 
-                           alertsEnabled && 
-                           isSignalValid && 
-                           newSignals.overallSignal !== lastSignalType;
-    
-    if (shouldPlaySound) {
-      if (newSignals.overallSignal === 'BUY' || newSignals.overallSignal === 'SELL') {
-        // Play the signal sound
-        playSignalSound(newSignals.overallSignal, alertVolume);
-        
-        // Show notifications if enabled
-        if (notificationsEnabled) {
-          sendSignalNotification(
-            newSignals.overallSignal, 
-            selectedPairLabel, 
-            newSignals.confidence
-          );
-        }
-        
-        // Show toast notification (with rate limiting)
-        const now = Date.now();
-        if (now - lastToastTimeRef.current > MIN_TOAST_INTERVAL) {
-          toast({
-            title: `${newSignals.overallSignal} Signal Detected`,
-            description: `${selectedPairLabel} - Confidence: ${newSignals.confidence.toFixed(0)}%`,
-            variant: newSignals.overallSignal === 'BUY' ? 'default' : 'destructive',
-          });
-          lastToastTimeRef.current = now;
-        }
-        
-        // Update the last signal type
-        setLastSignalType(newSignals.overallSignal);
-      }
+    if (isSignalValid) {
+      // Show notifications
+      showNotifications(newSignals.overallSignal, newSignals.confidence);
+      
+      // Track this signal
+      trackSignal(newSignals.overallSignal, signalFingerprint);
     }
-  }, [
-    setLastSignalType,
-    playSignalSound,
-    sendSignalNotification
-  ]);
+  }, [shouldProcessSignal, showNotifications, trackSignal]);
 
   return {
     signalData,

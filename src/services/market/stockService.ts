@@ -1,240 +1,147 @@
+
 import { KlineData, TimeInterval } from './types';
 
-// Convert Yahoo Finance interval to their format
-const convertIntervalForYahoo = (interval: TimeInterval): string => {
-  // Map Binance intervals to Yahoo Finance intervals
+// Finnhub API Key
+const FINNHUB_API_KEY = 'cu387p9r01qure9c49ugcu387p9r01qure9c49v0';
+const FINNHUB_BASE_URL = 'https://finnhub.io/api/v1';
+
+// Convert our interval format to Finnhub's format
+const convertIntervalForFinnhub = (interval: TimeInterval): string => {
+  // Map Binance intervals to Finnhub intervals
   switch (interval) {
-    case '1m': return '1m';
-    case '5m': return '5m';
-    case '15m': return '15m';
-    case '30m': return '30m';
-    case '1h': return '1h';
-    case '4h': return '60m'; // Yahoo doesn't have 4h, use 60m
-    case '1d': return '1d';
-    default: return '15m';
+    case '1m': return '1';
+    case '5m': return '5';
+    case '15m': return '15';
+    case '30m': return '30';
+    case '1h': return '60';
+    case '4h': return '240';
+    case '1d': return 'D';
+    default: return '15';
   }
 };
 
-// Determine range based on interval
-const getRangeForInterval = (interval: TimeInterval): string => {
+// Determine the from/to timestamps based on interval and limit
+const getTimeRange = (interval: TimeInterval, limit: number = 100): { from: number, to: number } => {
+  const now = Math.floor(Date.now() / 1000); // Current time in seconds
+  let timeBack: number;
+  
   switch (interval) {
-    case '1m': return '1d';
-    case '5m': return '5d';
-    case '15m': return '7d';
-    case '30m': return '10d';
-    case '1h': return '30d';
-    case '4h': return '60d';
-    case '1d': return '1y';
-    default: return '7d';
+    case '1m': timeBack = 60 * limit; break;
+    case '5m': timeBack = 5 * 60 * limit; break;
+    case '15m': timeBack = 15 * 60 * limit; break;
+    case '30m': timeBack = 30 * 60 * limit; break;
+    case '1h': timeBack = 60 * 60 * limit; break;
+    case '4h': timeBack = 4 * 60 * 60 * limit; break;
+    case '1d': timeBack = 24 * 60 * 60 * limit; break;
+    default: timeBack = 15 * 60 * limit;
   }
-};
-
-// Mock data cache to avoid excessive API calls and CORS issues
-const mockStockPrices: Record<string, number> = {
-  'AAPL': 169.58,
-  'GOOGL': 147.60,
-  'AMZN': 178.75,
-  'MSFT': 425.22,
-  'TSLA': 175.34,
-  'META': 474.99,
-  'NFLX': 610.25,
-  'NVDA': 880.18,
-  'JPM': 182.56,
-  'V': 275.89,
-  'WMT': 60.20,
-  'JNJ': 152.15,
-  'PG': 162.50,
-  'DIS': 114.25,
-  'KO': 61.40,
-};
-
-// Generate realistic kline data from a base price
-const generateMockKlineData = (symbol: string, interval: TimeInterval, limit: number): KlineData[] => {
-  console.log(`Generating mock data for ${symbol} with interval ${interval}`);
-  const basePrice = mockStockPrices[symbol] || 100; // Default price if not found
-  const result: KlineData[] = [];
   
-  // Create a seed for pseudo-randomness based on symbol
-  const seed = symbol.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  
-  // Get interval in milliseconds
-  const getIntervalMs = (interval: TimeInterval): number => {
-    switch(interval) {
-      case '1m': return 60 * 1000;
-      case '5m': return 5 * 60 * 1000;
-      case '15m': return 15 * 60 * 1000;
-      case '30m': return 30 * 60 * 1000;
-      case '1h': return 60 * 60 * 1000;
-      case '4h': return 4 * 60 * 60 * 1000;
-      case '1d': return 24 * 60 * 60 * 1000;
-      default: return 15 * 60 * 1000;
-    }
+  return {
+    from: now - timeBack,
+    to: now
   };
-  
-  // Generate data points
-  const now = Date.now();
-  const intervalMs = getIntervalMs(interval);
-  
-  for (let i = 0; i < limit; i++) {
-    // Generate time for this candle
-    const openTime = now - ((limit - i) * intervalMs);
-    const closeTime = openTime + intervalMs - 1;
-    
-    // Generate realistic price movement (with some randomness based on symbol and time)
-    const randomFactor = Math.sin(seed + i) * 0.03; // +/- 3% variation
-    const trendFactor = (i / limit) * 0.05; // slight trend over time
-    const multiplier = 1 + randomFactor + trendFactor;
-    
-    const open = basePrice * (1 + ((i-1) / limit) * 0.05 + Math.sin(seed + i-1) * 0.03);
-    const close = basePrice * multiplier;
-    const high = Math.max(open, close) * (1 + Math.abs(randomFactor) * 0.5);
-    const low = Math.min(open, close) * (1 - Math.abs(randomFactor) * 0.5);
-    const volume = basePrice * 1000 * (1 + Math.abs(randomFactor) * 2);
-    
-    result.push({
-      openTime,
-      open,
-      high,
-      low,
-      close,
-      volume,
-      closeTime,
-      quoteAssetVolume: volume * close,
-      trades: Math.floor(volume / 100),
-      takerBuyBaseAssetVolume: volume * 0.6,
-      takerBuyQuoteAssetVolume: volume * close * 0.6
-    });
-  }
-  
-  return result;
 };
 
-// Fetch Yahoo Finance data (previously this was trying to fetch real data)
-// Now we'll use our mock data instead due to CORS restrictions
-const fetchYahooFinanceData = async (symbol: string, interval: string, range: string): Promise<any> => {
+// Fetch current stock price from Finnhub API
+export const fetchStockPrice = async (symbol: string): Promise<number | null> => {
   try {
-    // Log that we're using mock data instead of actual API calls
-    console.log(`Using mock data for ${symbol} instead of Yahoo Finance API due to CORS restrictions`);
+    console.log(`Fetching current price for stock: ${symbol} from Finnhub API`);
     
-    // Simulate network latency
-    await new Promise(resolve => setTimeout(resolve, 300));
+    const url = `${FINNHUB_BASE_URL}/quote?symbol=${symbol}&token=${FINNHUB_API_KEY}`;
+    const response = await fetch(url);
     
-    // Create a mock response similar to what Yahoo Finance would return
-    const mockResponse = {
-      chart: {
-        result: [{
-          meta: {
-            symbol: symbol,
-            regularMarketPrice: mockStockPrices[symbol] || 100
-          },
-          timestamp: Array(50).fill(0).map((_, i) => Math.floor(Date.now()/1000) - (50-i) * 86400),
-          indicators: {
-            quote: [{
-              open: Array(50).fill(0).map(() => (mockStockPrices[symbol] || 100) * (0.99 + Math.random() * 0.02)),
-              high: Array(50).fill(0).map(() => (mockStockPrices[symbol] || 100) * (1.01 + Math.random() * 0.02)),
-              low: Array(50).fill(0).map(() => (mockStockPrices[symbol] || 100) * (0.98 + Math.random() * 0.02)),
-              close: Array(50).fill(0).map(() => (mockStockPrices[symbol] || 100) * (0.99 + Math.random() * 0.02)),
-              volume: Array(50).fill(0).map(() => (mockStockPrices[symbol] || 100) * 10000 * (0.5 + Math.random()))
-            }]
-          }
-        }]
-      }
-    };
-    
-    console.log('Mock Yahoo Finance data created successfully');
-    return mockResponse;
-  } catch (error) {
-    console.error('Error creating mock Yahoo Finance data:', error);
-    throw error;
-  }
-};
-
-// Convert Yahoo Finance data to KlineData format with improved error handling
-const convertYahooToKlineFormat = (yahooData: any): KlineData[] => {
-  if (!yahooData || !yahooData.chart || !yahooData.chart.result || yahooData.chart.result.length === 0) {
-    console.error('Invalid Yahoo Finance data for conversion:', yahooData);
-    return [];
-  }
-  
-  const result = yahooData.chart.result[0];
-  const { timestamp, indicators } = result;
-  
-  if (!timestamp || !indicators || !indicators.quote || indicators.quote.length === 0) {
-    console.error('Missing critical data in Yahoo Finance response:', yahooData);
-    return [];
-  }
-  
-  const { open, high, low, close, volume } = indicators.quote[0];
-  
-  if (!open || !high || !low || !close) {
-    console.error('Missing OHLC data in Yahoo Finance response');
-    return [];
-  }
-  
-  const klineData: KlineData[] = [];
-  
-  for (let i = 0; timestamp && i < timestamp.length; i++) {
-    // Skip entries with missing data
-    if (open[i] === null || high[i] === null || low[i] === null || close[i] === null) {
-      continue;
+    if (!response.ok) {
+      console.error(`Finnhub API error: ${response.status} ${response.statusText}`);
+      throw new Error(`Finnhub API returned ${response.status}`);
     }
     
-    klineData.push({
-      openTime: timestamp[i] * 1000, // Convert to milliseconds
-      open: open[i] !== null ? open[i] : 0,
-      high: high[i] !== null ? high[i] : 0,
-      low: low[i] !== null ? low[i] : 0,
-      close: close[i] !== null ? close[i] : 0,
-      volume: volume[i] !== null ? volume[i] : 0,
-      closeTime: (timestamp[i] * 1000) + 59999, // Add 59.999 seconds
-      quoteAssetVolume: volume[i] !== null ? volume[i] : 0,
-      trades: 0, // Yahoo doesn't provide this
-      takerBuyBaseAssetVolume: 0, // Yahoo doesn't provide this
-      takerBuyQuoteAssetVolume: 0, // Yahoo doesn't provide this
-    });
+    const data = await response.json();
+    
+    if (data && typeof data.c === 'number') {
+      console.log(`Stock price received for ${symbol}: ${data.c}`);
+      return data.c; // Current price
+    } else {
+      console.error('Invalid data received from Finnhub API:', data);
+      return null;
+    }
+  } catch (error) {
+    console.error('Error fetching stock price from Finnhub:', error);
+    return null;
   }
-  
-  // Ensure we have recent data by sorting by timestamp
-  klineData.sort((a, b) => a.openTime - b.openTime);
-  
-  // Return all data points
-  return klineData;
+};
+
+// Fetch stock candle data from Finnhub API
+export const fetchStockKlineData = async (symbol: string, interval: TimeInterval, limit: number = 100): Promise<KlineData[]> => {
+  try {
+    console.log(`Fetching kline data for stock: ${symbol} with interval ${interval} from Finnhub API`);
+    
+    const resolution = convertIntervalForFinnhub(interval);
+    const { from, to } = getTimeRange(interval, limit);
+    
+    const url = `${FINNHUB_BASE_URL}/stock/candle?symbol=${symbol}&resolution=${resolution}&from=${from}&to=${to}&token=${FINNHUB_API_KEY}`;
+    
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      console.error(`Finnhub API error: ${response.status} ${response.statusText}`);
+      throw new Error(`Finnhub API returned ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    if (data && data.s === "ok" && Array.isArray(data.t) && data.t.length > 0) {
+      const klineData: KlineData[] = [];
+      
+      for (let i = 0; i < data.t.length; i++) {
+        // Skip any data points that are missing any OHLCV value
+        if (data.o[i] === null || data.h[i] === null || data.l[i] === null || data.c[i] === null || data.v[i] === null) {
+          continue;
+        }
+        
+        klineData.push({
+          openTime: data.t[i] * 1000, // Convert to milliseconds
+          open: data.o[i],
+          high: data.h[i],
+          low: data.l[i],
+          close: data.c[i],
+          volume: data.v[i],
+          closeTime: (data.t[i] * 1000) + getIntervalMs(interval) - 1,
+          quoteAssetVolume: data.v[i] * data.c[i], // Calculate quote asset volume
+          trades: 0, // Finnhub doesn't provide this
+          takerBuyBaseAssetVolume: 0, // Finnhub doesn't provide this
+          takerBuyQuoteAssetVolume: 0 // Finnhub doesn't provide this
+        });
+      }
+      
+      console.log(`Received ${klineData.length} kline data points for stock ${symbol} from Finnhub`);
+      return klineData;
+    } else {
+      console.error('Invalid or empty data received from Finnhub API:', data);
+      return [];
+    }
+  } catch (error) {
+    console.error('Error fetching stock kline data from Finnhub:', error);
+    return [];
+  }
+};
+
+// Get interval in milliseconds 
+const getIntervalMs = (interval: TimeInterval): number => {
+  switch(interval) {
+    case '1m': return 60 * 1000;
+    case '5m': return 5 * 60 * 1000;
+    case '15m': return 15 * 60 * 1000;
+    case '30m': return 30 * 60 * 1000;
+    case '1h': return 60 * 60 * 1000;
+    case '4h': return 4 * 60 * 60 * 1000;
+    case '1d': return 24 * 60 * 60 * 1000;
+    default: return 15 * 60 * 1000;
+  }
 };
 
 // Variables for stock data polling
 let stockPriceInterval: NodeJS.Timeout | null = null;
 let stockKlineInterval: NodeJS.Timeout | null = null;
-
-// Fetch current price for a stock
-export const fetchStockPrice = async (symbol: string): Promise<number | null> => {
-  try {
-    console.log(`Fetching current price for stock: ${symbol}`);
-    // Use our mock price instead of fetching from Yahoo
-    const price = mockStockPrices[symbol] || 100;
-    
-    // Add a small random variation to simulate market movement
-    const variation = (Math.random() - 0.5) * 0.01; // +/- 0.5% variation
-    const updatedPrice = price * (1 + variation);
-    
-    console.log(`Stock price received for ${symbol}: ${updatedPrice.toFixed(2)}`);
-    return updatedPrice;
-  } catch (error) {
-    console.error('Error fetching stock price:', error);
-    return mockStockPrices[symbol] || 100; // Fallback to mock price
-  }
-};
-
-// Fetch kline data for a stock
-export const fetchStockKlineData = async (symbol: string, interval: TimeInterval, limit: number = 100): Promise<KlineData[]> => {
-  try {
-    console.log(`Fetching kline data for stock: ${symbol} with interval ${interval}`);
-    // Generate mock kline data instead of fetching from Yahoo
-    return generateMockKlineData(symbol, interval, limit);
-  } catch (error) {
-    console.error('Error fetching stock kline data:', error);
-    return generateMockKlineData(symbol, interval, limit); // Fallback to mock data
-  }
-};
 
 // Initialize price polling for stocks
 export const initializeStockPricePolling = (symbol: string, onPriceUpdate: (price: number) => void) => {

@@ -1,9 +1,11 @@
+
 import React from 'react';
 import { SignalSummary, TradingSignal, PatternDetection } from '@/services/technicalAnalysisService';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ArrowDown, ArrowUp, Minus, AlertTriangle, Target, ShieldAlert, TrendingUp, BarChart3, Layers } from 'lucide-react';
+import { formatPrice } from '@/utils/chartFormatters';
 
 interface SignalDisplayProps {
   signalData: SignalSummary | null;
@@ -93,7 +95,7 @@ const SignalDisplay: React.FC<SignalDisplayProps> = ({
           <div className="flex items-center space-x-2">
             <span className="text-sm font-medium text-gray-600">{symbol}</span>
             {lastPrice && (
-              <span className="font-bold text-gray-800 text-base">${lastPrice.toFixed(2)}</span>
+              <span className="font-bold text-gray-800 text-base">${formatPrice(lastPrice)}</span>
             )}
           </div>
         </div>
@@ -184,7 +186,7 @@ const SignalDisplay: React.FC<SignalDisplayProps> = ({
               <div className="grid grid-cols-2 gap-2">
                 <div className="flex flex-col p-2 bg-white dark:bg-gray-800/60 rounded-md border border-indigo-100 dark:border-indigo-900/30">
                   <span className="text-xs text-gray-500 dark:text-gray-400 mb-1">Entry Price</span>
-                  <span className="text-base font-bold text-gray-800 dark:text-gray-200">${priceTargets.entryPrice.toFixed(2)}</span>
+                  <span className="text-base font-bold text-gray-800 dark:text-gray-200">${formatPrice(priceTargets.entryPrice)}</span>
                 </div>
                 
                 <div className="flex flex-col p-2 bg-white dark:bg-gray-800/60 rounded-md border border-crypto-sell/40">
@@ -192,7 +194,7 @@ const SignalDisplay: React.FC<SignalDisplayProps> = ({
                     <ShieldAlert className="h-3 w-3 mr-1" />
                     Stop Loss
                   </span>
-                  <span className="text-base font-bold text-gray-800 dark:text-gray-200">${priceTargets.stopLoss.toFixed(2)}</span>
+                  <span className="text-base font-bold text-gray-800 dark:text-gray-200">${formatPrice(priceTargets.stopLoss)}</span>
                 </div>
               </div>
               
@@ -202,7 +204,7 @@ const SignalDisplay: React.FC<SignalDisplayProps> = ({
                     <span className="text-xs text-crypto-buy">Target 1</span>
                     <span className="text-xs text-crypto-buy">+{((Math.abs(priceTargets.target1 - priceTargets.entryPrice) / priceTargets.entryPrice) * 100).toFixed(1)}%</span>
                   </div>
-                  <span className="text-sm font-bold text-gray-800 dark:text-gray-200">${priceTargets.target1.toFixed(2)}</span>
+                  <span className="text-sm font-bold text-gray-800 dark:text-gray-200">${formatPrice(priceTargets.target1)}</span>
                 </div>
                 
                 <div className="flex flex-col p-2 bg-white dark:bg-gray-800/60 rounded-md border border-crypto-buy/40">
@@ -210,7 +212,7 @@ const SignalDisplay: React.FC<SignalDisplayProps> = ({
                     <span className="text-xs text-crypto-buy">Target 2</span>
                     <span className="text-xs text-crypto-buy">+{((Math.abs(priceTargets.target2 - priceTargets.entryPrice) / priceTargets.entryPrice) * 100).toFixed(1)}%</span>
                   </div>
-                  <span className="text-sm font-bold text-gray-800 dark:text-gray-200">${priceTargets.target2.toFixed(2)}</span>
+                  <span className="text-sm font-bold text-gray-800 dark:text-gray-200">${formatPrice(priceTargets.target2)}</span>
                 </div>
                 
                 <div className="flex flex-col p-2 bg-white dark:bg-gray-800/60 rounded-md border border-crypto-buy/40">
@@ -218,7 +220,7 @@ const SignalDisplay: React.FC<SignalDisplayProps> = ({
                     <span className="text-xs text-crypto-buy">Target 3</span>
                     <span className="text-xs text-crypto-buy">+{((Math.abs(priceTargets.target3 - priceTargets.entryPrice) / priceTargets.entryPrice) * 100).toFixed(1)}%</span>
                   </div>
-                  <span className="text-sm font-bold text-gray-800 dark:text-gray-200">${priceTargets.target3.toFixed(2)}</span>
+                  <span className="text-sm font-bold text-gray-800 dark:text-gray-200">${formatPrice(priceTargets.target3)}</span>
                 </div>
               </div>
             </div>

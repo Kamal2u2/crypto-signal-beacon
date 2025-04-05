@@ -3,6 +3,7 @@ import React from 'react';
 import { cn } from '@/lib/utils';
 import { ArrowUp, ArrowDown, Minus } from 'lucide-react';
 import { SignalSummary } from '@/services/technicalAnalysisService';
+import { formatPrice } from '@/utils/chartFormatters';
 
 interface SignalBannerProps {
   signalData: SignalSummary | null;
@@ -70,23 +71,23 @@ const SignalBanner: React.FC<SignalBannerProps> = ({
         <div className="flex flex-wrap gap-4 mt-2 md:mt-0 ml-0 md:ml-auto">
           <div className="flex flex-col">
             <span className="text-xs text-muted-foreground">Entry</span>
-            <span className="font-medium">${signalData.priceTargets.entryPrice.toFixed(2)}</span>
+            <span className="font-medium">${formatPrice(signalData.priceTargets.entryPrice)}</span>
           </div>
           <div className="flex flex-col">
             <span className="text-xs text-crypto-sell">Stop Loss</span>
-            <span className="font-medium">${signalData.priceTargets.stopLoss.toFixed(2)}</span>
+            <span className="font-medium">${formatPrice(signalData.priceTargets.stopLoss)}</span>
           </div>
           <div className="flex flex-col">
             <span className="text-xs text-crypto-buy">Target 1</span>
-            <span className="font-medium">${signalData.priceTargets.target1.toFixed(2)}</span>
+            <span className="font-medium">${formatPrice(signalData.priceTargets.target1)}</span>
           </div>
           <div className="flex flex-col">
             <span className="text-xs text-crypto-buy">Target 2</span>
-            <span className="font-medium">${signalData.priceTargets.target2.toFixed(2)}</span>
+            <span className="font-medium">${formatPrice(signalData.priceTargets.target2)}</span>
           </div>
           <div className="flex flex-col">
             <span className="text-xs text-crypto-buy">Target 3</span>
-            <span className="font-medium">${signalData.priceTargets.target3.toFixed(2)}</span>
+            <span className="font-medium">${formatPrice(signalData.priceTargets.target3)}</span>
           </div>
         </div>
       )}

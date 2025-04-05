@@ -47,23 +47,8 @@ export const fetchStockPrice = async (symbol: string): Promise<number | null> =>
   try {
     console.log(`Fetching current price for stock: ${symbol} from Finnhub API`);
     
-    // Add cache-busting parameter to prevent caching issues
-    const timestamp = Date.now();
-    const url = `${FINNHUB_BASE_URL}/quote?symbol=${symbol}&token=${FINNHUB_API_KEY}&_=${timestamp}`;
-    
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
-    
-    const response = await fetch(url, {
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      cache: 'no-store',
-      signal: controller.signal
-    });
-    
-    clearTimeout(timeoutId);
+    const url = `${FINNHUB_BASE_URL}/quote?symbol=${symbol}&token=${FINNHUB_API_KEY}`;
+    const response = await fetch(url);
     
     if (!response.ok) {
       console.error(`Finnhub API error: ${response.status} ${response.statusText}`);
@@ -81,10 +66,7 @@ export const fetchStockPrice = async (symbol: string): Promise<number | null> =>
     }
   } catch (error) {
     console.error('Error fetching stock price from Finnhub:', error);
-    
-    // Return a placeholder price to indicate error (-1)
-    // This ensures we don't fall back to crypto data
-    return -1;
+    return null;
   }
 };
 
@@ -96,23 +78,9 @@ export const fetchStockKlineData = async (symbol: string, interval: TimeInterval
     const resolution = convertIntervalForFinnhub(interval);
     const { from, to } = getTimeRange(interval, limit);
     
-    // Add cache-busting parameter to prevent caching issues
-    const timestamp = Date.now();
-    const url = `${FINNHUB_BASE_URL}/stock/candle?symbol=${symbol}&resolution=${resolution}&from=${from}&to=${to}&token=${FINNHUB_API_KEY}&_=${timestamp}`;
+    const url = `${FINNHUB_BASE_URL}/stock/candle?symbol=${symbol}&resolution=${resolution}&from=${from}&to=${to}&token=${FINNHUB_API_KEY}`;
     
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
-    
-    const response = await fetch(url, {
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      cache: 'no-store',
-      signal: controller.signal
-    });
-    
-    clearTimeout(timeoutId);
+    const response = await fetch(url);
     
     if (!response.ok) {
       console.error(`Finnhub API error: ${response.status} ${response.statusText}`);
@@ -174,18 +142,9 @@ const getIntervalMs = (interval: TimeInterval): number => {
 // Variables for stock data polling
 let stockPriceInterval: NodeJS.Timeout | null = null;
 let stockKlineInterval: NodeJS.Timeout | null = null;
-let priceUpdateCallback: ((price: number) => void) | null = null;
-let klineUpdateCallback: ((kline: KlineData) => void) | null = null;
-let currentSymbol: string | null = null;
-let currentInterval: TimeInterval | null = null;
-let isPollingActive = false;
 
 // Initialize price polling for stocks
 export const initializeStockPricePolling = (symbol: string, onPriceUpdate: (price: number) => void) => {
-  // Store the callback and symbol for later use
-  priceUpdateCallback = onPriceUpdate;
-  currentSymbol = symbol;
-  
   // Clear existing interval if any
   if (stockPriceInterval) {
     clearInterval(stockPriceInterval);
@@ -193,29 +152,15 @@ export const initializeStockPricePolling = (symbol: string, onPriceUpdate: (pric
   
   // Initial price fetch
   fetchStockPrice(symbol).then(price => {
-    if (price && price !== -1 && priceUpdateCallback) {
-      console.log(`Initial stock price update for ${symbol}: ${price}`);
-      priceUpdateCallback(price);
-    } else if (price === -1) {
-      console.warn(`Error fetching initial stock price for ${symbol}, not updating UI`);
-      // Don't update the UI with error value
-    }
+    if (price) onPriceUpdate(price);
   });
   
   // Set up polling
-  isPollingActive = true;
   stockPriceInterval = setInterval(() => {
-    if (!isPollingActive) return;
-    
     fetchStockPrice(symbol).then(price => {
-      if (price && price !== -1 && priceUpdateCallback) {
-        console.log(`Polled stock price update for ${symbol}: ${price}`);
-        priceUpdateCallback(price);
-      }
+      if (price) onPriceUpdate(price);
     });
   }, 10000); // Poll every 10 seconds for stocks
-  
-  console.log(`Stock price polling initialized for ${symbol}`);
 };
 
 // Initialize kline data polling for stocks
@@ -224,41 +169,29 @@ export const initializeStockKlinePolling = (
   interval: TimeInterval,
   onKlineUpdate: (kline: KlineData) => void
 ) => {
-  // Store the callback, symbol, and interval for later use
-  klineUpdateCallback = onKlineUpdate;
-  currentSymbol = symbol;
-  currentInterval = interval;
-  
   if (stockKlineInterval) {
     clearInterval(stockKlineInterval);
   }
   
   // Initial data fetch
   fetchStockKlineData(symbol, interval).then(klineData => {
-    if (klineData.length > 0 && klineUpdateCallback) {
+    if (klineData.length > 0) {
       const latestKline = klineData[klineData.length - 1];
-      console.log(`Initial kline update for ${symbol} (${interval}): close=${latestKline.close}`);
-      klineUpdateCallback(latestKline);
+      onKlineUpdate(latestKline);
     }
   });
   
   // Set up polling based on interval frequency
   const pollInterval = getPollingInterval(interval);
-  isPollingActive = true;
   
   stockKlineInterval = setInterval(() => {
-    if (!isPollingActive) return;
-    
     fetchStockKlineData(symbol, interval).then(klineData => {
-      if (klineData.length > 0 && klineUpdateCallback) {
+      if (klineData.length > 0) {
         const latestKline = klineData[klineData.length - 1];
-        console.log(`Polled kline update for ${symbol} (${interval}): close=${latestKline.close}`);
-        klineUpdateCallback(latestKline);
+        onKlineUpdate(latestKline);
       }
     });
   }, pollInterval);
-  
-  console.log(`Stock kline polling initialized for ${symbol} with interval ${interval}`);
 };
 
 // Helper function to determine polling interval based on chart interval
@@ -277,9 +210,6 @@ const getPollingInterval = (interval: TimeInterval): number => {
 
 // Stop all stock polling intervals
 export const closeStockPolling = () => {
-  console.log("Closing all stock polling intervals");
-  isPollingActive = false;
-  
   if (stockPriceInterval) {
     clearInterval(stockPriceInterval);
     stockPriceInterval = null;
@@ -288,55 +218,5 @@ export const closeStockPolling = () => {
   if (stockKlineInterval) {
     clearInterval(stockKlineInterval);
     stockKlineInterval = null;
-  }
-  
-  // Reset stored callbacks and data
-  priceUpdateCallback = null;
-  klineUpdateCallback = null;
-};
-
-// Resume polling if it was stopped
-export const resumeStockPolling = () => {
-  if (!isPollingActive && currentSymbol) {
-    console.log(`Resuming stock polling for ${currentSymbol}`);
-    isPollingActive = true;
-    
-    // Reinitialize price polling if needed
-    if (priceUpdateCallback) {
-      initializeStockPricePolling(currentSymbol, priceUpdateCallback);
-    }
-    
-    // Reinitialize kline polling if needed
-    if (klineUpdateCallback && currentInterval) {
-      initializeStockKlinePolling(currentSymbol, currentInterval, klineUpdateCallback);
-    }
-  }
-};
-
-// Implement a method to manually refresh data
-export const refreshStockData = async (symbol: string, interval?: TimeInterval): Promise<void> => {
-  console.log(`Manually refreshing stock data for ${symbol}`);
-  
-  try {
-    // Fetch and update price
-    const price = await fetchStockPrice(symbol);
-    if (price && price !== -1 && priceUpdateCallback) {
-      console.log(`Manual refresh - price update for ${symbol}: ${price}`);
-      priceUpdateCallback(price);
-    } else if (price === -1) {
-      console.warn(`Error fetching stock price during manual refresh for ${symbol}, not updating UI`);
-    }
-    
-    // Fetch and update kline if interval is provided
-    if (interval && klineUpdateCallback) {
-      const klineData = await fetchStockKlineData(symbol, interval);
-      if (klineData.length > 0) {
-        const latestKline = klineData[klineData.length - 1];
-        console.log(`Manual refresh - kline update for ${symbol}: close=${latestKline.close}`);
-        klineUpdateCallback(latestKline);
-      }
-    }
-  } catch (error) {
-    console.error("Error during manual refresh of stock data:", error);
   }
 };

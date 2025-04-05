@@ -1,8 +1,9 @@
+
 import { AssetPair, AssetType } from './types';
 
 // Re-export types needed by other modules
-export { AssetPair, AssetType } from './types';
-export type { TimeInterval } from './types';
+export { AssetType } from './types';
+export type { AssetPair, TimeInterval } from './types';
 
 // Crypto pairs - top 10 by market cap
 export const CRYPTO_PAIRS: AssetPair[] = [

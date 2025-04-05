@@ -5,8 +5,9 @@ import {
   closeWebSocket,
   updateKlineData
 } from '@/services/binanceService';
-import { KlineData } from '@/services/market/types';
+import { KlineData, AssetPair as CoinPair, TimeInterval } from '@/services/market/types';
 import { generateSignals } from '@/services/technical/signals/generateSignals';
+import { toast } from '@/components/ui/use-toast';
 
 interface WebSocketOperationsProps {
   selectedPair: CoinPair;

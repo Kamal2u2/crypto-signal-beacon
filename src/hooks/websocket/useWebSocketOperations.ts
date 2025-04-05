@@ -1,16 +1,17 @@
-import { useCallback, useRef } from 'react';
+
+import { useCallback } from 'react';
 import { 
-  fetchKlineData, 
   initializeWebSocket,
   closeWebSocket,
-  updateKlineData
 } from '@/services/binanceService';
-import { KlineData, AssetPair as CoinPair, TimeInterval } from '@/services/market/types';
-import { generateSignals } from '@/services/technical/signals/generateSignals';
+import { AssetPair, TimeInterval, KlineData } from '@/services/market/types';
 import { toast } from '@/components/ui/use-toast';
+import { handleKlineUpdate } from './utils/klineUpdateUtils';
+import { handleReconnection } from './utils/reconnectionUtils';
+import { fetchData as fetchKlineData } from './utils/dataFetchUtils';
 
 interface WebSocketOperationsProps {
-  selectedPair: CoinPair;
+  selectedPair: AssetPair;
   selectedInterval: TimeInterval;
   processNewSignal: (signals: any) => void;
   klineDataRef: React.MutableRefObject<KlineData[]>;
@@ -43,28 +44,17 @@ export const useWebSocketOperations = ({
   debugCounterRef
 }: WebSocketOperationsProps) => {
 
-  const handleKlineUpdate = useCallback((newKline: KlineData) => {
-    updateKlineData(newKline);
-    
-    const updatedData = [...klineDataRef.current];
-    const existingIndex = updatedData.findIndex(k => k.openTime === newKline.openTime);
-    
-    if (existingIndex !== -1) {
-      updatedData[existingIndex] = newKline;
-    } else {
-      updatedData.push(newKline);
-      if (updatedData.length > 1000) {
-        updatedData.shift();
-      }
-    }
-    
-    klineDataRef.current = updatedData;
-    setKlineData(updatedData);
-    
-    const newSignals = generateSignals(updatedData);
-    processNewSignal(newSignals);
+  // Handle kline updates by delegating to the utility function
+  const handleKlineUpdateCallback = useCallback((newKline: KlineData) => {
+    handleKlineUpdate(
+      newKline, 
+      klineDataRef, 
+      setKlineData, 
+      processNewSignal
+    );
   }, [klineDataRef, setKlineData, processNewSignal]);
 
+  // Setup WebSocket connection
   const setupWebSocket = useCallback(async () => {
     if (fetchInProgressRef.current) {
       console.log('Fetch already in progress, skipping WebSocket setup');
@@ -96,19 +86,24 @@ export const useWebSocketOperations = ({
       closeWebSocket();
       webSocketInitializedRef.current = false;
       
-      const data = await fetchKlineData(selectedPair.symbol, selectedInterval);
-      if (data && data.length > 0) {
-        klineDataRef.current = data;
-        setKlineData(data);
-        
-        const signals = generateSignals(data);
-        processNewSignal(signals);
-      }
+      // Delegate to the fetchData utility function
+      await fetchKlineData(
+        selectedPair.symbol,
+        selectedInterval,
+        klineDataRef,
+        setKlineData,
+        processNewSignal,
+        lastFetchTimeRef,
+        fetchInProgressRef,
+        setIsLoading,
+        debugCounterRef
+      );
       
+      // Initialize WebSocket after data is fetched
       initializeWebSocket(
         selectedPair.symbol,
         selectedInterval,
-        handleKlineUpdate
+        handleKlineUpdateCallback
       );
       
       webSocketInitializedRef.current = true;
@@ -116,36 +111,21 @@ export const useWebSocketOperations = ({
     } catch (error) {
       console.error('Error setting up WebSocket:', error);
       
-      if (reconnectAttemptsRef.current === 0 || reconnectAttemptsRef.current > 5) {
-        toast({
-          title: "Connection Issue",
-          description: "Attempting to reconnect chart data...",
-          variant: "destructive"
-        });
-      }
-      
-      reconnectAttemptsRef.current++;
-      
-      const backoffTime = Math.min(1000 * Math.pow(1.5, reconnectAttemptsRef.current), 30000);
-      
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
-      
-      reconnectTimeoutRef.current = setTimeout(() => {
-        if (reconnectAttemptsRef.current < 10) {
-          closeWebSocket();
-          webSocketInitializedRef.current = false;
-          setupWebSocket();
-        }
-      }, backoffTime);
+      // Delegate to reconnection utility
+      handleReconnection(
+        reconnectAttemptsRef,
+        reconnectTimeoutRef,
+        setupWebSocket,
+        closeWebSocket,
+        webSocketInitializedRef
+      );
     } finally {
       fetchInProgressRef.current = false;
     }
   }, [
     selectedPair.symbol,
     selectedInterval,
-    handleKlineUpdate,
+    handleKlineUpdateCallback,
     klineDataRef,
     setKlineData,
     processNewSignal,
@@ -155,60 +135,26 @@ export const useWebSocketOperations = ({
     previousPairRef,
     previousIntervalRef,
     fetchInProgressRef,
-    lastFetchTimeRef
+    lastFetchTimeRef,
+    setIsLoading,
+    debugCounterRef
   ]);
 
+  // Fetch data directly using the utility function
   const fetchData = useCallback(async () => {
-    const now = Date.now();
-    if (now - lastFetchTimeRef.current < 2000) {
-      console.log('Too many requests, throttling API calls');
-      return;
-    }
-    
-    if (fetchInProgressRef.current) {
-      console.log('Fetch already in progress, skipping duplicate fetch request');
-      return;
-    }
-    
-    fetchInProgressRef.current = true;
-    lastFetchTimeRef.current = now;
-    setIsLoading(true);
-    debugCounterRef.current += 1;
-    const cycleNumber = debugCounterRef.current;
-    
-    try {
-      console.log(`[Cycle ${cycleNumber}] Fetching data for ${selectedPair.symbol} at ${selectedInterval} interval`);
-      
-      const data = await fetchKlineData(selectedPair.symbol, selectedInterval, 100);
-      
-      if (data.length > 0) {
-        klineDataRef.current = data;
-        setKlineData(data);
-        
-        const signals = generateSignals(data);
-        processNewSignal(signals);
-        
-        console.log(`[Cycle ${cycleNumber}] Signal processing complete`);
-      } else {
-        toast({
-          title: "No data available",
-          description: `Could not retrieve data for ${selectedPair.label}`,
-          variant: "destructive"
-        });
-      }
-    } catch (error) {
-      console.error(`[Cycle ${cycleNumber}] Error fetching data:`, error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch data from Binance API",
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
-      fetchInProgressRef.current = false;
-    }
+    await fetchKlineData(
+      selectedPair.symbol,
+      selectedInterval,
+      klineDataRef,
+      setKlineData,
+      processNewSignal,
+      lastFetchTimeRef,
+      fetchInProgressRef,
+      setIsLoading,
+      debugCounterRef
+    );
   }, [
-    selectedPair,
+    selectedPair.symbol,
     selectedInterval,
     klineDataRef,
     setKlineData,
@@ -219,6 +165,7 @@ export const useWebSocketOperations = ({
     debugCounterRef
   ]);
 
+  // Handle manual refresh
   const handleRefresh = useCallback(() => {
     const now = Date.now();
     if (now - lastFetchTimeRef.current < 2000) {
@@ -254,6 +201,7 @@ export const useWebSocketOperations = ({
     setIsLoading
   ]);
 
+  // Clean up resources
   const cleanupResources = useCallback(() => {
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
@@ -264,7 +212,7 @@ export const useWebSocketOperations = ({
   }, [reconnectTimeoutRef, webSocketInitializedRef]);
 
   return {
-    handleKlineUpdate,
+    handleKlineUpdate: handleKlineUpdateCallback,
     setupWebSocket,
     fetchData,
     handleRefresh,

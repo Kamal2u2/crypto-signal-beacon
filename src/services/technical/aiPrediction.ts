@@ -1,4 +1,3 @@
-
 import { KlineData } from '../binanceService';
 
 // For feature extraction - we'll convert raw kline data into features for our model
@@ -55,7 +54,7 @@ export const extractFeatures = (klineData: KlineData[], lookbackPeriods: number 
   return features;
 };
 
-// Simple predictive model using weighted moving average and trend detection
+// Enhanced predictive model using weighted moving average and trend detection
 export const predictPriceMovement = (klineData: KlineData[]): {
   prediction: 'UP' | 'DOWN' | 'NEUTRAL';
   confidence: number;
@@ -94,38 +93,46 @@ export const predictPriceMovement = (klineData: KlineData[]): {
     const olderVolumeAvg = volumes.slice(-10, -5).reduce((sum, vol) => sum + vol, 0) / 5;
     const volumeTrend = recentVolumeAvg / olderVolumeAvg - 1;
     
-    // Volatility calculation
-    const volatility = prices.slice(-10).map((price, i, arr) => {
+    // Enhanced volatility calculation - consider both price and volume volatility
+    const priceVolatility = prices.slice(-10).map((price, i, arr) => {
       if (i === 0) return 0;
       return Math.abs((price - arr[i - 1]) / arr[i - 1]);
     }).reduce((sum, val) => sum + val, 0) / 9;
+
+    const volumeVolatility = volumes.slice(-10).map((vol, i, arr) => {
+      if (i === 0) return 0;
+      return Math.abs((vol - arr[i - 1]) / arr[i - 1]);
+    }).reduce((sum, val) => sum + val, 0) / 9;
     
-    // Combine signals - simple ensemble model
+    // Combine signals - improved ensemble model with volatility adjustment
     // Weight the momentum by volume trend and adjust for volatility
-    const combinedSignal = weightedMomentum * (1 + volumeTrend * 0.5) / (1 + volatility);
+    const combinedSignal = weightedMomentum * (1 + volumeTrend * 0.5) / (1 + priceVolatility * volumeVolatility * 0.5);
     
-    // Predict next price change percentage
+    // Predict next price change percentage - with improved precision for small movements
     const predictedChange = combinedSignal * 100; // Convert to percentage
     
-    // Determine direction and confidence
+    // Determine direction and confidence with improved thresholds
     let prediction: 'UP' | 'DOWN' | 'NEUTRAL';
     let confidence: number;
     
-    if (Math.abs(predictedChange) < 0.15) {
+    if (Math.abs(predictedChange) < 0.12) {
       prediction = 'NEUTRAL';
-      confidence = Math.min(100, Math.abs(predictedChange / 0.15 * 100));
+      confidence = Math.min(100, Math.abs(predictedChange / 0.12 * 100));
     } else if (predictedChange > 0) {
       prediction = 'UP';
-      confidence = Math.min(100, 50 + predictedChange * 10);
+      confidence = Math.min(100, 50 + predictedChange * 12);
     } else {
       prediction = 'DOWN';
-      confidence = Math.min(100, 50 + Math.abs(predictedChange) * 10);
+      confidence = Math.min(100, 50 + Math.abs(predictedChange) * 12);
     }
+    
+    // Format the predicted change to have 2 decimal places but keep as number
+    const formattedPredictedChange = parseFloat(predictedChange.toFixed(2));
     
     return {
       prediction,
       confidence: Math.round(confidence),
-      predictedChange: parseFloat(predictedChange.toFixed(2))
+      predictedChange: formattedPredictedChange
     };
   } catch (error) {
     console.error('Error in price prediction model:', error);

@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { cn } from '@/lib/utils';
-import { ArrowUp, ArrowDown, Minus } from 'lucide-react';
+import { ArrowUp, ArrowDown, Minus, BrainCircuit } from 'lucide-react';
 import { SignalSummary } from '@/services/technicalAnalysisService';
 import { formatPrice } from '@/utils/chartFormatters';
 
@@ -19,6 +19,15 @@ const SignalBanner: React.FC<SignalBannerProps> = ({
   confidenceThreshold
 }) => {
   if (!signalData) return null;
+
+  // Check for AI prediction data
+  const aiPrediction = signalData.indicators?.aiModel?.signal 
+    ? {
+        signal: signalData.indicators.aiModel.signal,
+        confidence: signalData.indicators.aiModel.confidence || 0,
+        predictedChange: signalData.signals.find(s => s.indicator === 'AI Model')?.message || ''
+      }
+    : null;
 
   return (
     <div className={cn(
@@ -66,6 +75,21 @@ const SignalBanner: React.FC<SignalBannerProps> = ({
           </p>
         </div>
       </div>
+      
+      {/* AI Prediction Display */}
+      {aiPrediction && (
+        <div className="flex items-center gap-2 ml-0 md:ml-4 mt-2 md:mt-0">
+          <div className="bg-purple-100 dark:bg-purple-900/30 p-2 rounded-full">
+            <BrainCircuit className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+          </div>
+          <div className="text-sm">
+            <span className="font-medium text-purple-700 dark:text-purple-400">AI Prediction:</span>
+            <p className="text-gray-600 dark:text-gray-300 text-xs max-w-[240px] line-clamp-1">
+              {aiPrediction.predictedChange}
+            </p>
+          </div>
+        </div>
+      )}
       
       {signalData.priceTargets && (signalData.overallSignal === 'BUY' || signalData.overallSignal === 'SELL') && (
         <div className="flex flex-wrap gap-4 mt-2 md:mt-0 ml-0 md:ml-auto">

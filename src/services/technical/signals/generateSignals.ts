@@ -101,16 +101,25 @@ export const generateSignals = (klineData: KlineData[]): SignalSummary => {
   };
   console.log(`Signal counts by type:`, signalCounts);
   
-  // Get AI prediction and add it to signals
+  // Get AI prediction and add it to signals with improved explanation
   const aiPrediction = getAIPrediction(klineData);
+  
+  // Create a more detailed explanation of the AI prediction
+  let aiMessage = '';
+  if (Math.abs(aiPrediction.predictedChangePercent) < 0.2) {
+    aiMessage = `AI predicts price will ${aiPrediction.shortTermPrediction === 'UP' ? 'increase slightly' : aiPrediction.shortTermPrediction === 'DOWN' ? 'decrease slightly' : 'remain stable'} short-term (${aiPrediction.predictedChangePercent > 0 ? '+' : ''}${aiPrediction.predictedChangePercent}%) and ${aiPrediction.mediumTermPrediction === 'UP' ? 'increase' : aiPrediction.mediumTermPrediction === 'DOWN' ? 'decrease' : 'remain stable'} medium-term.`;
+  } else {
+    aiMessage = `AI predicts price will ${aiPrediction.shortTermPrediction === 'UP' ? 'increase' : aiPrediction.shortTermPrediction === 'DOWN' ? 'decrease' : 'remain stable'} short-term by ${aiPrediction.predictedChangePercent > 0 ? '+' : ''}${aiPrediction.predictedChangePercent}% and ${aiPrediction.mediumTermPrediction === 'UP' ? 'continue rising' : aiPrediction.mediumTermPrediction === 'DOWN' ? 'continue falling' : 'stabilize'} medium-term.`;
+  }
+  
   signals.push({
     indicator: 'AI Model',
     type: aiPrediction.prediction,
-    message: `AI predicts price will ${aiPrediction.shortTermPrediction === 'UP' ? 'increase' : aiPrediction.shortTermPrediction === 'DOWN' ? 'decrease' : 'remain stable'} short-term (${aiPrediction.predictedChangePercent}%) and ${aiPrediction.mediumTermPrediction === 'UP' ? 'increase' : aiPrediction.mediumTermPrediction === 'DOWN' ? 'decrease' : 'remain stable'} medium-term.`,
+    message: aiMessage,
     strength: aiPrediction.confidence > 70 ? 5 : aiPrediction.confidence > 50 ? 4 : 3
   });
   
-  // Add AI prediction to indicators
+  // Add AI prediction to indicators with additional context
   indicators['aiModel'] = {
     signal: aiPrediction.prediction,
     weight: aiPrediction.confidence / 40, // Scale confidence to reasonable weight

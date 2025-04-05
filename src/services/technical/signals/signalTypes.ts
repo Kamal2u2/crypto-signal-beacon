@@ -13,6 +13,7 @@ export interface TradingSignalWeight {
     predictedChangePercent: number;
     shortTermPrediction: 'UP' | 'DOWN' | 'NEUTRAL';
     mediumTermPrediction: 'UP' | 'DOWN' | 'NEUTRAL';
+    explanation?: string;
   };
 }
 

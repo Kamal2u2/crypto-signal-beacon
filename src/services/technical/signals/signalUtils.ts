@@ -77,16 +77,31 @@ export const computeSignalWeights = (indicators: { [key: string]: IndicatorSigna
   
   // Get AI prediction
   const aiPrediction = getAIPrediction(klineData);
-  console.log(`AI Prediction: ${aiPrediction.prediction} with ${aiPrediction.confidence}% confidence, predicted change: ${aiPrediction.predictedChangePercent}%`);
   
-  // Apply AI weighting if confidence is high enough
+  // Create explanation based on prediction percentages
+  let explanation = '';
+  if (Math.abs(aiPrediction.predictedChangePercent) < 0.2) {
+    explanation = `Price expected to move ${aiPrediction.predictedChangePercent > 0 ? '+' : ''}${aiPrediction.predictedChangePercent}% (minimal change)`;
+  } else if (Math.abs(aiPrediction.predictedChangePercent) < 0.5) {
+    explanation = `Price expected to move ${aiPrediction.predictedChangePercent > 0 ? '+' : ''}${aiPrediction.predictedChangePercent}% (moderate change)`;
+  } else {
+    explanation = `Price expected to move ${aiPrediction.predictedChangePercent > 0 ? '+' : ''}${aiPrediction.predictedChangePercent}% (significant change)`;
+  }
+  
+  console.log(`AI Prediction: ${aiPrediction.prediction} with ${aiPrediction.confidence}% confidence, predicted change: ${aiPrediction.predictedChangePercent}%, explanation: ${explanation}`);
+  
+  // Apply AI weighting if confidence is high enough with better scaling
   let aiBuyWeight = 0;
   let aiSellWeight = 0;
   let aiHoldWeight = 0;
   
   if (aiPrediction.confidence > 50) {
-    // Convert AI prediction to weights
-    const aiWeight = Math.min(2.5, (aiPrediction.confidence / 100) * 3); // Max AI weight is 2.5
+    // Convert AI prediction to weights with improved scaling based on prediction magnitude
+    const baseWeight = Math.min(2.5, (aiPrediction.confidence / 100) * 3); // Max base weight is 2.5
+    
+    // Adjust weight based on predicted change magnitude
+    const changeMultiplier = Math.min(1.5, 1 + (Math.abs(aiPrediction.predictedChangePercent) / 2));
+    const aiWeight = baseWeight * changeMultiplier;
     
     if (aiPrediction.prediction === 'BUY') {
       aiBuyWeight = aiWeight;
@@ -103,13 +118,16 @@ export const computeSignalWeights = (indicators: { [key: string]: IndicatorSigna
   const adjustedHoldWeight = holdWeight + aiHoldWeight;
   const adjustedTotalWeight = adjustedBuyWeight + adjustedSellWeight + adjustedHoldWeight + neutralWeight;
   
+  // Add the explanation to the AI prediction
+  aiPrediction.explanation = explanation;
+  
   return {
     buyWeight: adjustedBuyWeight,
     sellWeight: adjustedSellWeight,
     holdWeight: adjustedHoldWeight,
     neutralWeight,
     totalWeight: adjustedTotalWeight,
-    aiPrediction // Include the AI prediction in the weights object
+    aiPrediction // Include the AI prediction with explanation in the weights object
   };
 };
 

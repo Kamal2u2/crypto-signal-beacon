@@ -21,7 +21,9 @@ import {
   fetchStockKlineData,
   initializeStockPricePolling,
   initializeStockKlinePolling,
-  closeStockPolling
+  closeStockPolling,
+  refreshStockData,
+  resumeStockPolling
 } from './market/stockService';
 
 // Re-export for backward compatibility
@@ -112,4 +114,24 @@ export const closeWebSocket = () => {
 export const fetchAllAssetPairs = async (): Promise<AssetPair[]> => {
   // This would normally fetch from an API, but we'll just use our predefined lists
   return [...STOCK_PAIRS];
+};
+
+// Add a helper function to manually refresh data
+export const refreshData = async (symbol: string, interval?: TimeInterval): Promise<void> => {
+  if (isStockSymbol(symbol)) {
+    await refreshStockData(symbol, interval);
+  } else {
+    // For crypto, we rely on the WebSocket connection, but we could add a manual refresh for crypto as well
+    // For now, just log that we're refreshing
+    console.log(`Manual refresh requested for crypto symbol ${symbol}`);
+  }
+};
+
+// Resume any paused connections
+export const resumeConnections = () => {
+  // Resume stock polling
+  resumeStockPolling();
+  
+  // For crypto, we could add a reconnect method if needed
+  // This would go here
 };

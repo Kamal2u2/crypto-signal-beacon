@@ -5,7 +5,8 @@ import {
   AssetPair,
   fetchCurrentPrice,
   initializePriceWebSocket,
-  closePriceWebSocket
+  closePriceWebSocket,
+  resumeConnections
 } from '@/services/binanceService';
 
 export const usePriceWebSocket = (selectedPair: AssetPair) => {
@@ -50,12 +51,14 @@ export const usePriceWebSocket = (selectedPair: AssetPair) => {
         if (priceDiffPercent > 0.01 || timeSinceLastUpdate > 3000 || lastRenderedPriceRef.current === null) {
           setCurrentPrice(price);
           lastRenderedPriceRef.current = price;
+          console.log(`Price display updated to: ${price}`);
         } else {
           // For small changes, batch updates to prevent too many renders
           batchUpdatesTimeoutRef.current = setTimeout(() => {
             if (priceUpdateRef.current !== lastRenderedPriceRef.current) {
               setCurrentPrice(priceUpdateRef.current);
               lastRenderedPriceRef.current = priceUpdateRef.current;
+              console.log(`Batched price display updated to: ${priceUpdateRef.current}`);
             }
             batchUpdatesTimeoutRef.current = null;
           }, 500); // Batch updates over a 500ms window
@@ -157,8 +160,11 @@ export const usePriceWebSocket = (selectedPair: AssetPair) => {
       const now = Date.now();
       const timeSinceLastUpdate = now - lastPriceUpdateRef.current;
       
-      // If no price update for 5 seconds (reduced from 10s), manually fetch a new price
+      // If no price update for 5 seconds, manually fetch a new price
       if (timeSinceLastUpdate > 5000 && reconnectAttemptsRef.current < 5) {
+        // Resume any paused connections first
+        resumeConnections();
+        
         fetchCurrentPrice(selectedPair.symbol)
           .then(price => {
             if (price !== null && price !== priceUpdateRef.current) {
@@ -168,6 +174,7 @@ export const usePriceWebSocket = (selectedPair: AssetPair) => {
               if (lastRenderedPriceRef.current === null || 
                   Math.abs((price - (lastRenderedPriceRef.current || 0)) / (lastRenderedPriceRef.current || 1)) > 0.001 ||
                   now - lastPriceUpdateRef.current > 5000) {
+                console.log(`Manual price update for ${selectedPair.symbol}: ${price}`);
                 setCurrentPrice(price);
                 lastRenderedPriceRef.current = price;
               }
@@ -178,19 +185,19 @@ export const usePriceWebSocket = (selectedPair: AssetPair) => {
           .catch(err => console.error("Error fetching fallback price:", err));
           
         // Try to reconnect the WebSocket if we haven't had an update in a while
-        if (timeSinceLastUpdate > 15000) { // Reduced from 20s
+        if (timeSinceLastUpdate > 15000) {
           reconnectAttemptsRef.current++;
           closePriceWebSocket();
           setupPriceWebSocket();
         }
       }
-    }, 3000); // Check more frequently (reduced from 5s)
+    }, 3000);
     
     return () => {
       cleanupTimers();
       closePriceWebSocket();
     };
-  }, [selectedPair.symbol, setupPriceWebSocket]);
+  }, [selectedPair.symbol, setupPriceWebSocket, selectedPair]);
 
   return { currentPrice };
 };

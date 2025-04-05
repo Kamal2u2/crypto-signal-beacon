@@ -1,5 +1,5 @@
 
-import { fetchKlineData } from '@/services/binanceService';
+import { fetchKlineData, refreshData } from '@/services/binanceService';
 import { KlineData, TimeInterval } from '@/services/market/types';
 import { toast } from '@/components/ui/use-toast';
 import { generateSignals } from '@/services/technical/signals/generateSignals';
@@ -38,6 +38,10 @@ export const fetchData = async (
   try {
     console.log(`[Cycle ${cycleNumber}] Fetching data for ${symbol} at ${interval} interval`);
     
+    // Try to refresh existing data first (for stocks)
+    await refreshData(symbol, interval);
+    
+    // Then get full data
     const data = await fetchKlineData(symbol, interval, 100);
     
     if (data.length > 0) {
@@ -59,7 +63,7 @@ export const fetchData = async (
     console.error(`[Cycle ${cycleNumber}] Error fetching data:`, error);
     toast({
       title: "Error",
-      description: "Failed to fetch data from Binance API",
+      description: "Failed to fetch market data",
       variant: "destructive"
     });
   } finally {

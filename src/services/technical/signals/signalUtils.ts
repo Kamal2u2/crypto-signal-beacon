@@ -13,10 +13,10 @@ export const sumSignalWeights = (indicators: { [key: string]: IndicatorSignal },
 
 // Helper function to calculate confidence
 export const calculateConfidence = (signalWeight: number, totalWeight: number): number => {
-  // Enhanced confidence calculation - base 35% + weighted contribution up to 65%
+  // Enhanced confidence calculation - lower base confidence for more conservative signals
   if (totalWeight === 0) return 0;
-  const weightedContribution = Math.min(65, (signalWeight / totalWeight) * 65);
-  return Math.min(100, Math.round(35 + weightedContribution));
+  const weightedContribution = Math.min(75, (signalWeight / totalWeight) * 75);
+  return Math.min(100, Math.round(25 + weightedContribution));
 };
 
 // Calculate price targets based on ATR
@@ -66,7 +66,7 @@ export const getOpens = (klineData: KlineData[]): number[] => {
   return klineData.map(item => item.open);
 };
 
-// Compute all signal weights
+// Compute all signal weights with improved priority weighting
 export const computeSignalWeights = (indicators: { [key: string]: IndicatorSignal }): TradingSignalWeight => {
   const buyWeight = sumSignalWeights(indicators, 'BUY');
   const sellWeight = sumSignalWeights(indicators, 'SELL');
@@ -83,7 +83,7 @@ export const computeSignalWeights = (indicators: { [key: string]: IndicatorSigna
   };
 };
 
-// Determine overall signal based on weights - ENHANCED ALGORITHM
+// Determine overall signal based on weights - OPTIMIZED ALGORITHM
 export const determineOverallSignal = (weights: TradingSignalWeight): { 
   overallSignal: SignalType, 
   confidence: number 
@@ -93,10 +93,10 @@ export const determineOverallSignal = (weights: TradingSignalWeight): {
   // Log the weights for debugging
   console.log('Signal weights:', { buyWeight, sellWeight, holdWeight, neutralWeight, totalWeight });
 
-  // Optimized thresholds
-  const buyThreshold = 0.18; // Increased from 0.15
-  const sellThreshold = 0.18; // Increased from 0.15
-  const holdThreshold = 0.20;
+  // More conservative thresholds to prevent false signals
+  const buyThreshold = 0.25; // Increased from 0.18
+  const sellThreshold = 0.25; // Increased from 0.18
+  const holdThreshold = 0.30; // Increased from 0.20
   
   let overallSignal: SignalType;
   let confidence: number;
@@ -106,27 +106,34 @@ export const determineOverallSignal = (weights: TradingSignalWeight): {
   const sellProportion = totalWeight > 0 ? sellWeight / totalWeight : 0;
   const holdProportion = totalWeight > 0 ? holdWeight / totalWeight : 0;
   
-  // Decision logic - stronger emphasis on clear signals
-  if (buyWeight > 0 && buyWeight > sellWeight && buyProportion > buyThreshold) {
+  // Add additional confirmation check
+  const isStrongConfirmation = buyWeight > 2.5 * sellWeight || sellWeight > 2.5 * buyWeight;
+  
+  // Decision logic - more conservative with clearer signal requirement
+  if (buyWeight > 0 && buyWeight > sellWeight * 1.5 && buyProportion > buyThreshold) {
     overallSignal = 'BUY';
     confidence = calculateConfidence(buyWeight, totalWeight);
     
-    // Boost confidence for very strong signals
-    if (buyProportion > 0.40) {
+    // Only boost confidence for very strong signals with confirmation
+    if (buyProportion > 0.50 && isStrongConfirmation) {
       confidence = Math.min(100, confidence + 10);
+    } else if (!isStrongConfirmation) {
+      confidence = Math.max(0, confidence - 5);  // Reduce confidence if not strongly confirmed
     }
   } 
-  else if (sellWeight > 0 && sellWeight > buyWeight && sellProportion > sellThreshold) {
+  else if (sellWeight > 0 && sellWeight > buyWeight * 1.5 && sellProportion > sellThreshold) {
     overallSignal = 'SELL';
     confidence = calculateConfidence(sellWeight, totalWeight);
     
-    // Boost confidence for very strong signals
-    if (sellProportion > 0.40) {
+    // Only boost confidence for very strong signals with confirmation
+    if (sellProportion > 0.50 && isStrongConfirmation) {
       confidence = Math.min(100, confidence + 10);
+    } else if (!isStrongConfirmation) {
+      confidence = Math.max(0, confidence - 5);  // Reduce confidence if not strongly confirmed
     }
   } 
-  // Check for hold signal
-  else if (holdProportion > holdThreshold) {
+  // Check for hold signal - more strict criteria
+  else if (holdProportion > holdThreshold && holdWeight > buyWeight && holdWeight > sellWeight) {
     overallSignal = 'HOLD';
     confidence = calculateConfidence(holdWeight, totalWeight);
   } 

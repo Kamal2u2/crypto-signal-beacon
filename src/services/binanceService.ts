@@ -29,15 +29,20 @@ export { updateKlineData };
 export const testWebSocketConnection = testCryptoWebSocketConnection;
 export const pingPriceWebSocket = pingCryptoWebSocket;
 
+// Helper function to determine if a symbol is a stock
+const isStockSymbol = (symbol: string): boolean => {
+  return STOCK_PAIRS.some(pair => pair.symbol === symbol);
+};
+
 // Fetch current price for an asset (crypto or stock)
 export const fetchCurrentPrice = async (symbol: string): Promise<number | null> => {
   try {
     // Check if this is a stock symbol
-    const isStock = STOCK_PAIRS.some(pair => pair.symbol === symbol);
-    
-    if (isStock) {
+    if (isStockSymbol(symbol)) {
+      console.log(`Fetching STOCK price for: ${symbol}`);
       return await fetchStockPrice(symbol);
     } else {
+      console.log(`Fetching CRYPTO price for: ${symbol}`);
       return await fetchCryptoPrice(symbol);
     }
   } catch (error) {
@@ -50,11 +55,11 @@ export const fetchCurrentPrice = async (symbol: string): Promise<number | null> 
 export const fetchKlineData = async (symbol: string, interval: TimeInterval, limit: number = 100): Promise<KlineData[]> => {
   try {
     // Check if this is a stock symbol
-    const isStock = STOCK_PAIRS.some(pair => pair.symbol === symbol);
-    
-    if (isStock) {
+    if (isStockSymbol(symbol)) {
+      console.log(`Fetching STOCK kline data for: ${symbol}`);
       return await fetchStockKlineData(symbol, interval, limit);
     } else {
+      console.log(`Fetching CRYPTO kline data for: ${symbol}`);
       return await fetchCryptoKlineData(symbol, interval, limit);
     }
   } catch (error) {
@@ -66,11 +71,11 @@ export const fetchKlineData = async (symbol: string, interval: TimeInterval, lim
 // Initialize price WebSocket for both crypto and stocks
 export const initializePriceWebSocket = (symbol: string, onPriceUpdate: (price: number) => void) => {
   // Check if this is a stock symbol
-  const isStock = STOCK_PAIRS.some(pair => pair.symbol === symbol);
-  
-  if (isStock) {
+  if (isStockSymbol(symbol)) {
+    console.log(`Initializing STOCK price polling for: ${symbol}`);
     initializeStockPricePolling(symbol, onPriceUpdate);
   } else {
+    console.log(`Initializing CRYPTO price websocket for: ${symbol}`);
     initializeCryptoPriceWebSocket(symbol, onPriceUpdate);
   }
 };
@@ -82,11 +87,11 @@ export const initializeWebSocket = (
   onKlineUpdate: (kline: KlineData) => void
 ) => {
   // Check if this is a stock symbol
-  const isStock = STOCK_PAIRS.some(pair => pair.symbol === symbol);
-  
-  if (isStock) {
+  if (isStockSymbol(symbol)) {
+    console.log(`Initializing STOCK kline polling for: ${symbol}`);
     initializeStockKlinePolling(symbol, interval, onKlineUpdate);
   } else {
+    console.log(`Initializing CRYPTO kline websocket for: ${symbol}`);
     initializeCryptoKlineWebSocket(symbol, interval, onKlineUpdate);
   }
 };

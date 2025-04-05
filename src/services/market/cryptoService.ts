@@ -1,3 +1,4 @@
+
 import { KlineData, TimeInterval } from './types';
 
 // WebSocket instances for crypto
@@ -7,14 +8,17 @@ let priceWebSocketInterval: NodeJS.Timeout | null = null;
 let klineWebSocketInterval: NodeJS.Timeout | null = null;
 let klineDataCache: KlineData[] = [];
 
+// Debug flag to track WebSocket calls
+const DEBUG = false;
+
 // Fetch current price for crypto
 export const fetchCryptoPrice = async (symbol: string): Promise<number | null> => {
   try {
-    console.log(`Fetching current price for crypto: ${symbol}`);
+    if (DEBUG) console.log(`Fetching current price for crypto: ${symbol}`);
     const response = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`);
     const data = await response.json();
     const price = data && data.price ? parseFloat(data.price) : null;
-    console.log(`Crypto price received for ${symbol}: ${price}`);
+    if (DEBUG) console.log(`Crypto price received for ${symbol}: ${price}`);
     return price;
   } catch (error) {
     console.error('Error fetching crypto price:', error);

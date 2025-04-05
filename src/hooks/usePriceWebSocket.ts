@@ -68,8 +68,12 @@ export const usePriceWebSocket = (selectedPair: AssetPair) => {
 
   const setupPriceWebSocket = useCallback(async () => {
     try {
+      console.log(`Setting up price WebSocket for ${selectedPair.symbol} (${selectedPair.assetType})`);
+      
       // Get initial price
       const initialPrice = await fetchCurrentPrice(selectedPair.symbol);
+      console.log(`Initial price for ${selectedPair.symbol}: ${initialPrice}`);
+      
       if (initialPrice !== null) {
         priceUpdateRef.current = initialPrice;
         setCurrentPrice(initialPrice);
@@ -113,7 +117,7 @@ export const usePriceWebSocket = (selectedPair: AssetPair) => {
         }
       }, backoffTime);
     }
-  }, [selectedPair.symbol, handlePriceUpdate]);
+  }, [selectedPair.symbol, handlePriceUpdate, selectedPair.assetType]);
 
   useEffect(() => {
     // Clean up any existing timers and animation frames

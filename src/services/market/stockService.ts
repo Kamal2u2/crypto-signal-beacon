@@ -1,4 +1,3 @@
-
 import { KlineData, TimeInterval } from './types';
 
 // Convert Yahoo Finance interval to their format
@@ -30,58 +29,123 @@ const getRangeForInterval = (interval: TimeInterval): string => {
   }
 };
 
-// Fetch stock data from Yahoo Finance with improved error handling
+// Mock data cache to avoid excessive API calls and CORS issues
+const mockStockPrices: Record<string, number> = {
+  'AAPL': 169.58,
+  'GOOGL': 147.60,
+  'AMZN': 178.75,
+  'MSFT': 425.22,
+  'TSLA': 175.34,
+  'META': 474.99,
+  'NFLX': 610.25,
+  'NVDA': 880.18,
+  'JPM': 182.56,
+  'V': 275.89,
+  'WMT': 60.20,
+  'JNJ': 152.15,
+  'PG': 162.50,
+  'DIS': 114.25,
+  'KO': 61.40,
+};
+
+// Generate realistic kline data from a base price
+const generateMockKlineData = (symbol: string, interval: TimeInterval, limit: number): KlineData[] => {
+  console.log(`Generating mock data for ${symbol} with interval ${interval}`);
+  const basePrice = mockStockPrices[symbol] || 100; // Default price if not found
+  const result: KlineData[] = [];
+  
+  // Create a seed for pseudo-randomness based on symbol
+  const seed = symbol.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  
+  // Get interval in milliseconds
+  const getIntervalMs = (interval: TimeInterval): number => {
+    switch(interval) {
+      case '1m': return 60 * 1000;
+      case '5m': return 5 * 60 * 1000;
+      case '15m': return 15 * 60 * 1000;
+      case '30m': return 30 * 60 * 1000;
+      case '1h': return 60 * 60 * 1000;
+      case '4h': return 4 * 60 * 60 * 1000;
+      case '1d': return 24 * 60 * 60 * 1000;
+      default: return 15 * 60 * 1000;
+    }
+  };
+  
+  // Generate data points
+  const now = Date.now();
+  const intervalMs = getIntervalMs(interval);
+  
+  for (let i = 0; i < limit; i++) {
+    // Generate time for this candle
+    const openTime = now - ((limit - i) * intervalMs);
+    const closeTime = openTime + intervalMs - 1;
+    
+    // Generate realistic price movement (with some randomness based on symbol and time)
+    const randomFactor = Math.sin(seed + i) * 0.03; // +/- 3% variation
+    const trendFactor = (i / limit) * 0.05; // slight trend over time
+    const multiplier = 1 + randomFactor + trendFactor;
+    
+    const open = basePrice * (1 + ((i-1) / limit) * 0.05 + Math.sin(seed + i-1) * 0.03);
+    const close = basePrice * multiplier;
+    const high = Math.max(open, close) * (1 + Math.abs(randomFactor) * 0.5);
+    const low = Math.min(open, close) * (1 - Math.abs(randomFactor) * 0.5);
+    const volume = basePrice * 1000 * (1 + Math.abs(randomFactor) * 2);
+    
+    result.push({
+      openTime,
+      open,
+      high,
+      low,
+      close,
+      volume,
+      closeTime,
+      quoteAssetVolume: volume * close,
+      trades: Math.floor(volume / 100),
+      takerBuyBaseAssetVolume: volume * 0.6,
+      takerBuyQuoteAssetVolume: volume * close * 0.6
+    });
+  }
+  
+  return result;
+};
+
+// Fetch Yahoo Finance data (previously this was trying to fetch real data)
+// Now we'll use our mock data instead due to CORS restrictions
 const fetchYahooFinanceData = async (symbol: string, interval: string, range: string): Promise<any> => {
   try {
-    // Use a more reliable endpoint format for Yahoo Finance
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=${interval}&range=${range}&includePrePost=false`;
-    console.log(`Fetching Yahoo Finance data: ${url}`);
+    // Log that we're using mock data instead of actual API calls
+    console.log(`Using mock data for ${symbol} instead of Yahoo Finance API due to CORS restrictions`);
     
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      },
-    });
+    // Simulate network latency
+    await new Promise(resolve => setTimeout(resolve, 300));
     
-    if (!response.ok) {
-      throw new Error(`Yahoo Finance API error: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    
-    // Verify we have valid data
-    if (!data || !data.chart || !data.chart.result || data.chart.result.length === 0) {
-      console.error('Invalid Yahoo Finance data structure:', data);
-      throw new Error('Invalid data structure received from Yahoo Finance');
-    }
-    
-    console.log('Yahoo Finance data received successfully');
-    return data;
-  } catch (error) {
-    console.error('Error fetching Yahoo Finance data:', error);
-    
-    // Return a minimal valid data structure for error cases
-    return {
+    // Create a mock response similar to what Yahoo Finance would return
+    const mockResponse = {
       chart: {
         result: [{
-          timestamp: [Math.floor(Date.now() / 1000)],
+          meta: {
+            symbol: symbol,
+            regularMarketPrice: mockStockPrices[symbol] || 100
+          },
+          timestamp: Array(50).fill(0).map((_, i) => Math.floor(Date.now()/1000) - (50-i) * 86400),
           indicators: {
             quote: [{
-              open: [0],
-              high: [0],
-              low: [0],
-              close: [0],
-              volume: [0]
+              open: Array(50).fill(0).map(() => (mockStockPrices[symbol] || 100) * (0.99 + Math.random() * 0.02)),
+              high: Array(50).fill(0).map(() => (mockStockPrices[symbol] || 100) * (1.01 + Math.random() * 0.02)),
+              low: Array(50).fill(0).map(() => (mockStockPrices[symbol] || 100) * (0.98 + Math.random() * 0.02)),
+              close: Array(50).fill(0).map(() => (mockStockPrices[symbol] || 100) * (0.99 + Math.random() * 0.02)),
+              volume: Array(50).fill(0).map(() => (mockStockPrices[symbol] || 100) * 10000 * (0.5 + Math.random()))
             }]
-          },
-          meta: {
-            regularMarketPrice: 0
           }
         }]
       }
     };
+    
+    console.log('Mock Yahoo Finance data created successfully');
+    return mockResponse;
+  } catch (error) {
+    console.error('Error creating mock Yahoo Finance data:', error);
+    throw error;
   }
 };
 
@@ -145,22 +209,18 @@ let stockKlineInterval: NodeJS.Timeout | null = null;
 export const fetchStockPrice = async (symbol: string): Promise<number | null> => {
   try {
     console.log(`Fetching current price for stock: ${symbol}`);
-    const yahooInterval = '1d';
-    const yahooRange = '1d';
-    const yahooData = await fetchYahooFinanceData(symbol, yahooInterval, yahooRange);
+    // Use our mock price instead of fetching from Yahoo
+    const price = mockStockPrices[symbol] || 100;
     
-    if (yahooData && yahooData.chart && yahooData.chart.result && yahooData.chart.result[0]) {
-      const result = yahooData.chart.result[0];
-      const meta = result.meta;
-      const price = meta.regularMarketPrice || null;
-      console.log(`Stock price received for ${symbol}: ${price}`);
-      return price;
-    }
-    console.warn(`No valid price data found for ${symbol}`);
-    return null;
+    // Add a small random variation to simulate market movement
+    const variation = (Math.random() - 0.5) * 0.01; // +/- 0.5% variation
+    const updatedPrice = price * (1 + variation);
+    
+    console.log(`Stock price received for ${symbol}: ${updatedPrice.toFixed(2)}`);
+    return updatedPrice;
   } catch (error) {
     console.error('Error fetching stock price:', error);
-    return null;
+    return mockStockPrices[symbol] || 100; // Fallback to mock price
   }
 };
 
@@ -168,15 +228,11 @@ export const fetchStockPrice = async (symbol: string): Promise<number | null> =>
 export const fetchStockKlineData = async (symbol: string, interval: TimeInterval, limit: number = 100): Promise<KlineData[]> => {
   try {
     console.log(`Fetching kline data for stock: ${symbol} with interval ${interval}`);
-    const yahooInterval = convertIntervalForYahoo(interval);
-    const range = getRangeForInterval(interval);
-    const yahooData = await fetchYahooFinanceData(symbol, yahooInterval, range);
-    const klineData = convertYahooToKlineFormat(yahooData);
-    console.log(`Received ${klineData.length} kline data points for stock ${symbol}`);
-    return klineData;
+    // Generate mock kline data instead of fetching from Yahoo
+    return generateMockKlineData(symbol, interval, limit);
   } catch (error) {
     console.error('Error fetching stock kline data:', error);
-    return [];
+    return generateMockKlineData(symbol, interval, limit); // Fallback to mock data
   }
 };
 

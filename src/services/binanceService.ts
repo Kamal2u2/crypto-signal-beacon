@@ -1,3 +1,4 @@
+
 import { toast } from '@/components/ui/use-toast';
 
 // Define types for Binance API responses
@@ -73,6 +74,33 @@ let lastPongTime = Date.now();
 let isKlineConnected = false;
 let isPriceConnected = false;
 
+// Stock price simulation data - maintain unique price simulation for each stock
+const stockPriceSimulation: Record<string, { price: number; lastUpdate: number }> = {};
+
+// Initialize stock price simulation data for all stocks
+STOCK_PAIRS.forEach(stock => {
+  // Generate a realistic base price for each stock
+  // Apple ~180, Microsoft ~400, Google ~170, Amazon ~180, Tesla ~175, Meta ~500, NVIDIA ~900, JPM ~190, Visa ~270, Walmart ~60
+  let basePrice: number;
+  switch(stock.symbol) {
+    case 'AAPL': basePrice = 180 + (Math.random() * 10) - 5; break;
+    case 'MSFT': basePrice = 400 + (Math.random() * 20) - 10; break;
+    case 'GOOGL': basePrice = 170 + (Math.random() * 10) - 5; break;
+    case 'AMZN': basePrice = 180 + (Math.random() * 10) - 5; break;
+    case 'TSLA': basePrice = 175 + (Math.random() * 15) - 7.5; break;
+    case 'META': basePrice = 500 + (Math.random() * 20) - 10; break;
+    case 'NVDA': basePrice = 900 + (Math.random() * 40) - 20; break;
+    case 'JPM': basePrice = 190 + (Math.random() * 10) - 5; break;
+    case 'V': basePrice = 270 + (Math.random() * 10) - 5; break;
+    case 'WMT': basePrice = 60 + (Math.random() * 5) - 2.5; break;
+    default: basePrice = 150 + (Math.random() * 50); break;
+  }
+  stockPriceSimulation[stock.symbol] = { 
+    price: basePrice,
+    lastUpdate: Date.now()
+  };
+});
+
 // Update fetchKlineData to handle both crypto and stocks
 export const fetchKlineData = async (
   symbol: string,
@@ -128,7 +156,7 @@ const fetchYahooFinanceKlineData = async (
     
     if (!response.ok) {
       console.error(`Yahoo Finance API error: ${response.statusText}`);
-      return generateDemoStockData(interval);
+      return generateDemoStockData(symbol, interval);
     }
     
     const data = await response.json();
@@ -142,7 +170,7 @@ const fetchYahooFinanceKlineData = async (
         !data.chart.result[0].indicators.quote || 
         !data.chart.result[0].indicators.quote[0]) {
       console.error('Invalid data format from Yahoo Finance');
-      return generateDemoStockData(interval);
+      return generateDemoStockData(symbol, interval);
     }
     
     // Parse Yahoo Finance data to our KlineData format
@@ -150,7 +178,7 @@ const fetchYahooFinanceKlineData = async (
   } catch (error) {
     console.error('Error fetching Yahoo Finance data:', error);
     // Return demo data if there's an error
-    return generateDemoStockData(interval);
+    return generateDemoStockData(symbol, interval);
   }
 };
 
@@ -243,23 +271,33 @@ const mapIntervalForStocks = (interval: TimeInterval): string => {
 };
 
 // Generate demo stock data when API is rate-limited
-const generateDemoStockData = (interval: TimeInterval): KlineData[] => {
+const generateDemoStockData = (symbol: string, interval: TimeInterval): KlineData[] => {
   const result: KlineData[] = [];
   const now = new Date();
   const intervalMs = getIntervalMilliseconds(interval);
-  let basePrice = 150 + Math.random() * 50; // Random base price between 150 and 200
+  
+  // Get or create stock simulation data
+  if (!stockPriceSimulation[symbol]) {
+    stockPriceSimulation[symbol] = {
+      price: getBaseStockPrice(symbol),
+      lastUpdate: Date.now()
+    };
+  }
+  
+  // Use the stock's simulated price as base
+  let basePrice = stockPriceSimulation[symbol].price;
   
   for (let i = 99; i >= 0; i--) {
     const openTime = now.getTime() - (i * intervalMs);
     const closeTime = openTime + intervalMs - 1;
     
     // Generate realistic-looking price action
-    const priceChange = (Math.random() - 0.5) * 2; // Random change between -1 and 1
+    const priceChange = (Math.random() - 0.5) * (basePrice * 0.01); // Random change up to 1% of price
     basePrice = basePrice + priceChange;
     const open = basePrice;
-    const close = basePrice + (Math.random() - 0.5) * 1.5;
-    const high = Math.max(open, close) + Math.random() * 1.5;
-    const low = Math.min(open, close) - Math.random() * 1.5;
+    const close = basePrice + (Math.random() - 0.5) * (basePrice * 0.005); // Smaller change for open to close
+    const high = Math.max(open, close) + Math.random() * (basePrice * 0.003); // High slightly above max of open/close
+    const low = Math.min(open, close) - Math.random() * (basePrice * 0.003); // Low slightly below min of open/close
     const volume = Math.floor(Math.random() * 10000) + 1000;
     
     result.push({
@@ -278,7 +316,30 @@ const generateDemoStockData = (interval: TimeInterval): KlineData[] => {
     });
   }
   
+  // Update the stock's simulated price to the most recent close
+  if (result.length > 0) {
+    stockPriceSimulation[symbol].price = result[result.length - 1].close;
+    stockPriceSimulation[symbol].lastUpdate = Date.now();
+  }
+  
   return result;
+};
+
+// Helper function to get a realistic base price for stocks
+const getBaseStockPrice = (symbol: string): number => {
+  switch(symbol) {
+    case 'AAPL': return 180 + (Math.random() * 10) - 5;
+    case 'MSFT': return 400 + (Math.random() * 20) - 10;
+    case 'GOOGL': return 170 + (Math.random() * 10) - 5;
+    case 'AMZN': return 180 + (Math.random() * 10) - 5;
+    case 'TSLA': return 175 + (Math.random() * 15) - 7.5;
+    case 'META': return 500 + (Math.random() * 20) - 10;
+    case 'NVDA': return 900 + (Math.random() * 40) - 20;
+    case 'JPM': return 190 + (Math.random() * 10) - 5;
+    case 'V': return 270 + (Math.random() * 10) - 5;
+    case 'WMT': return 60 + (Math.random() * 5) - 2.5;
+    default: return 150 + (Math.random() * 50);
+  }
 };
 
 const getIntervalMilliseconds = (interval: TimeInterval): number => {
@@ -344,6 +405,10 @@ export const fetchCurrentPrice = async (symbol: string): Promise<number | null> 
       
       const response = await fetch(url);
       if (!response.ok) {
+        // If API call fails, return the simulated price
+        if (stockPriceSimulation[symbol]) {
+          return stockPriceSimulation[symbol].price;
+        }
         throw new Error(`Failed to fetch stock price: ${response.statusText}`);
       }
       
@@ -355,15 +420,31 @@ export const fetchCurrentPrice = async (symbol: string): Promise<number | null> 
           data.chart.result[0] && 
           data.chart.result[0].meta) {
         // Get the regularMarketPrice from the meta information
-        return data.chart.result[0].meta.regularMarketPrice;
+        const price = data.chart.result[0].meta.regularMarketPrice;
+        
+        // Also update our simulation for this stock
+        if (stockPriceSimulation[symbol]) {
+          stockPriceSimulation[symbol].price = price;
+          stockPriceSimulation[symbol].lastUpdate = Date.now();
+        }
+        
+        return price;
       } else {
         console.error('Invalid Yahoo Finance price data format');
-        // Return a realistic demo price if API call fails
-        return 150 + Math.random() * 50;
+        // Return the simulated price if API call fails
+        if (stockPriceSimulation[symbol]) {
+          return stockPriceSimulation[symbol].price;
+        }
+        return getBaseStockPrice(symbol);
       }
     }
   } catch (error) {
     console.error('Error fetching current price:', error);
+    // For stocks, return the simulated price on error
+    const assetPair = ALL_ASSET_PAIRS.find(pair => pair.symbol === symbol);
+    if (assetPair && assetPair.assetType === AssetType.STOCKS && stockPriceSimulation[symbol]) {
+      return stockPriceSimulation[symbol].price;
+    }
     return null;
   }
 };
@@ -561,17 +642,48 @@ export const initializePriceWebSocket = (
       })
       .catch(error => console.error('Error fetching initial stock price:', error));
     
-    // Set up polling
-    stockPriceIntervalId = setInterval(async () => {
+    // Set up polling with simulated micro-movements
+    stockPriceIntervalId = setInterval(() => {
       try {
-        const price = await fetchCurrentPrice(symbol);
-        if (price !== null) {
-          onUpdate(price);
+        // Get the current simulated price for this stock
+        if (!stockPriceSimulation[symbol]) {
+          stockPriceSimulation[symbol] = {
+            price: getBaseStockPrice(symbol),
+            lastUpdate: Date.now()
+          };
+        }
+        
+        // Generate a small random price movement
+        const currentPrice = stockPriceSimulation[symbol].price;
+        const priceVolatility = currentPrice * 0.0005; // 0.05% volatility
+        const priceChange = (Math.random() - 0.5) * priceVolatility * 2;
+        const newPrice = currentPrice + priceChange;
+        
+        // Update the stored price
+        stockPriceSimulation[symbol].price = newPrice;
+        stockPriceSimulation[symbol].lastUpdate = Date.now();
+        
+        // Send the update
+        onUpdate(newPrice);
+        
+        // Every few updates, try to get a real price from Yahoo Finance
+        if (Math.random() < 0.2) { // 20% chance on each tick
+          fetchCurrentPrice(symbol)
+            .then(realPrice => {
+              if (realPrice !== null) {
+                // If we got a real price, use it to correct our simulation
+                stockPriceSimulation[symbol].price = realPrice;
+                onUpdate(realPrice);
+              }
+            })
+            .catch(() => {
+              // If API call fails, continue with simulation
+            });
         }
       } catch (error) {
-        console.error('Error polling stock price:', error);
+        console.error('Error simulating stock price:', error);
       }
-    }, 5000); // Poll every 5 seconds
+    }, 2000); // Update every 2 seconds for smoother simulation
   }
 };
 

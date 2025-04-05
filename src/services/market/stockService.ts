@@ -51,13 +51,19 @@ export const fetchStockPrice = async (symbol: string): Promise<number | null> =>
     const timestamp = Date.now();
     const url = `${FINNHUB_BASE_URL}/quote?symbol=${symbol}&token=${FINNHUB_API_KEY}&_=${timestamp}`;
     
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+    
     const response = await fetch(url, {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
-      cache: 'no-store'
+      cache: 'no-store',
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
     
     if (!response.ok) {
       console.error(`Finnhub API error: ${response.status} ${response.statusText}`);
@@ -75,7 +81,10 @@ export const fetchStockPrice = async (symbol: string): Promise<number | null> =>
     }
   } catch (error) {
     console.error('Error fetching stock price from Finnhub:', error);
-    return null;
+    
+    // Return a placeholder price to indicate error (-1)
+    // This ensures we don't fall back to crypto data
+    return -1;
   }
 };
 
@@ -91,13 +100,19 @@ export const fetchStockKlineData = async (symbol: string, interval: TimeInterval
     const timestamp = Date.now();
     const url = `${FINNHUB_BASE_URL}/stock/candle?symbol=${symbol}&resolution=${resolution}&from=${from}&to=${to}&token=${FINNHUB_API_KEY}&_=${timestamp}`;
     
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+    
     const response = await fetch(url, {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
-      cache: 'no-store'
+      cache: 'no-store',
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
     
     if (!response.ok) {
       console.error(`Finnhub API error: ${response.status} ${response.statusText}`);
@@ -178,9 +193,12 @@ export const initializeStockPricePolling = (symbol: string, onPriceUpdate: (pric
   
   // Initial price fetch
   fetchStockPrice(symbol).then(price => {
-    if (price && priceUpdateCallback) {
+    if (price && price !== -1 && priceUpdateCallback) {
       console.log(`Initial stock price update for ${symbol}: ${price}`);
       priceUpdateCallback(price);
+    } else if (price === -1) {
+      console.warn(`Error fetching initial stock price for ${symbol}, not updating UI`);
+      // Don't update the UI with error value
     }
   });
   
@@ -190,7 +208,7 @@ export const initializeStockPricePolling = (symbol: string, onPriceUpdate: (pric
     if (!isPollingActive) return;
     
     fetchStockPrice(symbol).then(price => {
-      if (price && priceUpdateCallback) {
+      if (price && price !== -1 && priceUpdateCallback) {
         console.log(`Polled stock price update for ${symbol}: ${price}`);
         priceUpdateCallback(price);
       }
@@ -302,9 +320,11 @@ export const refreshStockData = async (symbol: string, interval?: TimeInterval):
   try {
     // Fetch and update price
     const price = await fetchStockPrice(symbol);
-    if (price && priceUpdateCallback) {
+    if (price && price !== -1 && priceUpdateCallback) {
       console.log(`Manual refresh - price update for ${symbol}: ${price}`);
       priceUpdateCallback(price);
+    } else if (price === -1) {
+      console.warn(`Error fetching stock price during manual refresh for ${symbol}, not updating UI`);
     }
     
     // Fetch and update kline if interval is provided

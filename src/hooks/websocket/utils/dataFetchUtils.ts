@@ -53,11 +53,23 @@ export const fetchData = async (
       
       console.log(`[Cycle ${cycleNumber}] Signal processing complete`);
     } else {
-      toast({
-        title: "No data available",
-        description: `Could not retrieve data for ${symbol}`,
-        variant: "destructive"
-      });
+      // Show toast only for complete data failures, not for API endpoint errors
+      // This prevents showing error toasts for normal API errors that the system can recover from
+      const isStockSymbol = symbol.includes('.') || /^[A-Z]{1,5}$/.test(symbol);
+      
+      if (isStockSymbol) {
+        toast({
+          title: "Unable to load stock data",
+          description: `Please check if ${symbol} is a valid stock symbol with available data`,
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "No data available",
+          description: `Could not retrieve data for ${symbol}`,
+          variant: "destructive"
+        });
+      }
     }
   } catch (error) {
     console.error(`[Cycle ${cycleNumber}] Error fetching data:`, error);

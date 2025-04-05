@@ -24,6 +24,12 @@ export const usePriceWebSocket = (selectedPair: AssetPair) => {
   const lastRenderedPriceRef = useRef<number | null>(null);
 
   const handlePriceUpdate = useCallback((price: number) => {
+    // Don't update UI with error values (-1)
+    if (price === -1) {
+      console.log('Received error price value (-1), not updating UI');
+      return;
+    }
+    
     if (price !== priceUpdateRef.current) {
       priceUpdateRef.current = price;
       lastPriceUpdateRef.current = Date.now();
@@ -167,7 +173,7 @@ export const usePriceWebSocket = (selectedPair: AssetPair) => {
         
         fetchCurrentPrice(selectedPair.symbol)
           .then(price => {
-            if (price !== null && price !== priceUpdateRef.current) {
+            if (price !== null && price !== -1 && price !== priceUpdateRef.current) {
               priceUpdateRef.current = price;
               
               // Only update UI if meaningful change or enough time has passed

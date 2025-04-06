@@ -9,9 +9,10 @@ interface CustomTooltipProps {
   active?: boolean;
   payload?: any[];
   label?: string;
+  signalKey?: string; // Added the signalKey prop
 }
 
-export const CustomTooltip = memo(({ active, payload, label }: CustomTooltipProps) => {
+export const CustomTooltip = memo(({ active, payload, label, signalKey }: CustomTooltipProps) => {
   // Return null if not active or no payload to prevent rendering when not needed
   if (!active || !payload || !payload.length || !payload[0] || !payload[0].payload) {
     return null;
@@ -66,18 +67,18 @@ export const CustomTooltip = memo(({ active, payload, label }: CustomTooltipProp
         )}
       </div>
       
-      {dataPoint.signalType && (
+      {signalKey && dataPoint[signalKey] && (
         <div className="mt-1.5 pt-1.5 border-t border-gray-200">
           <div className={cn(
             "flex items-center justify-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full",
-            dataPoint.signalType === 'BUY' ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+            dataPoint[signalKey] === 'BUY' ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
           )}>
-            {dataPoint.signalType === 'BUY' ? (
+            {dataPoint[signalKey] === 'BUY' ? (
               <ArrowUpCircle className="h-2.5 w-2.5" />
             ) : (
               <ArrowDownCircle className="h-2.5 w-2.5" />
             )}
-            {dataPoint.signalType} SIGNAL
+            {dataPoint[signalKey]} SIGNAL
           </div>
         </div>
       )}

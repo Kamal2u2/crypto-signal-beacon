@@ -1,5 +1,5 @@
 
-import React, { memo } from 'react';
+import React, { memo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import SignalChart from '@/components/chart/SignalChart';
@@ -15,7 +15,10 @@ interface SignalChartSectionProps {
   signalHistory?: Array<{type: any, time: number, confidence: number}>;
 }
 
-// Further improved comparison function with stronger memoization
+// Use a WeakMap to store render timestamps instead of modifying props directly
+const renderTimestamps = new WeakMap<object, number>();
+
+// Improved comparison function with stronger memoization
 const arePropsEqual = (prevProps: SignalChartSectionProps, nextProps: SignalChartSectionProps) => {
   // Always re-render if loading state changes
   if (prevProps.isLoading !== nextProps.isLoading) {
@@ -54,10 +57,12 @@ const arePropsEqual = (prevProps: SignalChartSectionProps, nextProps: SignalChar
     const lastCandle1 = prevProps.klineData[prevProps.klineData.length - 1];
     const lastCandle2 = nextProps.klineData[nextProps.klineData.length - 1];
     const now = Date.now();
-    const lastRenderTime = (prevProps as any)._lastRenderTime || 0;
     
-    // Store current render time on the props object
-    (nextProps as any)._lastRenderTime = now;
+    // Get last render time from our WeakMap cache
+    const lastRenderTime = renderTimestamps.get(prevProps) || 0;
+    
+    // Store current render time in our WeakMap cache
+    renderTimestamps.set(nextProps, now);
     
     if (lastCandle1.openTime !== lastCandle2.openTime) {
       return false;

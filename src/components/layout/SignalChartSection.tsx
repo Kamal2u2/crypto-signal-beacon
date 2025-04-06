@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { memo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import SignalChart from '@/components/chart/SignalChart';
@@ -15,7 +15,8 @@ interface SignalChartSectionProps {
   signalHistory?: Array<{type: any, time: number, confidence: number}>;
 }
 
-const SignalChartSection: React.FC<SignalChartSectionProps> = ({
+// Use React.memo to prevent unnecessary re-renders
+const SignalChartSection: React.FC<SignalChartSectionProps> = memo(({
   klineData,
   isLoading,
   symbol,
@@ -47,6 +48,9 @@ const SignalChartSection: React.FC<SignalChartSectionProps> = ({
       </CardContent>
     </Card>
   );
-};
+});
+
+// Add display name for React DevTools
+SignalChartSection.displayName = 'SignalChartSection';
 
 export default SignalChartSection;

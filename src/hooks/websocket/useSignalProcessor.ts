@@ -43,8 +43,8 @@ export const useSignalProcessor = ({
     lastActionableSignal: null,
     lastActionableTime: 0,
     holdCount: 0,
-    // Further reduce lock period to 30 seconds
-    signalLockPeriod: 30000,
+    // Reduce lock period from 180000 to 60000 (1 minute instead of 3)
+    signalLockPeriod: 60000,
     confidenceHistory: []
   });
   
@@ -69,52 +69,56 @@ export const useSignalProcessor = ({
     confidenceThreshold
   });
 
-  // Made even less strict - only require one consistent signal
+  // Made less strict by requiring fewer consistent signals
   const isSignalConsistent = (signalType: SignalType, confidence: number): boolean => {
-    // For high confidence signals, don't require consistency checking
-    if (confidence >= 60) return true;
-    
     if (signalHistory.length < 2) return false;
     
     if (signalType === 'BUY' || signalType === 'SELL') {
       const recentHistory = signalHistory
-        .filter(entry => Date.now() - entry.time < 60000)  // 1 minute
-        .slice(-3);
+        .filter(entry => Date.now() - entry.time < 90000)  // 1.5 minutes
+        .slice(-4);
       
-      // Only require 1 same type signal instead of 2
+      // Only require 2 same type signals instead of 3
       const sameTypeCount = recentHistory.filter(s => s.type === signalType).length;
-      // Allow 1 opposite signal
+      // Allow 1 opposite signal instead of 0
       const oppositeSignals = recentHistory.filter(s => 
         (signalType === 'BUY' && s.type === 'SELL') || 
         (signalType === 'SELL' && s.type === 'BUY')
       ).length;
       
-      return sameTypeCount >= 1 && oppositeSignals <= 1;
+      return sameTypeCount >= 2 && oppositeSignals <= 1;
     }
     
     return true;
   };
 
-  // Much less strict override function to allow almost all BUY/SELL signals
+  // Less strict override function to allow more BUY/SELL signals
   const shouldOverrideToHold = (newSignal: SignalType, confidence: number): boolean => {
     const now = Date.now();
     const state = signalStateRef.current;
     
-    // Skip override completely for higher confidence signals (45% or higher)
-    if ((newSignal === 'BUY' || newSignal === 'SELL') && confidence >= 45) {
-      return false;
-    }
+    const avgConfidence = state.confidenceHistory.length > 0 ? 
+      state.confidenceHistory.reduce((a, b) => a + b, 0) / state.confidenceHistory.length : 0;
     
-    // Only maintain a very minimal lock period of 20 seconds for opposite signals
+    // Reduced lock period check
     if (state.lastActionableSignal && 
-       ((state.lastActionableSignal === 'BUY' && newSignal === 'SELL') || 
-        (state.lastActionableSignal === 'SELL' && newSignal === 'BUY')) && 
-        now - state.lastActionableTime < 20000) {
+        state.lastActionableSignal !== newSignal &&
+        now - state.lastActionableTime < state.signalLockPeriod / 2) {
       return true;
     }
     
-    // Still override very low confidence signals
-    if ((newSignal === 'BUY' || newSignal === 'SELL') && confidence < 35) {
+    // Less strict confidence comparison (0.85 instead of 0.95)
+    if ((newSignal === 'BUY' || newSignal === 'SELL') && 
+        confidence < avgConfidence * 0.85 && 
+        confidence < 45) {  // But only override very low confidence signals
+      return true;
+    }
+    
+    // Allow opposite signals sooner (multiplier 1.2 instead of 2)
+    if (state.lastActionableSignal && 
+       ((state.lastActionableSignal === 'BUY' && newSignal === 'SELL') || 
+        (state.lastActionableSignal === 'SELL' && newSignal === 'BUY')) && 
+        now - state.lastActionableTime < state.signalLockPeriod * 1.2) {
       return true;
     }
     
@@ -137,8 +141,8 @@ export const useSignalProcessor = ({
     let modifiedSignals = {...newSignals};
     
     if (originalSignal === 'BUY' || originalSignal === 'SELL') {
-      // For signals with medium-high confidence, skip consistency check
-      const highConfidence = originalConfidence >= 45;
+      // For signals with high confidence, skip consistency check
+      const highConfidence = originalConfidence >= 65;
       const isConsistent = highConfidence || isSignalConsistent(originalSignal, originalConfidence);
       
       if (!isConsistent || shouldOverrideToHold(originalSignal, originalConfidence)) {
@@ -188,9 +192,8 @@ export const useSignalProcessor = ({
       return updatedHistory.slice(-15);
     });
     
-    // Use an even lower threshold to allow more signals to pass through
-    // Reduced threshold by 20% with minimum of 40%
-    const effectiveThreshold = Math.max(confidenceThreshold * 0.8, 40);
+    // Allow more signals by using a slightly reduced threshold for tracking
+    const effectiveThreshold = Math.max(confidenceThreshold * 0.9, 45);
     
     if (modifiedSignals.overallSignal !== 'HOLD' && 
         modifiedSignals.overallSignal !== 'NEUTRAL' &&
@@ -198,8 +201,7 @@ export const useSignalProcessor = ({
       
       setRecentSignals(prev => {
         const now = Date.now();
-        // Shorter time window of 5 minutes
-        const timeWindow = 300000;
+        const timeWindow = 600000;
         
         const updatedSignals = {...prev};
         Object.keys(updatedSignals).forEach(key => {
@@ -221,24 +223,21 @@ export const useSignalProcessor = ({
         signalFingerprint
       );
       
-      // Reduced time window to only 3 minutes (180000ms) for opposite signals
+      // Reduced time window for opposite signal (5 minutes instead of 15)
       const oppositeSignalRecently = 
         (modifiedSignals.overallSignal === 'BUY' && recentSignals['SELL'] && 
-         Date.now() - recentSignals['SELL'] < 180000) ||
+         Date.now() - recentSignals['SELL'] < 300000) ||
         (modifiedSignals.overallSignal === 'SELL' && recentSignals['BUY'] && 
-         Date.now() - recentSignals['BUY'] < 180000);
+         Date.now() - recentSignals['BUY'] < 300000);
       
-      // For high confidence signals (>65%), ignore the opposite signal check
-      const isHighConfidence = modifiedSignals.confidence > 65;
-      
-      if ((isSignalValid && !oppositeSignalRecently) || isHighConfidence) {
+      if (isSignalValid && !oppositeSignalRecently) {
         showNotifications(modifiedSignals.overallSignal, modifiedSignals.confidence);
         trackSignal(modifiedSignals.overallSignal, signalFingerprint);
-      } else if (oppositeSignalRecently && !isHighConfidence) {
+      } else if (oppositeSignalRecently) {
         console.log(`Signal ${modifiedSignals.overallSignal} skipped: conflicting with recent opposite signal`);
       }
     } else {
-      console.log(`Signal ${modifiedSignals.overallSignal} not processed as actionable signal: ${modifiedSignals.confidence.toFixed(0)}% vs threshold ${effectiveThreshold}%)`);
+      console.log(`Signal ${modifiedSignals.overallSignal} not processed as actionable signal: ${modifiedSignals.confidence.toFixed(0)}% vs threshold ${confidenceThreshold}%)`);
     }
   }, [
     confidenceThreshold, 

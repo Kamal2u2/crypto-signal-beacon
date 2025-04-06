@@ -1,5 +1,5 @@
 
-import React, { memo, useRef } from 'react';
+import React, { memo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import SignalChart from '@/components/chart/SignalChart';
@@ -15,10 +15,7 @@ interface SignalChartSectionProps {
   signalHistory?: Array<{type: any, time: number, confidence: number}>;
 }
 
-// Use a WeakMap to store render timestamps instead of modifying props directly
-const renderTimestamps = new WeakMap<object, number>();
-
-// Improved comparison function with stronger memoization
+// Improved comparison function to avoid unnecessary re-renders but be more responsive to signal changes
 const arePropsEqual = (prevProps: SignalChartSectionProps, nextProps: SignalChartSectionProps) => {
   // Always re-render if loading state changes
   if (prevProps.isLoading !== nextProps.isLoading) {
@@ -30,10 +27,10 @@ const arePropsEqual = (prevProps: SignalChartSectionProps, nextProps: SignalChar
     return false;
   }
   
-  // For price changes, only update if significant (0.02% or more)
+  // For price changes, only update if significant (0.03% or more)
   if (prevProps.currentPrice && nextProps.currentPrice) {
     const priceDiffPercent = Math.abs((prevProps.currentPrice - nextProps.currentPrice) / prevProps.currentPrice) * 100;
-    if (priceDiffPercent > 0.02) {
+    if (priceDiffPercent > 0.03) {
       return false;
     }
   } else if (prevProps.currentPrice !== nextProps.currentPrice) {
@@ -45,32 +42,26 @@ const arePropsEqual = (prevProps: SignalChartSectionProps, nextProps: SignalChar
     return false;
   }
   
-  // If signal history changed, we need to update
-  if (prevProps.signalHistory?.length !== nextProps.signalHistory?.length) {
+  // If signal history or data length changed, we need to update
+  if (
+    prevProps.signalHistory?.length !== nextProps.signalHistory?.length ||
+    prevProps.klineData.length !== nextProps.klineData.length
+  ) {
     return false;
   }
   
   // Only check last candle to determine if we need an update
-  // Use a time-based update limiter to prevent flash updates
-  // Only update chart at most once every 2 seconds for minor changes
   if (prevProps.klineData.length > 0 && nextProps.klineData.length > 0) {
     const lastCandle1 = prevProps.klineData[prevProps.klineData.length - 1];
     const lastCandle2 = nextProps.klineData[nextProps.klineData.length - 1];
-    const now = Date.now();
-    
-    // Get last render time from our WeakMap cache
-    const lastRenderTime = renderTimestamps.get(prevProps) || 0;
-    
-    // Store current render time in our WeakMap cache
-    renderTimestamps.set(nextProps, now);
     
     if (lastCandle1.openTime !== lastCandle2.openTime) {
       return false;
     }
     
-    // Only update if price change is significant - or if enough time has passed
+    // Only update if price change is significant - reduced threshold
     const lastCloseDiff = Math.abs((lastCandle1.close - lastCandle2.close) / lastCandle1.close) * 100;
-    if (lastCloseDiff > 0.02 || (now - lastRenderTime > 2000)) {
+    if (lastCloseDiff > 0.03) {
       return false;
     }
   }

@@ -7,7 +7,7 @@ export const handleKlineUpdate = (
   newKline: KlineData,
   klineDataRef: React.MutableRefObject<KlineData[]>,
   setKlineData: (data: KlineData[]) => void,
-  processNewSignal: (signals: any) => void
+  processNewSignal: (signals: any, timeOfSignal?: number) => void
 ) => {
   // Update the global kline data cache
   updateKlineData(newKline);
@@ -35,12 +35,14 @@ export const handleKlineUpdate = (
     // Only trigger state update for significant changes
     if (isSignificantUpdate) {
       setKlineData(updatedData);
-      processNewSignal(newSignals);
+      // Pass the current time stamp for new signals
+      processNewSignal(newSignals, newKline.openTime);
     } else {
       // For minor updates - still process signal if it's BUY/SELL with sufficient confidence
       if (newSignals && (newSignals.overallSignal === 'BUY' || newSignals.overallSignal === 'SELL') && 
           newSignals.confidence >= 50) {
-        processNewSignal(newSignals);
+        // Pass the current time stamp for new signals
+        processNewSignal(newSignals, newKline.openTime);
       }
     }
   } else {
@@ -57,6 +59,7 @@ export const handleKlineUpdate = (
     
     // Generate and process new signals
     const newSignals = generateSignals(updatedData);
-    processNewSignal(newSignals);
+    // Pass the candle open time for new signals
+    processNewSignal(newSignals, newKline.openTime);
   }
 };

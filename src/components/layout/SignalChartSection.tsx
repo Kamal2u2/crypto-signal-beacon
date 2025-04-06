@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import SignalChart from '@/components/chart/SignalChart';
 import { KlineData } from '@/services/binanceService';
-import { SignalSummary } from '@/services/technical/types';
+import { SignalSummary, SignalType } from '@/services/technical/types';
 
 interface SignalChartSectionProps {
   klineData: KlineData[];
@@ -12,8 +12,11 @@ interface SignalChartSectionProps {
   symbol: string;
   signalData: SignalSummary | null;
   currentPrice: number | null;
-  signalHistory?: Array<{type: any, time: number, confidence: number}>;
+  signalHistory?: Array<{type: SignalType, time: number, confidence: number}>;
 }
+
+// Use a WeakMap to store render timestamps instead of modifying props directly
+const propsRenderTimes = new WeakMap();
 
 // Improved comparison function to avoid unnecessary re-renders but be more responsive to signal changes
 const arePropsEqual = (prevProps: SignalChartSectionProps, nextProps: SignalChartSectionProps) => {

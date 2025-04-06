@@ -1,7 +1,7 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { KlineData } from '@/services/binanceService';
-import { SignalSummary } from '@/services/technicalAnalysisService';
+import { SignalSummary, SignalType } from '@/services/technicalAnalysisService';
 import { findSupportResistanceLevels } from '@/services/technical/supportResistance';
 
 // Define types for the chart settings
@@ -18,10 +18,11 @@ interface ChartState {
   showBollinger: boolean;
   showSupportResistance: boolean;
   showPriceLabels: boolean;
-  showSignals: boolean; // Added missing property
+  showSignals: boolean; 
+  showSignalHistory: boolean; // Added to toggle signal history visibility
 }
 
-export const useChartData = (klineData: KlineData[], signalData?: SignalSummary | null) => {
+export const useChartData = (klineData: KlineData[], signalData?: SignalSummary | null, signalHistory?: Array<{type: SignalType, time: number, confidence: number}>) => {
   // State for chart settings
   const [chartState, setChartState] = useState<ChartState>({
     showVolume: true,
@@ -36,7 +37,8 @@ export const useChartData = (klineData: KlineData[], signalData?: SignalSummary 
     showBollinger: false,
     showSupportResistance: true,
     showPriceLabels: true,
-    showSignals: false // Initialize with default value
+    showSignals: true,
+    showSignalHistory: true // Show signal history by default
   });
 
   // Generic function to toggle chart settings
@@ -75,10 +77,19 @@ export const useChartData = (klineData: KlineData[], signalData?: SignalSummary 
     if (!klineData || klineData.length === 0) return [];
     
     // Deep copy the data to avoid mutations
-    const processedData = klineData.map(candle => ({
-      ...candle,
-      // Add any additional derived data here
-    }));
+    const processedData = klineData.map(candle => {
+      // Add formatted time for display
+      const date = new Date(candle.openTime);
+      const formattedTime = date.toLocaleTimeString([], { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+      
+      return {
+        ...candle,
+        formattedTime
+      };
+    });
     
     // Update the last candle with the latest price if available
     if (manualCurrentPrice !== null && processedData.length > 0) {
@@ -92,8 +103,24 @@ export const useChartData = (klineData: KlineData[], signalData?: SignalSummary 
       }
     }
     
+    // Mark candles that have signals
+    if (signalHistory && chartState.showSignalHistory) {
+      processedData.forEach(candle => {
+        const candleTime = new Date(candle.openTime).getTime();
+        // Find if any signal was generated at this candle's time
+        const signal = signalHistory.find(s => 
+          Math.abs(s.time - candleTime) < 60000 // Within 1 minute
+        );
+        
+        if (signal) {
+          candle.signalType = signal.type;
+          candle.signalConfidence = signal.confidence;
+        }
+      });
+    }
+    
     return processedData;
-  }, [klineData, manualCurrentPrice]);
+  }, [klineData, manualCurrentPrice, signalHistory, chartState.showSignalHistory]);
 
   // Determine the Y-axis domain based on chart data
   const yDomain = useMemo(() => {

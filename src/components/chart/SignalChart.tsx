@@ -76,17 +76,23 @@ const SignalChart: React.FC<SignalChartProps> = memo(({
   const previousPriceRef = useRef<number | null>(null);
   const animationFrameRef = useRef<number | null>(null);
 
-  // Memoize data processing to avoid unnecessary calculations
+  // Process chart data and merge with signal history for visualization
   const processedData = useMemo(() => {
     return chartData.map(candle => {
       const candleTime = new Date(candle.openTime).getTime();
       
+      // Find if there was a signal close to this candle's time
       const signal = signalHistory.find(s => 
-        Math.abs(s.time - candleTime) < 60000
+        Math.abs(s.time - candleTime) < 60000 // Within 1 minute
       );
+      
+      // Format time for display
+      const date = new Date(candle.openTime);
+      const formattedTime = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
       
       return {
         ...candle,
+        formattedTime,
         signalType: signal?.type || null,
         signalConfidence: signal?.confidence || null
       };
@@ -104,24 +110,29 @@ const SignalChart: React.FC<SignalChartProps> = memo(({
     };
   }, [processedData, currentPrice]);
 
-  // Memoize expensive calculations for signals and price ranges
+  // Extract buy and sell signal data points for visualization
   const { buySignals, sellSignals, minPrice, maxPrice } = useMemo(() => {
+    // Extract buy signals to highlight on chart
     const buySignals = processedData
       .filter(item => item.signalType === 'BUY')
       .map(item => ({
         openTime: item.openTime,
         close: item.close,
-        value: item.close
+        value: item.close,
+        confidence: item.signalConfidence
       }));
       
+    // Extract sell signals to highlight on chart
     const sellSignals = processedData
       .filter(item => item.signalType === 'SELL')
       .map(item => ({
         openTime: item.openTime,
         close: item.close,
-        value: item.close
+        value: item.close,
+        confidence: item.signalConfidence
       }));
 
+    // Calculate price range for Y axis
     const allPrices = processedData.map(d => d.close);
     const minPrice = Math.min(...allPrices) * 0.995;
     const maxPrice = Math.max(...allPrices) * 1.005;
@@ -188,17 +199,21 @@ const SignalChart: React.FC<SignalChartProps> = memo(({
             connectNulls={true}
           />
           
+          {/* Buy signals with triangles pointing up and confidence-based sizing */}
           <Scatter 
             name="Buy Signal" 
             data={buySignals} 
             fill="#10B981" 
             line={false}
             shape={(props) => {
-              const { cx, cy } = props;
+              const { cx, cy, payload } = props;
+              // Size based on confidence
+              const size = payload?.confidence ? 5 + (payload.confidence / 20) : 8;
+              
               return (
                 <svg>
                   <polygon 
-                    points={`${cx},${cy-10} ${cx-6},${cy} ${cx+6},${cy}`} 
+                    points={`${cx},${cy-size} ${cx-size},${cy} ${cx+size},${cy}`} 
                     fill="#10B981" 
                     stroke="#fff"
                     strokeWidth={1.5}
@@ -209,17 +224,21 @@ const SignalChart: React.FC<SignalChartProps> = memo(({
             isAnimationActive={false}
           />
           
+          {/* Sell signals with triangles pointing down and confidence-based sizing */}
           <Scatter 
             name="Sell Signal" 
             data={sellSignals} 
             fill="#EF4444" 
             line={false}
             shape={(props) => {
-              const { cx, cy } = props;
+              const { cx, cy, payload } = props;
+              // Size based on confidence
+              const size = payload?.confidence ? 5 + (payload.confidence / 20) : 8;
+              
               return (
                 <svg>
                   <polygon 
-                    points={`${cx},${cy+10} ${cx-6},${cy} ${cx+6},${cy}`} 
+                    points={`${cx},${cy+size} ${cx-size},${cy} ${cx+size},${cy}`} 
                     fill="#EF4444" 
                     stroke="#fff"
                     strokeWidth={1.5}

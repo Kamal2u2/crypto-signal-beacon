@@ -85,7 +85,11 @@ export const ChartTooltipContent = React.forwardRef<
 
     // Extract signal data if present in payload
     const signalInfo = signalKey && payload[0].payload?.[signalKey] 
-      ? { type: payload[0].payload[signalKey], shown: true } 
+      ? { 
+          type: payload[0].payload[signalKey], 
+          confidence: payload[0].payload?.signalConfidence || null,
+          shown: true 
+        } 
       : null;
     
     // Define signal-specific styles
@@ -95,6 +99,11 @@ export const ChartTooltipContent = React.forwardRef<
       'HOLD': "bg-amber-100 text-amber-800 border border-amber-300",
       'NEUTRAL': "bg-gray-100 text-gray-800 border border-gray-300"
     }[signalInfo.type] : "";
+
+    // Format the timestamp from payload for better readability
+    const formattedTimestamp = payload[0].payload?.openTime
+      ? new Date(payload[0].payload.openTime).toLocaleString()
+      : null;
 
     return (
       <div
@@ -108,7 +117,14 @@ export const ChartTooltipContent = React.forwardRef<
       >
         {!nestLabel ? tooltipLabel : null}
         
-        {/* Signal badge if present */}
+        {/* Timestamp display */}
+        {formattedTimestamp && (
+          <div className="text-xs font-medium text-gray-600 mb-1 text-center border-b pb-1">
+            {formattedTimestamp}
+          </div>
+        )}
+        
+        {/* Signal badge if present with confidence */}
         {signalInfo && (
           <div className="mb-1 flex justify-center">
             <div className={cn(
@@ -116,6 +132,11 @@ export const ChartTooltipContent = React.forwardRef<
               signalBadgeStyle
             )}>
               {signalInfo.type}
+              {signalInfo.confidence && (
+                <span className="ml-1 opacity-80">
+                  ({Math.round(signalInfo.confidence)}%)
+                </span>
+              )}
             </div>
           </div>
         )}

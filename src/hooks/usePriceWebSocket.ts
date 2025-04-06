@@ -21,11 +21,27 @@ export const usePriceWebSocket = (selectedPair: AssetPair) => {
   const priceUpdateRef = useRef<number | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const lastRenderedPriceRef = useRef<number | null>(null);
+  const updateThrottleRef = useRef<number>(0);
+  const UPDATE_THRESHOLD = 0.01; // Only update if price changes by 0.01% or more
 
   const handlePriceUpdate = useCallback((price: number) => {
-    if (price !== priceUpdateRef.current) {
+    if (!price || isNaN(price)) return;
+
+    // Don't update the UI for very minor price changes to prevent flashing
+    const currentPriceValue = lastRenderedPriceRef.current;
+    const percentChange = currentPriceValue ? Math.abs((price - currentPriceValue) / currentPriceValue) * 100 : 100;
+    
+    const now = Date.now();
+    const timeSinceLastUpdate = now - updateThrottleRef.current;
+    const shouldUpdatePrice = 
+      percentChange >= UPDATE_THRESHOLD || // Meaningful price change
+      !lastRenderedPriceRef.current || // First price
+      timeSinceLastUpdate > 2000; // At least 2 seconds since last update
+    
+    if (shouldUpdatePrice) {
+      // Always update the reference for internal logic
       priceUpdateRef.current = price;
-      lastPriceUpdateRef.current = Date.now();
+      lastPriceUpdateRef.current = now;
       reconnectAttemptsRef.current = 0; // Reset reconnect attempts on successful update
       
       // Cancel any pending updates
@@ -33,12 +49,17 @@ export const usePriceWebSocket = (selectedPair: AssetPair) => {
         cancelAnimationFrame(animationFrameRef.current);
       }
       
-      // Use rAF for smooth updates without debouncing
+      // Use rAF for smooth updates without debouncing significant changes
       animationFrameRef.current = requestAnimationFrame(() => {
         setCurrentPrice(price);
         lastRenderedPriceRef.current = price;
+        updateThrottleRef.current = now;
         animationFrameRef.current = null;
       });
+    } else {
+      // Still update the reference for internal calculations
+      priceUpdateRef.current = price;
+      lastPriceUpdateRef.current = now;
     }
   }, []);
 

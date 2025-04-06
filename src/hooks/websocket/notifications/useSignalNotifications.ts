@@ -60,6 +60,12 @@ export const useSignalNotifications = ({
     signalType: SignalType, 
     confidence: number
   ) => {
+    // Only process BUY and SELL signals
+    if (signalType !== 'BUY' && signalType !== 'SELL') {
+      console.log(`Skipping notification for ${signalType} signal - not a BUY or SELL signal`);
+      return;
+    }
+    
     // Get current props from ref to avoid closure issues
     const {
       isAudioInitialized,
@@ -75,8 +81,6 @@ export const useSignalNotifications = ({
       console.log(`Skipping notification for ${signalType} signal (${confidence.toFixed(0)}% < ${confidenceThreshold}%)`);
       return;
     }
-    
-    if (signalType !== 'BUY' && signalType !== 'SELL') return;
     
     // Play the signal sound
     if (isAudioInitialized && alertsEnabled) {

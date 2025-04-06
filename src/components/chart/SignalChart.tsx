@@ -1,5 +1,5 @@
 
-import React, { memo } from 'react';
+import React, { memo, useMemo } from 'react';
 import {
   ComposedChart,
   Line,
@@ -28,48 +28,55 @@ const SignalChart: React.FC<SignalChartProps> = memo(({
   currentPrice,
   signalHistory = []
 }) => {
-  // Process the data to include signals
-  const processedData = chartData.map(candle => {
-    const candleTime = new Date(candle.openTime).getTime();
-    
-    // Find signals near this candle's time
-    const signal = signalHistory.find(s => 
-      Math.abs(s.time - candleTime) < 60000 // Within 1 minute of candle
-    );
-    
-    return {
-      ...candle,
-      signalType: signal?.type || null,
-      signalConfidence: signal?.confidence || null
-    };
-  });
+  // Use useMemo for data processing to prevent unnecessary recalculations
+  const processedData = useMemo(() => {
+    return chartData.map(candle => {
+      const candleTime = new Date(candle.openTime).getTime();
+      
+      // Find signals near this candle's time
+      const signal = signalHistory.find(s => 
+        Math.abs(s.time - candleTime) < 60000 // Within 1 minute of candle
+      );
+      
+      return {
+        ...candle,
+        signalType: signal?.type || null,
+        signalConfidence: signal?.confidence || null
+      };
+    });
+  }, [chartData, signalHistory]);
 
-  // Separate buy and sell signals for better visualization
-  const buySignals = processedData
-    .filter(item => item.signalType === 'BUY')
-    .map(item => ({
-      openTime: item.openTime,
-      close: item.close,
-      value: item.close
-    }));
+  // Separate buy and sell signals with useMemo
+  const { buySignals, sellSignals, minPrice, maxPrice } = useMemo(() => {
+    // Separate buy and sell signals for better visualization
+    const buySignals = processedData
+      .filter(item => item.signalType === 'BUY')
+      .map(item => ({
+        openTime: item.openTime,
+        close: item.close,
+        value: item.close
+      }));
+      
+    const sellSignals = processedData
+      .filter(item => item.signalType === 'SELL')
+      .map(item => ({
+        openTime: item.openTime,
+        close: item.close,
+        value: item.close
+      }));
+
+    // Calculate Y domain based on data
+    const allPrices = processedData.map(d => d.close);
+    const minPrice = Math.min(...allPrices) * 0.995;
+    const maxPrice = Math.max(...allPrices) * 1.005;
     
-  const sellSignals = processedData
-    .filter(item => item.signalType === 'SELL')
-    .map(item => ({
-      openTime: item.openTime,
-      close: item.close,
-      value: item.close
-    }));
+    return { buySignals, sellSignals, minPrice, maxPrice };
+  }, [processedData]);
 
   // Format Y-axis ticks to display proper price values
   const formatYAxisTick = (value: number) => {
     return formatPrice(value);
   };
-
-  // Calculate Y domain based on data
-  const allPrices = processedData.map(d => d.close);
-  const minPrice = Math.min(...allPrices) * 0.995;
-  const maxPrice = Math.max(...allPrices) * 1.005;
 
   return (
     <div className="h-[350px] w-full">

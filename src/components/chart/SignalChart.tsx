@@ -16,9 +16,17 @@ import { ChartContainer } from '@/components/ui/chart';
 import { CustomTooltip } from './ChartTooltip';
 import { formatPrice } from '@/utils/chartFormatters';
 import { SignalType } from '@/services/technical/types';
+import { KlineData } from '@/services/binanceService';
+
+// Extended type for the chart data
+interface ChartDataPoint extends KlineData {
+  formattedTime?: string;
+  signalType?: SignalType;
+  signalConfidence?: number;
+}
 
 interface SignalChartProps {
-  chartData: any[];
+  chartData: (KlineData & { formattedTime?: string; signalType?: SignalType; signalConfidence?: number; })[];
   currentPrice?: number | null;
   signalHistory?: Array<{type: SignalType, time: number, confidence: number}>;
 }
@@ -93,8 +101,8 @@ const SignalChart: React.FC<SignalChartProps> = memo(({
       return {
         ...candle,
         formattedTime,
-        signalType: signal?.type || null,
-        signalConfidence: signal?.confidence || null
+        signalType: signal?.type || candle.signalType,
+        signalConfidence: signal?.confidence || candle.signalConfidence
       };
     });
   }, [chartData, signalHistory]);

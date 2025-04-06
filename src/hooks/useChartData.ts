@@ -22,6 +22,13 @@ interface ChartState {
   showSignalHistory: boolean; // Added to toggle signal history visibility
 }
 
+// Define extended candle type with signal properties
+interface ProcessedCandle extends KlineData {
+  formattedTime?: string;
+  signalType?: SignalType;
+  signalConfidence?: number;
+}
+
 export const useChartData = (klineData: KlineData[], signalData?: SignalSummary | null, signalHistory?: Array<{type: SignalType, time: number, confidence: number}>) => {
   // State for chart settings
   const [chartState, setChartState] = useState<ChartState>({
@@ -77,7 +84,7 @@ export const useChartData = (klineData: KlineData[], signalData?: SignalSummary 
     if (!klineData || klineData.length === 0) return [];
     
     // Deep copy the data to avoid mutations
-    const processedData = klineData.map(candle => {
+    const processedData: ProcessedCandle[] = klineData.map(candle => {
       // Add formatted time for display
       const date = new Date(candle.openTime);
       const formattedTime = date.toLocaleTimeString([], { 

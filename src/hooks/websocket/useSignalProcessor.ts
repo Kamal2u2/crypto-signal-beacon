@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { SignalSummary, SignalType } from '@/services/technical/types';
 import { useSignalNotifications } from './notifications/useSignalNotifications';
 import { useSignalTracking } from './signals/useSignalTracking';
@@ -32,7 +32,20 @@ export const useSignalProcessor = ({
   const [recentSignals, setRecentSignals] = useState<{[key: string]: number}>({});
   const [signalHistory, setSignalHistory] = useState<Array<{type: SignalType, time: number, confidence: number}>>([]);
   
-  // Initialize signal tracking
+  const signalStateRef = useRef<{
+    lastActionableSignal: SignalType | null;
+    lastActionableTime: number;
+    holdCount: number;
+    signalLockPeriod: number;
+    confidenceHistory: number[];
+  }>({
+    lastActionableSignal: null,
+    lastActionableTime: 0,
+    holdCount: 0,
+    signalLockPeriod: 180000,
+    confidenceHistory: []
+  });
+  
   const {
     shouldProcessSignal,
     trackSignal,
@@ -43,7 +56,6 @@ export const useSignalProcessor = ({
     confidenceThreshold
   });
   
-  // Initialize notifications
   const { showNotifications } = useSignalNotifications({
     isAudioInitialized,
     alertsEnabled,
@@ -55,71 +67,127 @@ export const useSignalProcessor = ({
     confidenceThreshold
   });
 
-  // Check for signal consistency over time
   const isSignalConsistent = (signalType: SignalType, confidence: number): boolean => {
-    if (signalHistory.length < 3) return true; // Not enough history to determine consistency
+    if (signalHistory.length < 4) return false;
     
-    // Check last 3 signals within 60 seconds
-    const recentHistory = signalHistory
-      .filter(entry => Date.now() - entry.time < 60000)
-      .slice(-3);
+    if (signalType === 'BUY' || signalType === 'SELL') {
+      const recentHistory = signalHistory
+        .filter(entry => Date.now() - entry.time < 120000)
+        .slice(-5);
       
-    // If we don't have enough recent history, consider consistent
-    if (recentHistory.length < 3) return true;
-    
-    // For weak signals (lower confidence), require more consistency
-    if (confidence < 75) {
-      // Must have at least 2 signals of same type in recent history
       const sameTypeCount = recentHistory.filter(s => s.type === signalType).length;
-      return sameTypeCount >= 2;
+      const oppositeSignals = recentHistory.filter(s => 
+        (signalType === 'BUY' && s.type === 'SELL') || 
+        (signalType === 'SELL' && s.type === 'BUY')
+      ).length;
+      
+      return sameTypeCount >= 3 && oppositeSignals === 0;
     }
     
-    // For stronger signals, be a bit more permissive
     return true;
   };
-  
-  // Memoize the signal processing to prevent unnecessary rerenders
+
+  const shouldOverrideToHold = (newSignal: SignalType, confidence: number): boolean => {
+    const now = Date.now();
+    const state = signalStateRef.current;
+    
+    const avgConfidence = state.confidenceHistory.length > 0 ? 
+      state.confidenceHistory.reduce((a, b) => a + b, 0) / state.confidenceHistory.length : 0;
+    
+    if (state.lastActionableSignal && 
+        state.lastActionableSignal !== newSignal &&
+        now - state.lastActionableTime < state.signalLockPeriod) {
+      return true;
+    }
+    
+    if ((newSignal === 'BUY' || newSignal === 'SELL') && 
+        confidence < avgConfidence * 0.95) {
+      return true;
+    }
+    
+    if (state.lastActionableSignal && 
+       ((state.lastActionableSignal === 'BUY' && newSignal === 'SELL') || 
+        (state.lastActionableSignal === 'SELL' && newSignal === 'BUY')) && 
+        now - state.lastActionableTime < state.signalLockPeriod * 2) {
+      return true;
+    }
+    
+    return false;
+  };
+
   const processNewSignal = useCallback((newSignals: SignalSummary) => {
-    // Don't process if signal is empty or invalid
     if (!newSignals || !newSignals.overallSignal) return;
     
-    // Create a stringified version of the signal to compare with previous
     const signalFingerprint = `${newSignals.overallSignal}-${newSignals.confidence}`;
     
-    // Update the signal data state regardless of other conditions
+    const originalSignal = newSignals.overallSignal;
+    const originalConfidence = newSignals.confidence;
+    
+    signalStateRef.current.confidenceHistory.push(originalConfidence);
+    if (signalStateRef.current.confidenceHistory.length > 10) {
+      signalStateRef.current.confidenceHistory.shift();
+    }
+    
+    let modifiedSignals = {...newSignals};
+    
+    if (originalSignal === 'BUY' || originalSignal === 'SELL') {
+      const isConsistent = isSignalConsistent(originalSignal, originalConfidence);
+      
+      if (!isConsistent || shouldOverrideToHold(originalSignal, originalConfidence)) {
+        signalStateRef.current.holdCount++;
+        
+        modifiedSignals = {
+          ...newSignals,
+          overallSignal: 'HOLD',
+          confidence: Math.min(70, originalConfidence)
+        };
+        
+        console.log(`Signal ${originalSignal} overridden to HOLD due to consistency requirements`);
+      } else {
+        signalStateRef.current.holdCount = 0;
+        signalStateRef.current.lastActionableSignal = originalSignal;
+        signalStateRef.current.lastActionableTime = Date.now();
+      }
+    } else if (originalSignal === 'NEUTRAL') {
+      modifiedSignals = {
+        ...newSignals,
+        overallSignal: 'HOLD',
+        confidence: originalConfidence
+      };
+    } else if (originalSignal === 'HOLD') {
+      signalStateRef.current.holdCount++;
+    }
+    
     setSignalData(prevSignalData => {
-      // Skip update if the data is identical
       if (prevSignalData && 
-          prevSignalData.overallSignal === newSignals.overallSignal && 
-          prevSignalData.confidence === newSignals.confidence) {
+          prevSignalData.overallSignal === modifiedSignals.overallSignal && 
+          prevSignalData.confidence === modifiedSignals.confidence) {
         return prevSignalData;
       }
-      return newSignals;
+      return modifiedSignals;
     });
     
-    // Add signal to history for consistency checking
     setSignalHistory(prev => {
       const updatedHistory = [
         ...prev,
         {
-          type: newSignals.overallSignal,
+          type: modifiedSignals.overallSignal,
           time: Date.now(),
-          confidence: newSignals.confidence
+          confidence: modifiedSignals.confidence
         }
       ];
       
-      // Keep only last 10 signals
-      return updatedHistory.slice(-10);
+      return updatedHistory.slice(-15);
     });
     
-    // Only process actionable signals above threshold
-    if (newSignals.confidence >= confidenceThreshold) {
-      // Track the frequency of this signal type
+    if (modifiedSignals.overallSignal !== 'HOLD' && 
+        modifiedSignals.overallSignal !== 'NEUTRAL' &&
+        modifiedSignals.confidence >= confidenceThreshold) {
+      
       setRecentSignals(prev => {
         const now = Date.now();
-        const timeWindow = 300000; // 5 minutes
+        const timeWindow = 600000;
         
-        // Clean up old signals
         const updatedSignals = {...prev};
         Object.keys(updatedSignals).forEach(key => {
           if (now - updatedSignals[key] > timeWindow) {
@@ -127,47 +195,33 @@ export const useSignalProcessor = ({
           }
         });
         
-        // Add new signal
-        if (newSignals.overallSignal === 'BUY' || newSignals.overallSignal === 'SELL') {
-          updatedSignals[newSignals.overallSignal] = now;
+        if (modifiedSignals.overallSignal === 'BUY' || modifiedSignals.overallSignal === 'SELL') {
+          updatedSignals[modifiedSignals.overallSignal] = now;
         }
         
         return updatedSignals;
       });
       
-      // Check if signal is consistent over time
-      const isConsistent = isSignalConsistent(newSignals.overallSignal, newSignals.confidence);
-      
-      // Check if this is a valid actionable signal
       const isSignalValid = shouldProcessSignal(
-        newSignals.overallSignal,
-        newSignals.confidence,
+        modifiedSignals.overallSignal,
+        modifiedSignals.confidence,
         signalFingerprint
       );
       
-      // Only process if signal is valid, consistent, and not conflicting with recent signals
-      if (isSignalValid && isConsistent) {
-        // Don't send conflicting signals in short timeframe
-        const oppositeSignalRecently = 
-          (newSignals.overallSignal === 'BUY' && recentSignals['SELL'] && 
-           Date.now() - recentSignals['SELL'] < 600000) || // 10 minutes
-          (newSignals.overallSignal === 'SELL' && recentSignals['BUY'] && 
-           Date.now() - recentSignals['BUY'] < 600000);
-           
-        if (!oppositeSignalRecently) {
-          // Show notifications only for signals above threshold
-          showNotifications(newSignals.overallSignal, newSignals.confidence);
-          
-          // Track this signal
-          trackSignal(newSignals.overallSignal, signalFingerprint);
-        } else {
-          console.log(`Signal ${newSignals.overallSignal} skipped: conflicting with recent opposite signal`);
-        }
-      } else if (!isConsistent) {
-        console.log(`Signal ${newSignals.overallSignal} skipped: inconsistent with recent signal history`);
+      const oppositeSignalRecently = 
+        (modifiedSignals.overallSignal === 'BUY' && recentSignals['SELL'] && 
+         Date.now() - recentSignals['SELL'] < 900000) ||
+        (modifiedSignals.overallSignal === 'SELL' && recentSignals['BUY'] && 
+         Date.now() - recentSignals['BUY'] < 900000);
+      
+      if (isSignalValid && !oppositeSignalRecently) {
+        showNotifications(modifiedSignals.overallSignal, modifiedSignals.confidence);
+        trackSignal(modifiedSignals.overallSignal, signalFingerprint);
+      } else if (oppositeSignalRecently) {
+        console.log(`Signal ${modifiedSignals.overallSignal} skipped: conflicting with recent opposite signal`);
       }
     } else {
-      console.log(`Signal ${newSignals.overallSignal} skipped: below threshold (${newSignals.confidence.toFixed(0)}% < ${confidenceThreshold}%)`);
+      console.log(`Signal ${modifiedSignals.overallSignal} not processed as actionable signal: ${modifiedSignals.confidence.toFixed(0)}% vs threshold ${confidenceThreshold}%)`);
     }
   }, [
     confidenceThreshold, 

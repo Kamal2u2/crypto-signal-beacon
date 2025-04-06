@@ -1,161 +1,280 @@
 
 import { KlineData, TimeInterval } from '../binanceService';
+import { SignalType } from './types';
+import { calculateSMA, calculateEMA } from './movingAverages';
+import { calculateRSI } from './oscillators';
+import { calculateMACD } from './macd';
+import { calculateBollingerBands } from './bollingerBands';
 import { predictPriceMovement } from './aiPrediction';
 
-// Define the timeframes to analyze and their weights
-const TIMEFRAMES: { interval: TimeInterval; weight: number }[] = [
-  { interval: '5m', weight: 0.15 },
-  { interval: '15m', weight: 0.25 },
-  { interval: '1h', weight: 0.35 },
-  { interval: '4h', weight: 0.25 },
-];
+// Define the valid timeframes for multi-timeframe analysis
+const VALID_TIMEFRAMES: TimeInterval[] = ['1m', '5m', '15m', '30m', '1h', '4h', '1d'];
 
-export interface TimeframeSignal {
-  interval: TimeInterval;
-  prediction: 'UP' | 'DOWN' | 'NEUTRAL';
-  confidence: number;
-  predictedChange: number;
-}
+// Weight for each timeframe (higher weight for longer timeframes)
+const TIMEFRAME_WEIGHTS: Record<TimeInterval, number> = {
+  '1m': 0.2,
+  '5m': 0.4,
+  '15m': 0.6,
+  '30m': 0.8,
+  '1h': 1.0,
+  '4h': 1.5,
+  '1d': 2.0
+};
 
-export interface MultitimeframeAnalysis {
-  signals: TimeframeSignal[];
-  alignmentScore: number; // 0-100, how aligned the signals are
+// Interface for MTF analysis result
+interface MTFAnalysisResult {
   dominantSignal: 'UP' | 'DOWN' | 'NEUTRAL';
-  weightedPredictedChange: number;
+  alignmentScore: number; // 0-100 score indicating timeframe alignment
+  timeframeSignals: Record<TimeInterval, 'UP' | 'DOWN' | 'NEUTRAL'>;
   weightedConfidence: number;
+  weightedPredictedChange: number;
 }
 
 /**
- * Simulates analysis for different timeframes by resampling the data
- * @param klineData Original kline data (assumed to be the smallest timeframe)
- * @returns Multi-timeframe analysis result
+ * Analyze multiple timeframes from a single dataset
+ * This function simulates different timeframes from the provided data
+ * @param klineData The candlestick data (should be 1m data ideally)
+ * @returns Analysis across multiple timeframes
  */
-export const analyzeMultipleTimeframes = (klineData: KlineData[]): MultitimeframeAnalysis => {
+export const analyzeMultipleTimeframes = (klineData: KlineData[]): MTFAnalysisResult => {
+  // Need sufficient data for multi-timeframe analysis
   if (klineData.length < 200) {
     return {
-      signals: [],
-      alignmentScore: 0,
       dominantSignal: 'NEUTRAL',
-      weightedPredictedChange: 0,
-      weightedConfidence: 0
+      alignmentScore: 0,
+      timeframeSignals: {} as Record<TimeInterval, 'UP' | 'DOWN' | 'NEUTRAL'>,
+      weightedConfidence: 0,
+      weightedPredictedChange: 0
     };
   }
-
-  const signals: TimeframeSignal[] = [];
-  let weightedChangeSum = 0;
-  let weightedConfidenceSum = 0;
-  let totalWeight = 0;
   
-  // Count signals for alignment score
-  let upCount = 0;
-  let downCount = 0;
-  let neutralCount = 0;
+  // Results by timeframe
+  const results: Record<TimeInterval, {
+    signal: 'UP' | 'DOWN' | 'NEUTRAL';
+    confidence: number;
+    predictedChange: number;
+  }> = {} as Record<TimeInterval, {
+    signal: 'UP' | 'DOWN' | 'NEUTRAL';
+    confidence: number;
+    predictedChange: number;
+  }>;
   
-  // Process each timeframe
-  for (const tf of TIMEFRAMES) {
-    // For higher timeframes, we need to resample the data
-    // This is a simplified approach - in real systems we would use actual higher timeframe data
-    const resampledData = resampleKlineData(klineData, tf.interval);
+  // Analyze each timeframe
+  VALID_TIMEFRAMES.forEach(timeframe => {
+    // Create simulated data for this timeframe by aggregating candles
+    const timeframeData = simulateTimeframe(klineData, timeframe);
+    if (timeframeData.length < 30) return; // Skip if not enough data
     
-    // Get prediction for this timeframe
-    const prediction = predictPriceMovement(resampledData);
-    
-    signals.push({
-      interval: tf.interval,
-      prediction: prediction.prediction,
-      confidence: prediction.confidence,
-      predictedChange: prediction.predictedChange
-    });
-    
-    // Update weighted sums
-    weightedChangeSum += prediction.predictedChange * tf.weight;
-    weightedConfidenceSum += prediction.confidence * tf.weight;
-    totalWeight += tf.weight;
-    
-    // Update signal counts
-    if (prediction.prediction === 'UP') upCount += tf.weight;
-    else if (prediction.prediction === 'DOWN') downCount += tf.weight;
-    else neutralCount += tf.weight;
+    // Analyze this timeframe
+    results[timeframe] = analyzeTimeframe(timeframeData);
+  });
+  
+  // Skip incomplete results
+  const timeframes = Object.keys(results).filter(tf => VALID_TIMEFRAMES.includes(tf as TimeInterval)) as TimeInterval[];
+  if (timeframes.length < 3) {
+    return {
+      dominantSignal: 'NEUTRAL',
+      alignmentScore: 0,
+      timeframeSignals: {} as Record<TimeInterval, 'UP' | 'DOWN' | 'NEUTRAL'>,
+      weightedConfidence: 0,
+      weightedPredictedChange: 0
+    };
   }
   
-  // Calculate alignment score (100 = all signals agree, 0 = evenly split)
-  const maxSignal = Math.max(upCount, downCount, neutralCount);
-  const alignmentScore = ((maxSignal / totalWeight) - (1/3)) * 150; // Scale to 0-100
+  // Count signals by type
+  const signalCounts = {
+    UP: 0,
+    DOWN: 0,
+    NEUTRAL: 0
+  };
   
-  // Determine dominant signal
+  let totalWeight = 0;
+  let weightedConfidenceSum = 0;
+  let weightedChangeSum = 0;
+  const timeframeSignals: Record<TimeInterval, 'UP' | 'DOWN' | 'NEUTRAL'> = {} as Record<TimeInterval, 'UP' | 'DOWN' | 'NEUTRAL'>;
+  
+  timeframes.forEach(tf => {
+    const weight = TIMEFRAME_WEIGHTS[tf];
+    const result = results[tf];
+    timeframeSignals[tf] = result.signal;
+    
+    signalCounts[result.signal] += weight;
+    totalWeight += weight;
+    weightedConfidenceSum += result.confidence * weight;
+    weightedChangeSum += result.predictedChange * weight;
+  });
+  
+  // Determine dominant signal type
   let dominantSignal: 'UP' | 'DOWN' | 'NEUTRAL' = 'NEUTRAL';
-  if (upCount > downCount && upCount > neutralCount) {
+  const upScore = signalCounts.UP / totalWeight;
+  const downScore = signalCounts.DOWN / totalWeight;
+  
+  // Require a clearer majority for non-neutral signals
+  if (upScore > downScore && upScore > 0.5) {
     dominantSignal = 'UP';
-  } else if (downCount > upCount && downCount > neutralCount) {
+  } else if (downScore > upScore && downScore > 0.5) {
     dominantSignal = 'DOWN';
   }
   
+  // Calculate alignment score (how consistent are timeframes?)
+  const maxCount = Math.max(signalCounts.UP, signalCounts.DOWN, signalCounts.NEUTRAL);
+  const alignmentScore = (maxCount / totalWeight) * 100;
+  
+  // Calculate weighted average confidence and change
+  const weightedConfidence = weightedConfidenceSum / totalWeight;
+  const weightedPredictedChange = weightedChangeSum / totalWeight;
+  
   return {
-    signals,
-    alignmentScore: Math.max(0, Math.min(100, Math.round(alignmentScore))),
     dominantSignal,
-    weightedPredictedChange: weightedChangeSum / totalWeight,
-    weightedConfidence: weightedConfidenceSum / totalWeight
+    alignmentScore,
+    timeframeSignals,
+    weightedConfidence,
+    weightedPredictedChange
   };
 };
 
 /**
- * Resamples kline data to a higher timeframe
- * This is a simplified approach - in production, use actual data from different timeframes
- * @param klineData Original kline data
- * @param targetInterval Target timeframe
- * @returns Resampled kline data
+ * Simulate higher timeframe data from 1m candles
+ * @param baseData Original kline data (1m timeframe ideally)
+ * @param targetTimeframe Target timeframe to simulate
+ * @returns Kline data for the target timeframe
  */
-const resampleKlineData = (klineData: KlineData[], targetInterval: TimeInterval): KlineData[] => {
-  // This is a simplified implementation
-  // In a real system, you would fetch actual data for each timeframe
+function simulateTimeframe(baseData: KlineData[], targetTimeframe: TimeInterval): KlineData[] {
+  if (baseData.length === 0) return [];
   
-  // Define multipliers for each timeframe compared to the base (assuming base is 1m)
-  const intervalMultipliers: Record<TimeInterval, number> = {
-    '1m': 1,
-    '3m': 3,
-    '5m': 5,
-    '15m': 15,
-    '30m': 30,
-    '1h': 60,
-    '4h': 240,
-    '1d': 1440
-  };
+  // Determine candle aggregation factor
+  let aggregationFactor = 1;
+  if (targetTimeframe === '5m') aggregationFactor = 5;
+  else if (targetTimeframe === '15m') aggregationFactor = 15;
+  else if (targetTimeframe === '30m') aggregationFactor = 30;
+  else if (targetTimeframe === '1h') aggregationFactor = 60;
+  else if (targetTimeframe === '4h') aggregationFactor = 240;
+  else if (targetTimeframe === '1d') aggregationFactor = 1440;
   
-  // Determine the base interval and target multiplier
-  // For simplicity, assume the input data is 1m timeframe
-  const baseInterval: TimeInterval = '1m';
-  const baseMultiplier = intervalMultipliers[baseInterval];
-  const targetMultiplier = intervalMultipliers[targetInterval];
-  const ratio = targetMultiplier / baseMultiplier;
+  // If the requested timeframe is the same as the base data, return as-is
+  if (aggregationFactor === 1) return baseData;
   
-  // If ratio is 1, no resampling needed
-  if (ratio === 1) return [...klineData];
+  const result: KlineData[] = [];
+  let currentCandle: KlineData | null = null;
   
-  const resampledData: KlineData[] = [];
-  
-  // Group data by the ratio and create new candles
-  for (let i = 0; i < klineData.length; i += ratio) {
-    if (i + ratio > klineData.length) break;
+  for (let i = 0; i < baseData.length; i++) {
+    const candle = baseData[i];
     
-    const chunk = klineData.slice(i, i + ratio);
-    
-    const newCandle: KlineData = {
-      openTime: chunk[0].openTime,
-      closeTime: chunk[chunk.length - 1].closeTime,
-      open: chunk[0].open,
-      high: Math.max(...chunk.map(c => c.high)),
-      low: Math.min(...chunk.map(c => c.low)),
-      close: chunk[chunk.length - 1].close,
-      volume: chunk.reduce((sum, c) => sum + c.volume, 0),
-      trades: chunk.reduce((sum, c) => sum + (c.trades || 0), 0),
-      quoteAssetVolume: chunk.reduce((sum, c) => sum + (c.quoteAssetVolume || 0), 0),
-      takerBuyBaseAssetVolume: chunk.reduce((sum, c) => sum + (c.takerBuyBaseAssetVolume || 0), 0),
-      takerBuyQuoteAssetVolume: chunk.reduce((sum, c) => sum + (c.takerBuyQuoteAssetVolume || 0), 0)
-    };
-    
-    resampledData.push(newCandle);
+    // Use modulo to determine start of new candle
+    if (i % aggregationFactor === 0) {
+      if (currentCandle !== null) {
+        result.push(currentCandle);
+      }
+      
+      // Start a new candle
+      currentCandle = {
+        openTime: candle.openTime,
+        closeTime: candle.openTime + (aggregationFactor * 60000) - 1, // -1ms to not overlap
+        open: candle.open,
+        high: candle.high,
+        low: candle.low,
+        close: candle.close,
+        volume: candle.volume
+      };
+    } else if (currentCandle !== null) {
+      // Update existing candle
+      currentCandle.high = Math.max(currentCandle.high, candle.high);
+      currentCandle.low = Math.min(currentCandle.low, candle.low);
+      currentCandle.close = candle.close; // Last closing price becomes the close
+      currentCandle.volume += candle.volume; // Sum the volumes
+    }
   }
   
-  return resampledData;
+  // Add the last candle
+  if (currentCandle !== null) {
+    result.push(currentCandle);
+  }
+  
+  return result;
+}
+
+/**
+ * Analyze a specific timeframe
+ * @param timeframeData Candlestick data for the timeframe
+ * @returns Signal analysis for the timeframe
+ */
+function analyzeTimeframe(timeframeData: KlineData[]): {
+  signal: 'UP' | 'DOWN' | 'NEUTRAL';
+  confidence: number;
+  predictedChange: number;
+} {
+  const closes = timeframeData.map(candle => candle.close);
+  
+  // Calculate key indicators
+  const sma20 = calculateSMA(closes, 20);
+  const ema9 = calculateEMA(closes, 9);
+  const rsi14 = calculateRSI(closes, 14);
+  const macd = calculateMACD(closes);
+  const bbands = calculateBollingerBands(closes);
+  
+  // Get the latest values
+  const close = closes[closes.length - 1];
+  const sma = sma20[sma20.length - 1];
+  const rsi = rsi14[rsi14.length - 1];
+  const macdValue = macd.macd[macd.macd.length - 1];
+  const macdSignal = macd.signal[macd.signal.length - 1];
+  
+  // Run AI prediction for this timeframe
+  const prediction = predictPriceMovement(timeframeData);
+  
+  // Build signal from indicators
+  let bullSignals = 0;
+  let bearSignals = 0;
+  
+  // Price above SMA20
+  if (close > sma) bullSignals++;
+  else bearSignals++;
+  
+  // RSI indicator
+  if (rsi < 30) bullSignals++;
+  else if (rsi > 70) bearSignals++;
+  
+  // MACD indicator
+  if (macdValue > macdSignal) bullSignals++;
+  else if (macdValue < macdSignal) bearSignals++;
+  
+  // Determine signal
+  let signal: 'UP' | 'DOWN' | 'NEUTRAL';
+  
+  if (prediction.prediction === 'UP') {
+    bullSignals += 2; // Give more weight to AI prediction
+  } else if (prediction.prediction === 'DOWN') {
+    bearSignals += 2;
+  }
+  
+  // Determine final signal with bias toward neutrality
+  if (bullSignals > bearSignals + 1) {
+    signal = 'UP';
+  } else if (bearSignals > bullSignals + 1) {
+    signal = 'DOWN';
+  } else {
+    signal = 'NEUTRAL';
+  }
+  
+  return {
+    signal,
+    confidence: prediction.confidence,
+    predictedChange: prediction.predictedChange
+  };
+}
+
+/**
+ * Convert signal type to direction
+ * @param signal Trading signal
+ * @returns Direction as UP/DOWN/NEUTRAL
+ */
+export const signalToDirection = (signal: SignalType): 'UP' | 'DOWN' | 'NEUTRAL' => {
+  switch (signal) {
+    case 'BUY':
+      return 'UP';
+    case 'SELL':
+      return 'DOWN';
+    default:
+      return 'NEUTRAL';
+  }
 };

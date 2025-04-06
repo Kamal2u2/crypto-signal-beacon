@@ -14,6 +14,7 @@ export * from './atr';
 
 // Export signal generation
 export * from './signals/generateSignals';
+export * from './signals/signalUtils';
 
 // Export market regime detection
 export * from './marketRegime';

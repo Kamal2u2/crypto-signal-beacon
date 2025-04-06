@@ -42,7 +42,7 @@ export const detectMarketRegime = (klineData: KlineData[]): MarketRegimeAnalysis
   const ema10 = calculateEMA(closes, 10);
   const bbands = calculateBollingerBands(closes);
   
-  // Get latest values
+  // Get latest values - fixing the ADX access method
   const lastADX = adxResult.adx[adxResult.adx.length - 1];
   const lastATR = atr[atr.length - 1];
   const lastSMA20 = sma20[sma20.length - 1];
@@ -121,6 +121,7 @@ export const detectMarketRegime = (klineData: KlineData[]): MarketRegimeAnalysis
 /**
  * Adjusts prediction confidence based on market regime
  * @param prediction Original prediction
+ * @param confidence Original confidence
  * @param regime Current market regime analysis
  * @returns Adjusted prediction confidence
  */
@@ -147,13 +148,19 @@ export const adjustPredictionForRegime = (
       break;
     
     case 'RANGING':
-      // In ranging markets, reduce extreme signals and favor mean reversion
+      // In ranging markets, reduce extreme signals and favor HOLD
       if (prediction === 'BUY' || prediction === 'SELL') {
         // Reduce confidence in strong buy/sell signals
-        adjustedConfidence = Math.max(0, confidence * (1 - regime.strength / 200));
+        adjustedConfidence = Math.max(0, confidence * (1 - regime.strength / 150));
+        
+        // Convert to HOLD if confidence drops too low
+        if (adjustedConfidence < 50 && regime.strength > 65) {
+          adjustedPrediction = 'HOLD';
+          adjustedConfidence = Math.min(100, 55 + regime.strength / 5);
+        }
       } else if (prediction === 'HOLD') {
-        // Potentially increase hold signals in ranging markets
-        adjustedConfidence = Math.min(100, confidence * (1 + regime.strength / 300));
+        // Increase hold signals in ranging markets
+        adjustedConfidence = Math.min(100, confidence * (1 + regime.strength / 200));
       }
       break;
       
@@ -161,8 +168,8 @@ export const adjustPredictionForRegime = (
       // In volatile markets, reduce all signal confidence and favor caution
       adjustedConfidence = Math.max(0, confidence * (1 - regime.volatility / 150));
       
-      // If very volatile and confidence becomes too low, suggest holding
-      if (regime.volatility > 85 && adjustedConfidence < 40 && 
+      // If very volatile, suggest holding
+      if (regime.volatility > 85 && 
          (prediction === 'BUY' || prediction === 'SELL')) {
         adjustedPrediction = 'HOLD';
         adjustedConfidence = Math.min(100, 50 + regime.volatility / 5);

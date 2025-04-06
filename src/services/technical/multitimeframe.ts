@@ -118,15 +118,8 @@ const resampleKlineData = (klineData: KlineData[], targetInterval: TimeInterval)
     '15m': 15,
     '30m': 30,
     '1h': 60,
-    '2h': 120,
     '4h': 240,
-    '6h': 360,
-    '8h': 480,
-    '12h': 720,
-    '1d': 1440,
-    '3d': 4320,
-    '1w': 10080,
-    '1M': 43200
+    '1d': 1440
   };
   
   // Determine the base interval and target multiplier
@@ -156,7 +149,9 @@ const resampleKlineData = (klineData: KlineData[], targetInterval: TimeInterval)
       close: chunk[chunk.length - 1].close,
       volume: chunk.reduce((sum, c) => sum + c.volume, 0),
       trades: chunk.reduce((sum, c) => sum + (c.trades || 0), 0),
-      quoteVolume: chunk.reduce((sum, c) => sum + (c.quoteVolume || 0), 0)
+      quoteAssetVolume: chunk.reduce((sum, c) => sum + (c.quoteAssetVolume || 0), 0),
+      takerBuyBaseAssetVolume: chunk.reduce((sum, c) => sum + (c.takerBuyBaseAssetVolume || 0), 0),
+      takerBuyQuoteAssetVolume: chunk.reduce((sum, c) => sum + (c.takerBuyQuoteAssetVolume || 0), 0)
     };
     
     resampledData.push(newCandle);

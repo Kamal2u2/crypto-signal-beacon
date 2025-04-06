@@ -35,7 +35,7 @@ export const detectMarketRegime = (klineData: KlineData[]): MarketRegimeAnalysis
   const lows = klineData.map(k => k.low);
   
   // Calculate indicators for regime detection
-  const adx = calculateADX(highs, lows, closes);
+  const adxResult = calculateADX(highs, lows, closes);
   const atr = calculateATR(klineData);
   const sma20 = calculateSMA(closes, 20);
   const sma50 = calculateSMA(closes, 50);
@@ -43,7 +43,7 @@ export const detectMarketRegime = (klineData: KlineData[]): MarketRegimeAnalysis
   const bbands = calculateBollingerBands(closes);
   
   // Get latest values
-  const lastADX = adx[adx.length - 1];
+  const lastADX = adxResult.adx[adxResult.adx.length - 1];
   const lastATR = atr[atr.length - 1];
   const lastSMA20 = sma20[sma20.length - 1];
   const lastSMA50 = sma50[sma50.length - 1];

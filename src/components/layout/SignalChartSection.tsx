@@ -15,7 +15,7 @@ interface SignalChartSectionProps {
   signalHistory?: Array<{type: any, time: number, confidence: number}>;
 }
 
-// Improved comparison function to avoid unnecessary re-renders but be more responsive to signal changes
+// Further improved comparison function with stronger memoization
 const arePropsEqual = (prevProps: SignalChartSectionProps, nextProps: SignalChartSectionProps) => {
   // Always re-render if loading state changes
   if (prevProps.isLoading !== nextProps.isLoading) {
@@ -27,10 +27,10 @@ const arePropsEqual = (prevProps: SignalChartSectionProps, nextProps: SignalChar
     return false;
   }
   
-  // For price changes, only update if significant (0.03% or more)
+  // For price changes, only update if significant (0.02% or more)
   if (prevProps.currentPrice && nextProps.currentPrice) {
     const priceDiffPercent = Math.abs((prevProps.currentPrice - nextProps.currentPrice) / prevProps.currentPrice) * 100;
-    if (priceDiffPercent > 0.03) {
+    if (priceDiffPercent > 0.02) {
       return false;
     }
   } else if (prevProps.currentPrice !== nextProps.currentPrice) {
@@ -42,26 +42,30 @@ const arePropsEqual = (prevProps: SignalChartSectionProps, nextProps: SignalChar
     return false;
   }
   
-  // If signal history or data length changed, we need to update
-  if (
-    prevProps.signalHistory?.length !== nextProps.signalHistory?.length ||
-    prevProps.klineData.length !== nextProps.klineData.length
-  ) {
+  // If signal history changed, we need to update
+  if (prevProps.signalHistory?.length !== nextProps.signalHistory?.length) {
     return false;
   }
   
   // Only check last candle to determine if we need an update
+  // Use a time-based update limiter to prevent flash updates
+  // Only update chart at most once every 2 seconds for minor changes
   if (prevProps.klineData.length > 0 && nextProps.klineData.length > 0) {
     const lastCandle1 = prevProps.klineData[prevProps.klineData.length - 1];
     const lastCandle2 = nextProps.klineData[nextProps.klineData.length - 1];
+    const now = Date.now();
+    const lastRenderTime = (prevProps as any)._lastRenderTime || 0;
+    
+    // Store current render time on the props object
+    (nextProps as any)._lastRenderTime = now;
     
     if (lastCandle1.openTime !== lastCandle2.openTime) {
       return false;
     }
     
-    // Only update if price change is significant - reduced threshold
+    // Only update if price change is significant - or if enough time has passed
     const lastCloseDiff = Math.abs((lastCandle1.close - lastCandle2.close) / lastCandle1.close) * 100;
-    if (lastCloseDiff > 0.03) {
+    if (lastCloseDiff > 0.02 || (now - lastRenderTime > 2000)) {
       return false;
     }
   }

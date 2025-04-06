@@ -21,27 +21,25 @@ export const handleKlineUpdate = (
   // For minor price updates to the current candle, don't trigger a full re-render
   if (existingIndex !== -1) {
     const existingKline = updatedData[existingIndex];
-    // Only update if there's a meaningful price change (0.05% or more) - reduced threshold for more stability
+    // Reduced threshold to 0.03% to make signals more responsive
     const priceDiffPercent = Math.abs((existingKline.close - newKline.close) / existingKline.close) * 100;
-    const isSignificantUpdate = priceDiffPercent >= 0.05;
+    const isSignificantUpdate = priceDiffPercent >= 0.03;
     
     // Always update our reference data
     updatedData[existingIndex] = newKline;
     klineDataRef.current = updatedData;
     
+    // Always generate signals to check for new ones
+    const newSignals = generateSignals(updatedData);
+    
     // Only trigger state update for significant changes
     if (isSignificantUpdate) {
       setKlineData(updatedData);
-      
-      // Generate and process new signals
-      const newSignals = generateSignals(updatedData);
       processNewSignal(newSignals);
     } else {
-      // Minor update - still generate signals but don't update UI
-      const newSignals = generateSignals(updatedData);
-      
-      // Only process if there's an actionable BUY/SELL signal
-      if (newSignals && (newSignals.overallSignal === 'BUY' || newSignals.overallSignal === 'SELL')) {
+      // For minor updates - still process signal if it's BUY/SELL with sufficient confidence
+      if (newSignals && (newSignals.overallSignal === 'BUY' || newSignals.overallSignal === 'SELL') && 
+          newSignals.confidence >= 50) {
         processNewSignal(newSignals);
       }
     }

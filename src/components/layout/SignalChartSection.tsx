@@ -15,7 +15,7 @@ interface SignalChartSectionProps {
   signalHistory?: Array<{type: any, time: number, confidence: number}>;
 }
 
-// Improved comparison function to avoid unnecessary re-renders
+// Improved comparison function to avoid unnecessary re-renders but be more responsive to signal changes
 const arePropsEqual = (prevProps: SignalChartSectionProps, nextProps: SignalChartSectionProps) => {
   // Always re-render if loading state changes
   if (prevProps.isLoading !== nextProps.isLoading) {
@@ -27,13 +27,18 @@ const arePropsEqual = (prevProps: SignalChartSectionProps, nextProps: SignalChar
     return false;
   }
   
-  // For price changes, only update if significant (0.05% or more)
+  // For price changes, only update if significant (0.03% or more)
   if (prevProps.currentPrice && nextProps.currentPrice) {
     const priceDiffPercent = Math.abs((prevProps.currentPrice - nextProps.currentPrice) / prevProps.currentPrice) * 100;
-    if (priceDiffPercent > 0.05) {
+    if (priceDiffPercent > 0.03) {
       return false;
     }
   } else if (prevProps.currentPrice !== nextProps.currentPrice) {
+    return false;
+  }
+  
+  // If signal data changes significantly, re-render
+  if (prevProps.signalData?.overallSignal !== nextProps.signalData?.overallSignal) {
     return false;
   }
   
@@ -54,9 +59,9 @@ const arePropsEqual = (prevProps: SignalChartSectionProps, nextProps: SignalChar
       return false;
     }
     
-    // Only update if price change is significant
+    // Only update if price change is significant - reduced threshold
     const lastCloseDiff = Math.abs((lastCandle1.close - lastCandle2.close) / lastCandle1.close) * 100;
-    if (lastCloseDiff > 0.05) {
+    if (lastCloseDiff > 0.03) {
       return false;
     }
   }

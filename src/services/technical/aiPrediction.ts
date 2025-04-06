@@ -1,4 +1,7 @@
+
 import { KlineData } from '../binanceService';
+import { detectMarketRegime, adjustPredictionForRegime } from './marketRegime';
+import { analyzeMultipleTimeframes } from './multitimeframe';
 
 // For feature extraction - we'll convert raw kline data into features for our model
 export const extractFeatures = (klineData: KlineData[], lookbackPeriods: number = 14): number[][] => {
@@ -184,6 +187,12 @@ export const getAIPrediction = (klineData: KlineData[]): {
   
   const mediumTermPrediction = predictPriceMovement(extendedKlineData);
   
+  // NEW: Get market regime analysis
+  const marketRegime = detectMarketRegime(klineData);
+  
+  // NEW: Get multi-timeframe analysis (if we have enough data)
+  const multitimeframe = klineData.length >= 200 ? analyzeMultipleTimeframes(klineData) : null;
+  
   // Determine trading signal based on short and medium term predictions
   let prediction: 'BUY' | 'SELL' | 'HOLD' | 'NEUTRAL' = 'NEUTRAL';
   let confidence = 0;
@@ -209,12 +218,64 @@ export const getAIPrediction = (klineData: KlineData[]): {
     confidence = 40; // Lower confidence for mixed signals
   }
   
+  // NEW: Adjust for multi-timeframe alignment if available
+  if (multitimeframe) {
+    // If timeframes strongly agree, boost confidence
+    if (multitimeframe.alignmentScore > 70) {
+      if ((prediction === 'BUY' && multitimeframe.dominantSignal === 'UP') ||
+          (prediction === 'SELL' && multitimeframe.dominantSignal === 'DOWN')) {
+        confidence = Math.min(100, confidence * (1 + multitimeframe.alignmentScore / 200));
+      }
+      // If they strongly disagree, reduce confidence
+      else if ((prediction === 'BUY' && multitimeframe.dominantSignal === 'DOWN') ||
+               (prediction === 'SELL' && multitimeframe.dominantSignal === 'UP')) {
+        confidence = Math.max(0, confidence * (1 - multitimeframe.alignmentScore / 150));
+      }
+    }
+    
+    // If timeframes show mixed signals but strong aligned change in one direction
+    if (Math.abs(multitimeframe.weightedPredictedChange) > 0.5 && multitimeframe.alignmentScore > 60) {
+      if (multitimeframe.weightedPredictedChange > 0.5 && prediction !== 'BUY') {
+        prediction = 'BUY';
+        confidence = Math.min(85, multitimeframe.weightedConfidence);
+      } else if (multitimeframe.weightedPredictedChange < -0.5 && prediction !== 'SELL') {
+        prediction = 'SELL';
+        confidence = Math.min(85, multitimeframe.weightedConfidence);
+      }
+    }
+  }
+  
+  // NEW: Adjust for market regime
+  const adjustedSignal = adjustPredictionForRegime(prediction, confidence, marketRegime);
+  prediction = adjustedSignal.prediction;
+  confidence = adjustedSignal.confidence;
+  
+  // Create detailed explanation based on market regime and timeframes
+  let explanation = '';
+  
+  if (marketRegime) {
+    explanation += `Market: ${marketRegime.regime.toLowerCase()}${marketRegime.direction !== 'NEUTRAL' ? `, ${marketRegime.direction.toLowerCase()} trend` : ''}, `;
+  }
+  
+  if (Math.abs(shortTermPrediction.predictedChange) < 0.2) {
+    explanation += `Short-term: ${shortTermPrediction.prediction === 'UP' ? 'slight increase' : shortTermPrediction.prediction === 'DOWN' ? 'slight decrease' : 'stable'} (${shortTermPrediction.predictedChange > 0 ? '+' : ''}${shortTermPrediction.predictedChange.toFixed(2)}%), `;
+  } else {
+    explanation += `Short-term: ${shortTermPrediction.prediction === 'UP' ? 'increase' : shortTermPrediction.prediction === 'DOWN' ? 'decrease' : 'stable'} (${shortTermPrediction.predictedChange > 0 ? '+' : ''}${shortTermPrediction.predictedChange.toFixed(2)}%), `;
+  }
+  
+  explanation += `Medium-term: ${mediumTermPrediction.prediction === 'UP' ? 'bullish' : mediumTermPrediction.prediction === 'DOWN' ? 'bearish' : 'neutral'}.`;
+  
+  if (multitimeframe && multitimeframe.signals.length > 0) {
+    explanation += ` Timeframe alignment: ${multitimeframe.alignmentScore}% ${multitimeframe.dominantSignal.toLowerCase()}.`;
+  }
+  
   return {
     prediction,
     confidence: Math.min(100, Math.round(confidence)),
     predictedChangePercent: shortTermPrediction.predictedChange,
     shortTermPrediction: shortTermPrediction.prediction,
-    mediumTermPrediction: mediumTermPrediction.prediction
+    mediumTermPrediction: mediumTermPrediction.prediction,
+    explanation: explanation
   };
 };
 

@@ -14,3 +14,10 @@ export * from './atr';
 
 // Export signal generation
 export * from './signals/generateSignals';
+
+// Export market regime detection
+export * from './marketRegime';
+
+// Export multi-timeframe analysis
+export * from './multitimeframe';
+

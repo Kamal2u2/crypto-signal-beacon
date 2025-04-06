@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { AssetPair, CRYPTO_PAIRS, STOCK_PAIRS, TimeInterval, AssetType } from '@/services/binanceService';
@@ -14,6 +13,7 @@ import Header from '@/components/layout/Header';
 import SignalBanner from '@/components/layout/SignalBanner';
 import MainContentSection from '@/components/layout/MainContentSection';
 import SidebarSection from '@/components/layout/SidebarSection';
+import SignalChartSection from '@/components/layout/SignalChartSection';
 import { useWebSocketData } from '@/hooks/useWebSocketData';
 import { usePriceWebSocket } from '@/hooks/usePriceWebSocket';
 import { isUsingSimulatedStockData } from '@/services/market/stockService';
@@ -83,6 +83,7 @@ const Index = () => {
   const { 
     klineData, 
     signalData, 
+    signalHistory,
     isLoading, 
     fetchData, 
     handleRefresh 
@@ -165,6 +166,18 @@ const Index = () => {
             symbol={selectedPair.label}
             currentPrice={currentPrice}
             confidenceThreshold={confidenceThreshold}
+          />
+        </div>
+        
+        {/* Signal Chart */}
+        <div className="mb-6">
+          <SignalChartSection
+            klineData={klineData}
+            isLoading={isLoading}
+            symbol={selectedPair.label}
+            signalData={signalData}
+            currentPrice={currentPrice}
+            signalHistory={signalHistory}
           />
         </div>
         

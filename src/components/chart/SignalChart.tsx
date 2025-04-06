@@ -1,3 +1,4 @@
+
 import React, { memo, useMemo, useRef, useEffect } from 'react';
 import {
   ComposedChart,
@@ -22,35 +23,47 @@ interface SignalChartProps {
   signalHistory?: Array<{type: SignalType, time: number, confidence: number}>;
 }
 
+// Enhanced comparison function to minimize re-renders
 const arePropsEqual = (prevProps: SignalChartProps, nextProps: SignalChartProps) => {
+  // Skip updates if data lengths are different (indicates a major change)
   if (prevProps.chartData.length !== nextProps.chartData.length) {
     return false;
   }
   
+  // For price changes, only update if the change is significant (0.05% or more)
   if (prevProps.currentPrice && nextProps.currentPrice) {
     const priceDiffPercent = Math.abs((prevProps.currentPrice - nextProps.currentPrice) / prevProps.currentPrice) * 100;
-    if (priceDiffPercent > 0.01) {
+    if (priceDiffPercent > 0.05) {
       return false;
     }
   } else if (prevProps.currentPrice !== nextProps.currentPrice) {
     return false;
   }
   
+  // If signal history changed, we need to update
   if (prevProps.signalHistory?.length !== nextProps.signalHistory?.length) {
     return false;
   }
   
+  // Only check the last candle's data to determine if we need an update
   const dataLength = prevProps.chartData.length;
   if (dataLength > 0) {
     const lastItemPrev = prevProps.chartData[dataLength - 1];
     const lastItemNext = nextProps.chartData[dataLength - 1];
     
-    if (lastItemPrev.close !== lastItemNext.close || 
-        lastItemPrev.openTime !== lastItemNext.openTime) {
+    // Check for significant changes in the last candle
+    if (lastItemPrev.openTime !== lastItemNext.openTime) {
+      return false;
+    }
+    
+    // Only update if price change is significant
+    const lastCloseDiff = Math.abs((lastItemPrev.close - lastItemNext.close) / lastItemPrev.close) * 100;
+    if (lastCloseDiff > 0.05) {
       return false;
     }
   }
   
+  // Default to not updating if nothing significant changed
   return true;
 };
 
@@ -63,6 +76,7 @@ const SignalChart: React.FC<SignalChartProps> = memo(({
   const previousPriceRef = useRef<number | null>(null);
   const animationFrameRef = useRef<number | null>(null);
 
+  // Memoize data processing to avoid unnecessary calculations
   const processedData = useMemo(() => {
     return chartData.map(candle => {
       const candleTime = new Date(candle.openTime).getTime();
@@ -90,6 +104,7 @@ const SignalChart: React.FC<SignalChartProps> = memo(({
     };
   }, [processedData, currentPrice]);
 
+  // Memoize expensive calculations for signals and price ranges
   const { buySignals, sellSignals, minPrice, maxPrice } = useMemo(() => {
     const buySignals = processedData
       .filter(item => item.signalType === 'BUY')

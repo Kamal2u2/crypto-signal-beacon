@@ -15,6 +15,55 @@ interface SignalChartSectionProps {
   signalHistory?: Array<{type: any, time: number, confidence: number}>;
 }
 
+// Improved comparison function to avoid unnecessary re-renders
+const arePropsEqual = (prevProps: SignalChartSectionProps, nextProps: SignalChartSectionProps) => {
+  // Always re-render if loading state changes
+  if (prevProps.isLoading !== nextProps.isLoading) {
+    return false;
+  }
+  
+  // Always re-render if symbol changes
+  if (prevProps.symbol !== nextProps.symbol) {
+    return false;
+  }
+  
+  // For price changes, only update if significant (0.05% or more)
+  if (prevProps.currentPrice && nextProps.currentPrice) {
+    const priceDiffPercent = Math.abs((prevProps.currentPrice - nextProps.currentPrice) / prevProps.currentPrice) * 100;
+    if (priceDiffPercent > 0.05) {
+      return false;
+    }
+  } else if (prevProps.currentPrice !== nextProps.currentPrice) {
+    return false;
+  }
+  
+  // If signal history or data length changed, we need to update
+  if (
+    prevProps.signalHistory?.length !== nextProps.signalHistory?.length ||
+    prevProps.klineData.length !== nextProps.klineData.length
+  ) {
+    return false;
+  }
+  
+  // Only check last candle to determine if we need an update
+  if (prevProps.klineData.length > 0 && nextProps.klineData.length > 0) {
+    const lastCandle1 = prevProps.klineData[prevProps.klineData.length - 1];
+    const lastCandle2 = nextProps.klineData[nextProps.klineData.length - 1];
+    
+    if (lastCandle1.openTime !== lastCandle2.openTime) {
+      return false;
+    }
+    
+    // Only update if price change is significant
+    const lastCloseDiff = Math.abs((lastCandle1.close - lastCandle2.close) / lastCandle1.close) * 100;
+    if (lastCloseDiff > 0.05) {
+      return false;
+    }
+  }
+  
+  return true;
+};
+
 // Use React.memo to prevent unnecessary re-renders
 const SignalChartSection: React.FC<SignalChartSectionProps> = memo(({
   klineData,
@@ -48,7 +97,7 @@ const SignalChartSection: React.FC<SignalChartSectionProps> = memo(({
       </CardContent>
     </Card>
   );
-});
+}, arePropsEqual);
 
 // Add display name for React DevTools
 SignalChartSection.displayName = 'SignalChartSection';

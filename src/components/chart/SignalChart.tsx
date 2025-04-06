@@ -1,5 +1,4 @@
-
-import React, { memo, useMemo } from 'react';
+import React, { memo, useMemo, useRef, useEffect } from 'react';
 import {
   ComposedChart,
   Line,
@@ -23,19 +22,53 @@ interface SignalChartProps {
   signalHistory?: Array<{type: SignalType, time: number, confidence: number}>;
 }
 
+const arePropsEqual = (prevProps: SignalChartProps, nextProps: SignalChartProps) => {
+  if (prevProps.chartData.length !== nextProps.chartData.length) {
+    return false;
+  }
+  
+  if (prevProps.currentPrice && nextProps.currentPrice) {
+    const priceDiffPercent = Math.abs((prevProps.currentPrice - nextProps.currentPrice) / prevProps.currentPrice) * 100;
+    if (priceDiffPercent > 0.01) {
+      return false;
+    }
+  } else if (prevProps.currentPrice !== nextProps.currentPrice) {
+    return false;
+  }
+  
+  if (prevProps.signalHistory?.length !== nextProps.signalHistory?.length) {
+    return false;
+  }
+  
+  const dataLength = prevProps.chartData.length;
+  if (dataLength > 0) {
+    const lastItemPrev = prevProps.chartData[dataLength - 1];
+    const lastItemNext = nextProps.chartData[dataLength - 1];
+    
+    if (lastItemPrev.close !== lastItemNext.close || 
+        lastItemPrev.openTime !== lastItemNext.openTime) {
+      return false;
+    }
+  }
+  
+  return true;
+};
+
 const SignalChart: React.FC<SignalChartProps> = memo(({
   chartData,
   currentPrice,
   signalHistory = []
 }) => {
-  // Use useMemo for data processing to prevent unnecessary recalculations
+  const previousDataRef = useRef<any[]>([]);
+  const previousPriceRef = useRef<number | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+
   const processedData = useMemo(() => {
     return chartData.map(candle => {
       const candleTime = new Date(candle.openTime).getTime();
       
-      // Find signals near this candle's time
       const signal = signalHistory.find(s => 
-        Math.abs(s.time - candleTime) < 60000 // Within 1 minute of candle
+        Math.abs(s.time - candleTime) < 60000
       );
       
       return {
@@ -46,9 +79,18 @@ const SignalChart: React.FC<SignalChartProps> = memo(({
     });
   }, [chartData, signalHistory]);
 
-  // Separate buy and sell signals with useMemo
+  useEffect(() => {
+    previousDataRef.current = processedData;
+    previousPriceRef.current = currentPrice;
+    
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, [processedData, currentPrice]);
+
   const { buySignals, sellSignals, minPrice, maxPrice } = useMemo(() => {
-    // Separate buy and sell signals for better visualization
     const buySignals = processedData
       .filter(item => item.signalType === 'BUY')
       .map(item => ({
@@ -65,7 +107,6 @@ const SignalChart: React.FC<SignalChartProps> = memo(({
         value: item.close
       }));
 
-    // Calculate Y domain based on data
     const allPrices = processedData.map(d => d.close);
     const minPrice = Math.min(...allPrices) * 0.995;
     const maxPrice = Math.max(...allPrices) * 1.005;
@@ -73,7 +114,6 @@ const SignalChart: React.FC<SignalChartProps> = memo(({
     return { buySignals, sellSignals, minPrice, maxPrice };
   }, [processedData]);
 
-  // Format Y-axis ticks to display proper price values
   const formatYAxisTick = (value: number) => {
     return formatPrice(value);
   };
@@ -122,7 +162,6 @@ const SignalChart: React.FC<SignalChartProps> = memo(({
           
           <Legend />
           
-          {/* Price line */}
           <Line 
             type="monotone" 
             dataKey="close" 
@@ -134,7 +173,6 @@ const SignalChart: React.FC<SignalChartProps> = memo(({
             connectNulls={true}
           />
           
-          {/* Buy signals */}
           <Scatter 
             name="Buy Signal" 
             data={buySignals} 
@@ -156,7 +194,6 @@ const SignalChart: React.FC<SignalChartProps> = memo(({
             isAnimationActive={false}
           />
           
-          {/* Sell signals */}
           <Scatter 
             name="Sell Signal" 
             data={sellSignals} 
@@ -178,7 +215,6 @@ const SignalChart: React.FC<SignalChartProps> = memo(({
             isAnimationActive={false}
           />
           
-          {/* Current price line */}
           {currentPrice && (
             <ReferenceLine 
               y={currentPrice} 
@@ -196,7 +232,7 @@ const SignalChart: React.FC<SignalChartProps> = memo(({
       </ChartContainer>
     </div>
   );
-});
+}, arePropsEqual);
 
 SignalChart.displayName = 'SignalChart';
 

@@ -13,6 +13,7 @@ const VALID_TIMEFRAMES: TimeInterval[] = ['1m', '5m', '15m', '30m', '1h', '4h', 
 // Weight for each timeframe (higher weight for longer timeframes)
 const TIMEFRAME_WEIGHTS: Record<TimeInterval, number> = {
   '1m': 0.2,
+  '3m': 0.3, // Adding the missing '3m' timeframe
   '5m': 0.4,
   '15m': 0.6,
   '30m': 0.8,
@@ -144,7 +145,8 @@ function simulateTimeframe(baseData: KlineData[], targetTimeframe: TimeInterval)
   
   // Determine candle aggregation factor
   let aggregationFactor = 1;
-  if (targetTimeframe === '5m') aggregationFactor = 5;
+  if (targetTimeframe === '3m') aggregationFactor = 3;
+  else if (targetTimeframe === '5m') aggregationFactor = 5;
   else if (targetTimeframe === '15m') aggregationFactor = 15;
   else if (targetTimeframe === '30m') aggregationFactor = 30;
   else if (targetTimeframe === '1h') aggregationFactor = 60;
@@ -166,7 +168,7 @@ function simulateTimeframe(baseData: KlineData[], targetTimeframe: TimeInterval)
         result.push(currentCandle);
       }
       
-      // Start a new candle
+      // Start a new candle - making sure we include all required KlineData properties
       currentCandle = {
         openTime: candle.openTime,
         closeTime: candle.openTime + (aggregationFactor * 60000) - 1, // -1ms to not overlap
@@ -174,7 +176,11 @@ function simulateTimeframe(baseData: KlineData[], targetTimeframe: TimeInterval)
         high: candle.high,
         low: candle.low,
         close: candle.close,
-        volume: candle.volume
+        volume: candle.volume,
+        quoteAssetVolume: candle.quoteAssetVolume,
+        trades: candle.trades,
+        takerBuyBaseAssetVolume: candle.takerBuyBaseAssetVolume,
+        takerBuyQuoteAssetVolume: candle.takerBuyQuoteAssetVolume
       };
     } else if (currentCandle !== null) {
       // Update existing candle
@@ -182,6 +188,10 @@ function simulateTimeframe(baseData: KlineData[], targetTimeframe: TimeInterval)
       currentCandle.low = Math.min(currentCandle.low, candle.low);
       currentCandle.close = candle.close; // Last closing price becomes the close
       currentCandle.volume += candle.volume; // Sum the volumes
+      currentCandle.quoteAssetVolume += candle.quoteAssetVolume;
+      currentCandle.trades += candle.trades;
+      currentCandle.takerBuyBaseAssetVolume += candle.takerBuyBaseAssetVolume;
+      currentCandle.takerBuyQuoteAssetVolume += candle.takerBuyQuoteAssetVolume;
     }
   }
   

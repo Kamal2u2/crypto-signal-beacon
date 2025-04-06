@@ -16,6 +16,8 @@ import { generateVolatilitySignals } from './volatilitySignals';
 import { generateVolumeSignals } from './volumeSignals';
 import { generateSupportResistanceSignals } from './supportResistanceSignals';
 import { getAIPrediction } from '../aiPrediction';
+import { detectMarketRegime } from '../marketRegime';
+import { analyzeMultipleTimeframes } from '../multitimeframe';
 
 export const generateSignals = (klineData: KlineData[]): SignalSummary => {
   // Debug start time for performance tracking
@@ -92,6 +94,20 @@ export const generateSignals = (klineData: KlineData[]): SignalSummary => {
   signals = [...signals, ...srSignals.signals];
   indicators = { ...indicators, ...srSignals.indicators };
   
+  // NEW: Add early detection signals for price movement anticipation
+  const earlySignals = generateEarlyDetectionSignals(klineData, closes, volumes, rsi14, macdResult);
+  signals = [...signals, ...earlySignals.signals];
+  indicators = { ...indicators, ...earlySignals.indicators };
+  
+  // Get market regime for context
+  const marketRegime = detectMarketRegime(klineData);
+  signals.push({
+    indicator: 'Market Regime',
+    type: marketRegime.direction === 'UP' ? 'BUY' : marketRegime.direction === 'DOWN' ? 'SELL' : 'NEUTRAL',
+    message: `Market is in ${marketRegime.regime.toLowerCase()} mode with ${marketRegime.strength}% strength.`,
+    strength: 3
+  });
+  
   // Count signal types for debugging
   const signalCounts = {
     BUY: signals.filter(s => s.type === 'BUY').length,
@@ -106,25 +122,45 @@ export const generateSignals = (klineData: KlineData[]): SignalSummary => {
   
   // Create a more detailed explanation of the AI prediction
   let aiMessage = '';
-  if (Math.abs(aiPrediction.predictedChangePercent) < 0.2) {
+  if (aiPrediction.explanation) {
+    aiMessage = aiPrediction.explanation;
+  } else if (Math.abs(aiPrediction.predictedChangePercent) < 0.2) {
     aiMessage = `AI predicts price will ${aiPrediction.shortTermPrediction === 'UP' ? 'increase slightly' : aiPrediction.shortTermPrediction === 'DOWN' ? 'decrease slightly' : 'remain stable'} short-term (${aiPrediction.predictedChangePercent > 0 ? '+' : ''}${aiPrediction.predictedChangePercent}%) and ${aiPrediction.mediumTermPrediction === 'UP' ? 'increase' : aiPrediction.mediumTermPrediction === 'DOWN' ? 'decrease' : 'remain stable'} medium-term.`;
   } else {
     aiMessage = `AI predicts price will ${aiPrediction.shortTermPrediction === 'UP' ? 'increase' : aiPrediction.shortTermPrediction === 'DOWN' ? 'decrease' : 'remain stable'} short-term by ${aiPrediction.predictedChangePercent > 0 ? '+' : ''}${aiPrediction.predictedChangePercent}% and ${aiPrediction.mediumTermPrediction === 'UP' ? 'continue rising' : aiPrediction.mediumTermPrediction === 'DOWN' ? 'continue falling' : 'stabilize'} medium-term.`;
   }
   
+  // Add the AI model signal with higher strength to prioritize it more
   signals.push({
     indicator: 'AI Model',
     type: aiPrediction.prediction,
     message: aiMessage,
-    strength: aiPrediction.confidence > 70 ? 5 : aiPrediction.confidence > 50 ? 4 : 3
+    strength: aiPrediction.confidence > 70 ? 6 : aiPrediction.confidence > 50 ? 5 : 4
   });
   
   // Add AI prediction to indicators with additional context
   indicators['aiModel'] = {
     signal: aiPrediction.prediction,
-    weight: aiPrediction.confidence / 40, // Scale confidence to reasonable weight
+    weight: aiPrediction.confidence / 35, // Scale confidence to give AI more weight
     confidence: aiPrediction.confidence
   };
+  
+  // Get multi-timeframe alignment score
+  if (klineData.length >= 200) {
+    const mtfAnalysis = analyzeMultipleTimeframes(klineData);
+    signals.push({
+      indicator: 'Multi-Timeframe',
+      type: mtfAnalysis.dominantSignal === 'UP' ? 'BUY' : mtfAnalysis.dominantSignal === 'DOWN' ? 'SELL' : 'NEUTRAL',
+      message: `${mtfAnalysis.alignmentScore}% alignment across timeframes with dominant ${mtfAnalysis.dominantSignal.toLowerCase()} trend.`,
+      strength: mtfAnalysis.alignmentScore > 70 ? 5 : 3
+    });
+    
+    indicators['multiTimeframe'] = {
+      signal: mtfAnalysis.dominantSignal === 'UP' ? 'BUY' : mtfAnalysis.dominantSignal === 'DOWN' ? 'SELL' : 'NEUTRAL',
+      weight: mtfAnalysis.alignmentScore / 25, // Higher weight for strong alignment
+      confidence: mtfAnalysis.weightedConfidence
+    };
+  }
   
   // Calculate signal weights - pass klineData for AI integration
   const weights = computeSignalWeights(indicators, klineData);
@@ -160,3 +196,193 @@ export const generateSignals = (klineData: KlineData[]): SignalSummary => {
     priceTargets
   };
 };
+
+// NEW: Generate early detection signals for price movement anticipation
+function generateEarlyDetectionSignals(
+  klineData: KlineData[],
+  closes: number[],
+  volumes: number[],
+  rsi: number[],
+  macdResult: { macd: number[]; signal: number[]; histogram: number[] }
+): { signals: TradingSignal[]; indicators: { [key: string]: IndicatorSignal } } {
+  const signals: TradingSignal[] = [];
+  const indicators: { [key: string]: IndicatorSignal } = {};
+  
+  // Check for bullish/bearish divergence
+  const lastRSI = rsi[rsi.length - 1];
+  const prevRSI = rsi[rsi.length - 2];
+  const lastPrice = closes[closes.length - 1];
+  const prevPrice = closes[closes.length - 2];
+  
+  // Check volume acceleration trend (3 periods)
+  const volumeTrend = [];
+  for (let i = volumes.length - 4; i < volumes.length - 1; i++) {
+    volumeTrend.push(volumes[i+1] - volumes[i]);
+  }
+  
+  const volumeAccelerating = volumeTrend.every((change, i, arr) => 
+    i === 0 || Math.abs(change) > Math.abs(arr[i-1])
+  );
+  
+  const volumeDirectionUp = volumes[volumes.length - 1] > volumes[volumes.length - 2];
+  
+  // Check for bullish divergence: price making lower lows but RSI making higher lows
+  const priceDownRsiUp = lastPrice < prevPrice && lastRSI > prevRSI;
+  if (priceDownRsiUp && lastRSI < 35) {
+    signals.push({
+      indicator: 'Early Detection',
+      type: 'BUY',
+      message: 'Potential bullish divergence detected - price falling while RSI rising.',
+      strength: 4
+    });
+    
+    indicators['earlyBullish'] = {
+      signal: 'BUY',
+      weight: 1.5,
+      confidence: 65
+    };
+  }
+  
+  // Check for bearish divergence: price making higher highs but RSI making lower highs
+  const priceUpRsiDown = lastPrice > prevPrice && lastRSI < prevRSI;
+  if (priceUpRsiDown && lastRSI > 65) {
+    signals.push({
+      indicator: 'Early Detection',
+      type: 'SELL',
+      message: 'Potential bearish divergence detected - price rising while RSI falling.',
+      strength: 4
+    });
+    
+    indicators['earlyBearish'] = {
+      signal: 'SELL',
+      weight: 1.5,
+      confidence: 65
+    };
+  }
+  
+  // Check for MACD crossover imminent (getting very close)
+  const lastMACD = macdResult.macd[macdResult.macd.length - 1];
+  const lastSignal = macdResult.signal[macdResult.signal.length - 1];
+  const lastHist = macdResult.histogram[macdResult.histogram.length - 1];
+  const prevHist = macdResult.histogram[macdResult.histogram.length - 2];
+  
+  // MACD about to cross signal line (buy signal imminent)
+  if (lastMACD < lastSignal && lastHist > prevHist && Math.abs(lastMACD - lastSignal) < Math.abs(prevHist) * 0.5) {
+    signals.push({
+      indicator: 'Early MACD',
+      type: 'BUY',
+      message: 'MACD approaching signal from below - potential buy signal imminent.',
+      strength: 4
+    });
+    
+    indicators['earlyMACDBuy'] = {
+      signal: 'BUY',
+      weight: 1.2,
+      confidence: 60
+    };
+  }
+  
+  // MACD about to cross signal line (sell signal imminent)
+  if (lastMACD > lastSignal && lastHist < prevHist && Math.abs(lastMACD - lastSignal) < Math.abs(prevHist) * 0.5) {
+    signals.push({
+      indicator: 'Early MACD',
+      type: 'SELL',
+      message: 'MACD approaching signal from above - potential sell signal imminent.',
+      strength: 4
+    });
+    
+    indicators['earlyMACDSell'] = {
+      signal: 'SELL', 
+      weight: 1.2,
+      confidence: 60
+    };
+  }
+  
+  // Check for volume-price relationship (accumulation/distribution)
+  if (volumeAccelerating && volumeDirectionUp && priceDownRsiUp) {
+    // Rising volume on price dip with improving RSI = accumulation
+    signals.push({
+      indicator: 'Volume Analysis',
+      type: 'BUY',
+      message: 'Rising volume on price dip suggests accumulation phase.',
+      strength: 4
+    });
+    
+    indicators['volumeAccumulation'] = {
+      signal: 'BUY',
+      weight: 1.4,
+      confidence: 70
+    };
+  } else if (volumeAccelerating && volumeDirectionUp && priceUpRsiDown) {
+    // Rising volume on price rise with weakening RSI = distribution
+    signals.push({
+      indicator: 'Volume Analysis',
+      type: 'SELL',
+      message: 'Rising volume on price rise with weakening momentum suggests distribution phase.',
+      strength: 4
+    });
+    
+    indicators['volumeDistribution'] = {
+      signal: 'SELL',
+      weight: 1.4,
+      confidence: 70
+    };
+  }
+  
+  // Check for price velocity and acceleration
+  if (klineData.length >= 5) {
+    const recentPrices = closes.slice(-5);
+    const deltas = [];
+    for (let i = 1; i < recentPrices.length; i++) {
+      deltas.push(recentPrices[i] - recentPrices[i-1]);
+    }
+    
+    // Calculate second derivative (acceleration)
+    const accelerations = [];
+    for (let i = 1; i < deltas.length; i++) {
+      accelerations.push(deltas[i] - deltas[i-1]);
+    }
+    
+    // Check if price acceleration is increasing (positive and growing)
+    const isAccelerationIncreasing = 
+      accelerations.length >= 2 && 
+      accelerations[accelerations.length - 1] > 0 && 
+      accelerations[accelerations.length - 1] > accelerations[accelerations.length - 2];
+    
+    // Check if price acceleration is decreasing (negative and growing more negative)
+    const isAccelerationDecreasing = 
+      accelerations.length >= 2 && 
+      accelerations[accelerations.length - 1] < 0 && 
+      accelerations[accelerations.length - 1] < accelerations[accelerations.length - 2];
+    
+    if (isAccelerationIncreasing) {
+      signals.push({
+        indicator: 'Price Acceleration',
+        type: 'BUY',
+        message: 'Price momentum is accelerating positively - early trend indication.',
+        strength: 4
+      });
+      
+      indicators['priceAcceleration'] = {
+        signal: 'BUY',
+        weight: 1.3,
+        confidence: 65
+      };
+    } else if (isAccelerationDecreasing) {
+      signals.push({
+        indicator: 'Price Acceleration',
+        type: 'SELL',
+        message: 'Price momentum is accelerating negatively - early trend indication.',
+        strength: 4
+      });
+      
+      indicators['priceAcceleration'] = {
+        signal: 'SELL',
+        weight: 1.3,
+        confidence: 65
+      };
+    }
+  }
+  
+  return { signals, indicators };
+}

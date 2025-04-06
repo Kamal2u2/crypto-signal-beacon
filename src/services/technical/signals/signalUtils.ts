@@ -1,4 +1,3 @@
-
 import { SignalType, IndicatorSignal } from '../types';
 import { TradingSignalWeight } from './signalTypes';
 import { KlineData } from '../../binanceService';
@@ -14,10 +13,9 @@ export const sumSignalWeights = (indicators: { [key: string]: IndicatorSignal },
 
 // Helper function to calculate confidence
 export const calculateConfidence = (signalWeight: number, totalWeight: number): number => {
-  // Enhanced confidence calculation - lower base confidence for more conservative signals
   if (totalWeight === 0) return 0;
-  const weightedContribution = Math.min(75, (signalWeight / totalWeight) * 75);
-  return Math.min(100, Math.round(25 + weightedContribution));
+  const weightedContribution = Math.min(82, (signalWeight / totalWeight) * 82);
+  return Math.min(100, Math.round(18 + weightedContribution));
 };
 
 // Calculate price targets based on ATR
@@ -50,7 +48,7 @@ export const calculatePriceTargets = (klineData: KlineData[], signal: SignalType
   const target2 = isBuy ? entryPrice + (riskAmount * 3) : entryPrice - (riskAmount * 3);
   const target3 = isBuy ? entryPrice + (riskAmount * 5) : entryPrice - (riskAmount * 5);
   
-  const riskRewardRatio = 3.0; // Average of the three targets
+  const riskRewardRatio = 3.0;
   
   return {
     entryPrice,
@@ -67,18 +65,22 @@ export const getOpens = (klineData: KlineData[]): number[] => {
   return klineData.map(item => item.open);
 };
 
-// Compute all signal weights with improved priority weighting
+// Compute all signal weights with improved priority weighting for early signals
 export const computeSignalWeights = (indicators: { [key: string]: IndicatorSignal }, klineData: KlineData[]): TradingSignalWeight => {
+  Object.keys(indicators).forEach(key => {
+    if (key.startsWith('early') || key === 'priceAcceleration' || key === 'volumeAccumulation' || key === 'volumeDistribution') {
+      indicators[key].weight *= 1.3;
+    }
+  });
+  
   const buyWeight = sumSignalWeights(indicators, 'BUY');
   const sellWeight = sumSignalWeights(indicators, 'SELL');
   const holdWeight = sumSignalWeights(indicators, 'HOLD');
   const neutralWeight = sumSignalWeights(indicators, 'NEUTRAL');
-  const totalWeight = buyWeight + sellWeight + holdWeight + neutralWeight || 1; // Prevent division by zero
+  const totalWeight = buyWeight + sellWeight + holdWeight + neutralWeight || 1;
   
-  // Get AI prediction
   const aiPrediction = getAIPrediction(klineData);
   
-  // Create explanation based on prediction percentages
   let explanation = '';
   if (Math.abs(aiPrediction.predictedChangePercent) < 0.2) {
     explanation = `Price expected to move ${aiPrediction.predictedChangePercent > 0 ? '+' : ''}${aiPrediction.predictedChangePercent}% (minimal change)`;
@@ -90,17 +92,13 @@ export const computeSignalWeights = (indicators: { [key: string]: IndicatorSigna
   
   console.log(`AI Prediction: ${aiPrediction.prediction} with ${aiPrediction.confidence}% confidence, predicted change: ${aiPrediction.predictedChangePercent}%, explanation: ${explanation}`);
   
-  // Apply AI weighting if confidence is high enough with better scaling
   let aiBuyWeight = 0;
   let aiSellWeight = 0;
   let aiHoldWeight = 0;
   
-  if (aiPrediction.confidence > 50) {
-    // Convert AI prediction to weights with improved scaling based on prediction magnitude
-    const baseWeight = Math.min(2.5, (aiPrediction.confidence / 100) * 3); // Max base weight is 2.5
-    
-    // Adjust weight based on predicted change magnitude
-    const changeMultiplier = Math.min(1.5, 1 + (Math.abs(aiPrediction.predictedChangePercent) / 2));
+  if (aiPrediction.confidence > 45) {
+    const baseWeight = Math.min(3.0, (aiPrediction.confidence / 100) * 3.5);
+    const changeMultiplier = Math.min(1.8, 1 + (Math.abs(aiPrediction.predictedChangePercent) / 1.5));
     const aiWeight = baseWeight * changeMultiplier;
     
     if (aiPrediction.prediction === 'BUY') {
@@ -112,13 +110,11 @@ export const computeSignalWeights = (indicators: { [key: string]: IndicatorSigna
     }
   }
   
-  // Add AI weights to technical indicator weights
   const adjustedBuyWeight = buyWeight + aiBuyWeight;
   const adjustedSellWeight = sellWeight + aiSellWeight;
   const adjustedHoldWeight = holdWeight + aiHoldWeight;
   const adjustedTotalWeight = adjustedBuyWeight + adjustedSellWeight + adjustedHoldWeight + neutralWeight;
   
-  // Add the explanation to the AI prediction
   aiPrediction.explanation = explanation;
   
   return {
@@ -127,97 +123,84 @@ export const computeSignalWeights = (indicators: { [key: string]: IndicatorSigna
     holdWeight: adjustedHoldWeight,
     neutralWeight,
     totalWeight: adjustedTotalWeight,
-    aiPrediction // Include the AI prediction with explanation in the weights object
+    aiPrediction
   };
 };
 
-// Determine overall signal based on weights - OPTIMIZED ALGORITHM
+// Determine overall signal based on weights - IMPROVED ALGORITHM FOR EARLIER SIGNALS
 export const determineOverallSignal = (weights: TradingSignalWeight): { 
   overallSignal: SignalType, 
   confidence: number 
 } => {
   const { buyWeight, sellWeight, holdWeight, neutralWeight, totalWeight, aiPrediction } = weights;
   
-  // Log the weights for debugging
   console.log('Signal weights:', { buyWeight, sellWeight, holdWeight, neutralWeight, totalWeight });
   if (aiPrediction) {
     console.log('AI prediction:', aiPrediction);
   }
 
-  // More conservative thresholds to prevent false signals
-  const buyThreshold = 0.25; // Increased from 0.18
-  const sellThreshold = 0.25; // Increased from 0.18
-  const holdThreshold = 0.30; // Increased from 0.20
+  const buyThreshold = 0.20;
+  const sellThreshold = 0.20;
+  const holdThreshold = 0.30;
   
   let overallSignal: SignalType;
   let confidence: number;
   
-  // Calculate the proportions
   const buyProportion = totalWeight > 0 ? buyWeight / totalWeight : 0;
   const sellProportion = totalWeight > 0 ? sellWeight / totalWeight : 0;
   const holdProportion = totalWeight > 0 ? holdWeight / totalWeight : 0;
   
-  // Add additional confirmation check
-  const isStrongConfirmation = buyWeight > 2.5 * sellWeight || sellWeight > 2.5 * buyWeight;
+  const isStrongConfirmation = buyWeight > 2.0 * sellWeight || sellWeight > 2.0 * buyWeight;
   
-  // Decision logic - more conservative with clearer signal requirement
-  if (buyWeight > 0 && buyWeight > sellWeight * 1.5 && buyProportion > buyThreshold) {
+  if (buyWeight > 0 && buyWeight > sellWeight * 1.2 && buyProportion > buyThreshold) {
     overallSignal = 'BUY';
     confidence = calculateConfidence(buyWeight, totalWeight);
     
-    // Only boost confidence for very strong signals with confirmation
-    if (buyProportion > 0.50 && isStrongConfirmation) {
-      confidence = Math.min(100, confidence + 10);
+    if (buyProportion > 0.45 && isStrongConfirmation) {
+      confidence = Math.min(100, confidence + 12);
     } else if (!isStrongConfirmation) {
-      confidence = Math.max(0, confidence - 5);  // Reduce confidence if not strongly confirmed
+      confidence = Math.max(0, confidence - 5);
     }
     
-    // Adjust confidence based on AI prediction
-    if (aiPrediction && aiPrediction.confidence > 60) {
+    if (aiPrediction && aiPrediction.confidence > 55) {
       if (aiPrediction.prediction === 'BUY') {
-        confidence = Math.min(100, confidence + 5);  // Boost confidence if AI agrees
+        confidence = Math.min(100, confidence + 8);
       } else if (aiPrediction.prediction === 'SELL') {
-        confidence = Math.max(0, confidence - 10);  // Reduce confidence if AI disagrees strongly
+        confidence = Math.max(0, confidence - 10);
       }
     }
   } 
-  else if (sellWeight > 0 && sellWeight > buyWeight * 1.5 && sellProportion > sellThreshold) {
+  else if (sellWeight > 0 && sellWeight > buyWeight * 1.2 && sellProportion > sellThreshold) {
     overallSignal = 'SELL';
     confidence = calculateConfidence(sellWeight, totalWeight);
     
-    // Only boost confidence for very strong signals with confirmation
-    if (sellProportion > 0.50 && isStrongConfirmation) {
-      confidence = Math.min(100, confidence + 10);
+    if (sellProportion > 0.45 && isStrongConfirmation) {
+      confidence = Math.min(100, confidence + 12);
     } else if (!isStrongConfirmation) {
-      confidence = Math.max(0, confidence - 5);  // Reduce confidence if not strongly confirmed
+      confidence = Math.max(0, confidence - 5);
     }
     
-    // Adjust confidence based on AI prediction
-    if (aiPrediction && aiPrediction.confidence > 60) {
+    if (aiPrediction && aiPrediction.confidence > 55) {
       if (aiPrediction.prediction === 'SELL') {
-        confidence = Math.min(100, confidence + 5);  // Boost confidence if AI agrees
+        confidence = Math.min(100, confidence + 8);
       } else if (aiPrediction.prediction === 'BUY') {
-        confidence = Math.max(0, confidence - 10);  // Reduce confidence if AI disagrees strongly
+        confidence = Math.max(0, confidence - 10);
       }
     }
   } 
-  // Check for hold signal - more strict criteria
   else if (holdProportion > holdThreshold && holdWeight > buyWeight && holdWeight > sellWeight) {
     overallSignal = 'HOLD';
     confidence = calculateConfidence(holdWeight, totalWeight);
     
-    // Adjust confidence based on AI prediction
     if (aiPrediction && aiPrediction.confidence > 60 && aiPrediction.prediction === 'HOLD') {
-      confidence = Math.min(100, confidence + 5);  // Boost confidence if AI agrees
+      confidence = Math.min(100, confidence + 5);
     }
   } 
-  // If nothing is significant, it's neutral
   else {
     overallSignal = 'NEUTRAL';
     confidence = calculateConfidence(neutralWeight, totalWeight);
   }
   
-  // Log the decision
   console.log(`Signal decision: ${overallSignal} with confidence: ${confidence.toFixed(1)}%, buyProportion: ${(buyProportion*100).toFixed(1)}%, sellProportion: ${(sellProportion*100).toFixed(1)}%, holdProportion: ${(holdProportion*100).toFixed(1)}%`);
   
   return { overallSignal, confidence };

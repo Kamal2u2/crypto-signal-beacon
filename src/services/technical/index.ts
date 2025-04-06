@@ -20,3 +20,6 @@ export * from './marketRegime';
 
 // Export multi-timeframe analysis
 export * from './multitimeframe';
+
+// Export AI prediction 
+export * from './aiPrediction';

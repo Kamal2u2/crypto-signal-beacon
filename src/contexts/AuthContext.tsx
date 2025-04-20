@@ -154,15 +154,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error) throw error;
 
       if (data.user) {
+        console.log("User created successfully, now creating profile");
+        
+        // Get admin key for profile creation
+        const adminKey = process.env.SUPABASE_SERVICE_KEY || '';
+        
+        // Insert profile directly with admin/service role
+        const adminSupabase = supabase.auth.setSession({
+          access_token: adminKey,
+          refresh_token: '',
+        });
+        
         // Create user profile with initial values
-        const { error: profileError } = await supabase.from('user_profiles').insert([
-          {
-            id: data.user.id,
-            email: data.user.email,
-            is_approved: false,
-            role: 'user',
-          },
-        ]);
+        const { error: profileError } = await supabase
+          .rpc('create_user_profile', { 
+            user_id: data.user.id,
+            user_email: data.user.email || '',
+            is_user_approved: false,
+            user_role: 'user'
+          });
 
         if (profileError) {
           console.error('Error creating user profile:', profileError);

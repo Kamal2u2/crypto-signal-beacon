@@ -27,23 +27,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { data: { session } } = await supabase.auth.getSession();
         
         if (session?.user) {
-          const { data: profile, error } = await supabase
-            .from('user_profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
-          
-          if (error) {
-            console.error('Error fetching user profile:', error);
+          try {
+            const { data: profile, error } = await supabase
+              .from('user_profiles')
+              .select('*')
+              .eq('id', session.user.id)
+              .single();
+            
+            if (error) {
+              console.error('Error fetching user profile:', error);
+              toast({
+                title: "Error",
+                description: "Failed to fetch user profile: " + error.message,
+                variant: "destructive",
+              });
+              setUser(null);
+            } else if (profile) {
+              setUser(profile);
+            } else {
+              console.error('No profile found for user');
+              toast({
+                title: "Error",
+                description: "No profile found for user",
+                variant: "destructive",
+              });
+              setUser(null);
+            }
+          } catch (profileError: any) {
+            console.error('Exception fetching profile:', profileError);
+            toast({
+              title: "Error",
+              description: "Exception fetching profile: " + profileError.message,
+              variant: "destructive",
+            });
             setUser(null);
-          } else {
-            setUser(profile);
           }
         } else {
           setUser(null);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error in session check:', error);
+        toast({
+          title: "Error",
+          description: "Session check failed: " + error.message,
+          variant: "destructive",
+        });
         setUser(null);
       } finally {
         setLoading(false);
@@ -62,13 +90,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .single();
           
           if (error) {
-            console.error('Error fetching user profile:', error);
+            console.error('Error fetching user profile on auth change:', error);
+            toast({
+              title: "Error",
+              description: "Failed to fetch user profile: " + error.message,
+              variant: "destructive",
+            });
             setUser(null);
-          } else {
+          } else if (profile) {
             setUser(profile);
+          } else {
+            console.error('No profile found for user on auth change');
+            toast({
+              title: "Error",
+              description: "No profile found for user",
+              variant: "destructive",
+            });
+            setUser(null);
           }
-        } catch (error) {
-          console.error('Error fetching profile on auth change:', error);
+        } catch (profileError: any) {
+          console.error('Exception fetching profile on auth change:', profileError);
+          toast({
+            title: "Error",
+            description: "Exception fetching profile: " + profileError.message,
+            variant: "destructive",
+          });
           setUser(null);
         }
       } else {
@@ -78,7 +124,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [toast]);
 
   const signIn = async (email: string, password: string) => {
     try {
@@ -86,32 +132,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error) throw error;
 
       if (data.user) {
-        const { data: profile, error: profileError } = await supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('id', data.user.id)
-          .single();
+        try {
+          const { data: profile, error: profileError } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('id', data.user.id)
+            .single();
 
-        if (profileError) {
-          console.error('Error fetching user profile:', profileError);
-          throw new Error('Error fetching user profile');
-        }
+          if (profileError) {
+            console.error('Error fetching user profile:', profileError);
+            toast({
+              title: "Error",
+              description: "Failed to fetch user profile: " + profileError.message,
+              variant: "destructive",
+            });
+            await supabase.auth.signOut();
+            return;
+          }
 
-        if (!profile.is_approved) {
-          await supabase.auth.signOut();
+          if (!profile) {
+            toast({
+              title: "Error",
+              description: "No profile found for user",
+              variant: "destructive",
+            });
+            await supabase.auth.signOut();
+            return;
+          }
+
+          if (!profile.is_approved) {
+            await supabase.auth.signOut();
+            toast({
+              title: "Account Pending Approval",
+              description: "Your account is pending admin approval. Please try again later.",
+              variant: "destructive",
+            });
+            return;
+          }
+
           toast({
-            title: "Account Pending Approval",
-            description: "Your account is pending admin approval. Please try again later.",
+            title: "Welcome back!",
+            description: "You have successfully signed in.",
+          });
+          navigate('/');
+        } catch (profileError: any) {
+          console.error('Exception fetching profile during sign in:', profileError);
+          toast({
+            title: "Error",
+            description: "Exception fetching profile: " + profileError.message,
             variant: "destructive",
           });
-          return;
+          await supabase.auth.signOut();
         }
-
-        toast({
-          title: "Welcome back!",
-          description: "You have successfully signed in.",
-        });
-        navigate('/');
       }
     } catch (error: any) {
       toast({

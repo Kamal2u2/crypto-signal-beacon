@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
@@ -149,6 +150,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signUp = async (email: string, password: string) => {
     try {
       setLoading(true);
+      
+      // First step: Create the auth user with signUp
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -157,8 +160,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (authError) throw authError;
 
       if (authData.user) {
-        console.log("User created successfully, creating profile...");
+        console.log("Auth user created successfully, waiting before creating profile...");
         
+        // Wait a moment to ensure the auth user is fully created in the database
+        // This helps prevent the foreign key constraint violation
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Now create the user profile
         const { error: profileError } = await supabase.rpc('create_user_profile', {
           user_id: authData.user.id,
           user_email: authData.user.email || '',

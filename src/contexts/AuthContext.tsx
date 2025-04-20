@@ -181,7 +181,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (authData.user) {
         console.log("Auth user created successfully with ID:", authData.user.id);
         
-        // Wait a longer time to ensure the auth user is fully created in the database
+        // Wait a bit longer to ensure the auth user is fully created in the database
         await new Promise(resolve => setTimeout(resolve, 3000));
         
         try {

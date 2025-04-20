@@ -21,47 +21,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // Function to fetch user profile with error handling
+  const fetchUserProfile = async (userId: string) => {
+    try {
+      const { data: profile, error } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching user profile:', error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch user profile: " + error.message,
+          variant: "destructive",
+        });
+        return null;
+      }
+      
+      return profile;
+    } catch (error: any) {
+      console.error('Exception in fetchUserProfile:', error);
+      toast({
+        title: "Error",
+        description: "Exception fetching profile: " + error.message,
+        variant: "destructive",
+      });
+      return null;
+    }
+  };
+
   useEffect(() => {
-    const fetchUser = async () => {
+    const checkUser = async () => {
       try {
+        setLoading(true);
         const { data: { session } } = await supabase.auth.getSession();
         
         if (session?.user) {
-          try {
-            const { data: profile, error } = await supabase
-              .from('user_profiles')
-              .select('*')
-              .eq('id', session.user.id)
-              .single();
-            
-            if (error) {
-              console.error('Error fetching user profile:', error);
-              toast({
-                title: "Error",
-                description: "Failed to fetch user profile: " + error.message,
-                variant: "destructive",
-              });
-              setUser(null);
-            } else if (profile) {
-              setUser(profile);
-            } else {
-              console.error('No profile found for user');
-              toast({
-                title: "Error",
-                description: "No profile found for user",
-                variant: "destructive",
-              });
-              setUser(null);
-            }
-          } catch (profileError: any) {
-            console.error('Exception fetching profile:', profileError);
-            toast({
-              title: "Error",
-              description: "Exception fetching profile: " + profileError.message,
-              variant: "destructive",
-            });
-            setUser(null);
-          }
+          const profile = await fetchUserProfile(session.user.id);
+          setUser(profile);
         } else {
           setUser(null);
         }
@@ -78,85 +77,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    fetchUser();
-
+    // Set up auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
-        try {
-          const { data: profile, error } = await supabase
-            .from('user_profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
-          
-          if (error) {
-            console.error('Error fetching user profile on auth change:', error);
-            toast({
-              title: "Error",
-              description: "Failed to fetch user profile: " + error.message,
-              variant: "destructive",
-            });
-            setUser(null);
-          } else if (profile) {
-            setUser(profile);
-          } else {
-            console.error('No profile found for user on auth change');
-            toast({
-              title: "Error",
-              description: "No profile found for user",
-              variant: "destructive",
-            });
-            setUser(null);
-          }
-        } catch (profileError: any) {
-          console.error('Exception fetching profile on auth change:', profileError);
-          toast({
-            title: "Error",
-            description: "Exception fetching profile: " + profileError.message,
-            variant: "destructive",
-          });
-          setUser(null);
-        }
+        // Use setTimeout to prevent potential recursive loops with RLS
+        setTimeout(async () => {
+          const profile = await fetchUserProfile(session.user.id);
+          setUser(profile);
+          setLoading(false);
+        }, 0);
       } else {
         setUser(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
+    checkUser();
     return () => subscription.unsubscribe();
   }, [toast]);
 
   const signIn = async (email: string, password: string) => {
     try {
+      setLoading(true);
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      
       if (error) throw error;
 
       if (data.user) {
-        try {
-          const { data: profile, error: profileError } = await supabase
-            .from('user_profiles')
-            .select('*')
-            .eq('id', data.user.id)
-            .single();
-
-          if (profileError) {
-            console.error('Error fetching user profile:', profileError);
-            toast({
-              title: "Error",
-              description: "Failed to fetch user profile: " + profileError.message,
-              variant: "destructive",
-            });
-            await supabase.auth.signOut();
-            return;
-          }
-
+        // Use setTimeout to prevent potential recursive loops with RLS
+        setTimeout(async () => {
+          const profile = await fetchUserProfile(data.user.id);
+          
           if (!profile) {
+            await supabase.auth.signOut();
             toast({
               title: "Error",
               description: "No profile found for user",
               variant: "destructive",
             });
-            await supabase.auth.signOut();
             return;
           }
 
@@ -170,20 +128,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             return;
           }
 
+          setUser(profile);
           toast({
             title: "Welcome back!",
             description: "You have successfully signed in.",
           });
           navigate('/');
-        } catch (profileError: any) {
-          console.error('Exception fetching profile during sign in:', profileError);
-          toast({
-            title: "Error",
-            description: "Exception fetching profile: " + profileError.message,
-            variant: "destructive",
-          });
-          await supabase.auth.signOut();
-        }
+        }, 0);
       }
     } catch (error: any) {
       toast({
@@ -191,16 +142,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         description: error.message,
         variant: "destructive",
       });
+    } finally {
+      setLoading(false);
     }
   };
 
   const signUp = async (email: string, password: string) => {
     try {
+      setLoading(true);
       const { data, error } = await supabase.auth.signUp({ email, password });
       if (error) throw error;
 
       if (data.user) {
-        await supabase.from('user_profiles').insert([
+        // Create user profile with initial values
+        const { error: profileError } = await supabase.from('user_profiles').insert([
           {
             id: data.user.id,
             email: data.user.email,
@@ -208,6 +163,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             role: 'user',
           },
         ]);
+
+        if (profileError) {
+          console.error('Error creating user profile:', profileError);
+          toast({
+            title: "Error",
+            description: "Failed to create user profile: " + profileError.message,
+            variant: "destructive",
+          });
+          // Try to clean up the auth user if profile creation fails
+          await supabase.auth.signOut();
+          return;
+        }
       }
 
       toast({
@@ -221,12 +188,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         description: error.message,
         variant: "destructive",
       });
+    } finally {
+      setLoading(false);
     }
   };
 
   const signOut = async () => {
+    setLoading(true);
     await supabase.auth.signOut();
     setUser(null);
+    setLoading(false);
     navigate('/login');
   };
 

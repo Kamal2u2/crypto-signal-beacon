@@ -151,16 +151,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setLoading(true);
       
-      // First check if the user already exists
-      const { data: existingUsers, error: searchError } = await supabase.auth.admin.listUsers({
-        filter: {
-          email: email
+      // First check if email is already in use by trying to sign in
+      const { error: checkError } = await supabase.auth.signInWithOtp({
+        email: email,
+        options: {
+          shouldCreateUser: false // Don't create a new user, just check if exists
         }
       });
       
-      if (searchError) {
-        console.error("Error checking existing users:", searchError);
-      } else if (existingUsers && existingUsers.users.length > 0) {
+      // If no error, the email exists and OTP was sent
+      if (!checkError) {
         toast({
           title: "Email already in use",
           description: "This email address is already registered.",

@@ -151,7 +151,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setLoading(true);
       
-      // First step: Create the auth user with signUp
+      // First check if the user already exists
+      const { data: existingUsers, error: searchError } = await supabase.auth.admin.listUsers({
+        filter: {
+          email: email
+        }
+      });
+      
+      if (searchError) {
+        console.error("Error checking existing users:", searchError);
+      } else if (existingUsers && existingUsers.users.length > 0) {
+        toast({
+          title: "Email already in use",
+          description: "This email address is already registered.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+      
+      // Create the auth user with signUp
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -160,32 +179,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (authError) throw authError;
 
       if (authData.user) {
-        console.log("Auth user created successfully, waiting before creating profile...");
+        console.log("Auth user created successfully with ID:", authData.user.id);
         
-        // Wait a moment to ensure the auth user is fully created in the database
-        // This helps prevent the foreign key constraint violation
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Wait a longer time to ensure the auth user is fully created in the database
+        await new Promise(resolve => setTimeout(resolve, 3000));
         
-        // Now create the user profile
-        const { error: profileError } = await supabase.rpc('create_user_profile', {
-          user_id: authData.user.id,
-          user_email: authData.user.email || '',
-          is_user_approved: false,
-          user_role: 'user'
-        });
+        try {
+          // Now create the user profile
+          const { error: profileError } = await supabase.rpc('create_user_profile', {
+            user_id: authData.user.id,
+            user_email: authData.user.email || '',
+            is_user_approved: false,
+            user_role: 'user'
+          });
 
-        if (profileError) {
-          console.error('Error creating user profile:', profileError);
-          // Try to clean up the auth user if profile creation fails
+          if (profileError) {
+            console.error('Error creating user profile:', profileError);
+            throw new Error('Failed to create user profile: ' + profileError.message);
+          }
+
+          toast({
+            title: "Registration Successful",
+            description: "Your account is pending admin approval. You will be notified when approved.",
+          });
+          navigate('/login');
+        } catch (profileCreationError: any) {
+          console.error("Profile creation error:", profileCreationError);
+          // Clean up by signing out
           await supabase.auth.signOut();
-          throw new Error('Failed to create user profile: ' + profileError.message);
+          throw profileCreationError;
         }
-
-        toast({
-          title: "Registration Successful",
-          description: "Your account is pending admin approval. You will be notified when approved.",
-        });
-        navigate('/login');
       }
     } catch (error: any) {
       console.error('Signup error:', error);

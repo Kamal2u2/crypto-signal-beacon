@@ -23,28 +23,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const fetchUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        const { data: profile } = await supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-        setUser(profile);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session?.user) {
+          const { data: profile, error } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+          
+          if (error) {
+            console.error('Error fetching user profile:', error);
+            setUser(null);
+          } else {
+            setUser(profile);
+          }
+        } else {
+          setUser(null);
+        }
+      } catch (error) {
+        console.error('Error in session check:', error);
+        setUser(null);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     fetchUser();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
-        const { data: profile } = await supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-        setUser(profile);
+        try {
+          const { data: profile, error } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+          
+          if (error) {
+            console.error('Error fetching user profile:', error);
+            setUser(null);
+          } else {
+            setUser(profile);
+          }
+        } catch (error) {
+          console.error('Error fetching profile on auth change:', error);
+          setUser(null);
+        }
       } else {
         setUser(null);
       }
@@ -59,27 +85,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
 
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', data.user.id)
-        .single();
+      if (data.user) {
+        const { data: profile, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', data.user.id)
+          .single();
 
-      if (!profile.is_approved) {
-        await supabase.auth.signOut();
+        if (profileError) {
+          console.error('Error fetching user profile:', profileError);
+          throw new Error('Error fetching user profile');
+        }
+
+        if (!profile.is_approved) {
+          await supabase.auth.signOut();
+          toast({
+            title: "Account Pending Approval",
+            description: "Your account is pending admin approval. Please try again later.",
+            variant: "destructive",
+          });
+          return;
+        }
+
         toast({
-          title: "Account Pending Approval",
-          description: "Your account is pending admin approval. Please try again later.",
-          variant: "destructive",
+          title: "Welcome back!",
+          description: "You have successfully signed in.",
         });
-        return;
+        navigate('/');
       }
-
-      toast({
-        title: "Welcome back!",
-        description: "You have successfully signed in.",
-      });
-      navigate('/');
     } catch (error: any) {
       toast({
         title: "Error",
@@ -121,6 +154,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    setUser(null);
     navigate('/login');
   };
 

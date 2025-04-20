@@ -38,6 +38,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_user_profile: {
+        Args: {
+          user_id: string
+          user_email: string
+          is_user_approved?: boolean
+          user_role?: string
+        }
+        Returns: undefined
+      }
       get_auth_user_id: {
         Args: Record<PropertyKey, never>
         Returns: string

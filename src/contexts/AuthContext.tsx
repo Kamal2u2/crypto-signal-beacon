@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
@@ -150,49 +149,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signUp = async (email: string, password: string) => {
     try {
       setLoading(true);
-      const { data, error } = await supabase.auth.signUp({ email, password });
-      if (error) throw error;
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+      });
 
-      if (data.user) {
-        console.log("User created successfully, now creating profile");
+      if (authError) throw authError;
+
+      if (authData.user) {
+        console.log("User created successfully, creating profile...");
         
-        // Get admin key for profile creation
-        const adminKey = process.env.SUPABASE_SERVICE_KEY || '';
-        
-        // Insert profile directly with admin/service role
-        const adminSupabase = supabase.auth.setSession({
-          access_token: adminKey,
-          refresh_token: '',
+        const { error: profileError } = await supabase.rpc('create_user_profile', {
+          user_id: authData.user.id,
+          user_email: authData.user.email || '',
+          is_user_approved: false,
+          user_role: 'user'
         });
-        
-        // Create user profile with initial values
-        const { error: profileError } = await supabase
-          .rpc('create_user_profile', { 
-            user_id: data.user.id,
-            user_email: data.user.email || '',
-            is_user_approved: false,
-            user_role: 'user'
-          });
 
         if (profileError) {
           console.error('Error creating user profile:', profileError);
-          toast({
-            title: "Error",
-            description: "Failed to create user profile: " + profileError.message,
-            variant: "destructive",
-          });
           // Try to clean up the auth user if profile creation fails
           await supabase.auth.signOut();
-          return;
+          throw new Error('Failed to create user profile: ' + profileError.message);
         }
-      }
 
-      toast({
-        title: "Registration Successful",
-        description: "Your account is pending admin approval. You will be notified when approved.",
-      });
-      navigate('/login');
+        toast({
+          title: "Registration Successful",
+          description: "Your account is pending admin approval. You will be notified when approved.",
+        });
+        navigate('/login');
+      }
     } catch (error: any) {
+      console.error('Signup error:', error);
       toast({
         title: "Error",
         description: error.message,

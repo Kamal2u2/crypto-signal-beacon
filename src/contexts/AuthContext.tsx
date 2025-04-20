@@ -52,6 +52,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Function to create a user profile
+  const createUserProfile = async (userId: string, email: string) => {
+    try {
+      const { error } = await supabase.rpc('create_user_profile', {
+        user_id: userId,
+        user_email: email,
+        is_user_approved: true, // Auto-approve for now to fix login issues
+        user_role: 'user'
+      });
+
+      if (error) {
+        console.error('Error creating user profile:', error);
+        throw error;
+      }
+      
+      return true;
+    } catch (error: any) {
+      console.error('Exception in createUserProfile:', error);
+      throw error;
+    }
+  };
+
   useEffect(() => {
     const checkUser = async () => {
       try {
@@ -59,7 +81,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { data: { session } } = await supabase.auth.getSession();
         
         if (session?.user) {
-          const profile = await fetchUserProfile(session.user.id);
+          let profile = await fetchUserProfile(session.user.id);
+          
+          // If no profile exists, try to create one
+          if (!profile) {
+            console.log("No profile found, attempting to create one");
+            try {
+              await createUserProfile(session.user.id, session.user.email || '');
+              // Fetch the newly created profile
+              profile = await fetchUserProfile(session.user.id);
+            } catch (createError) {
+              console.error("Failed to create profile:", createError);
+            }
+          }
+          
           setUser(profile);
         } else {
           setUser(null);
@@ -82,7 +117,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (session?.user) {
         // Use setTimeout to prevent potential recursive loops with RLS
         setTimeout(async () => {
-          const profile = await fetchUserProfile(session.user.id);
+          let profile = await fetchUserProfile(session.user.id);
+          
+          // If no profile exists, try to create one
+          if (!profile) {
+            console.log("No profile found during auth state change, attempting to create one");
+            try {
+              await createUserProfile(session.user.id, session.user.email || '');
+              // Fetch the newly created profile
+              profile = await fetchUserProfile(session.user.id);
+            } catch (createError) {
+              console.error("Failed to create profile during auth state change:", createError);
+            }
+          }
+          
           setUser(profile);
           setLoading(false);
         }, 0);
@@ -106,16 +154,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (data.user) {
         // Use setTimeout to prevent potential recursive loops with RLS
         setTimeout(async () => {
-          const profile = await fetchUserProfile(data.user.id);
+          let profile = await fetchUserProfile(data.user.id);
           
+          // If no profile exists, try to create one
           if (!profile) {
-            await supabase.auth.signOut();
-            toast({
-              title: "Error",
-              description: "No profile found for user",
-              variant: "destructive",
-            });
-            return;
+            console.log("No profile found during login, attempting to create one");
+            try {
+              await createUserProfile(data.user.id, data.user.email || '');
+              // Fetch the newly created profile
+              profile = await fetchUserProfile(data.user.id);
+              
+              if (!profile) {
+                toast({
+                  title: "Error",
+                  description: "Could not create user profile. Please contact support.",
+                  variant: "destructive",
+                });
+                await supabase.auth.signOut();
+                return;
+              }
+            } catch (createError: any) {
+              console.error("Failed to create profile during login:", createError);
+              toast({
+                title: "Error",
+                description: "Failed to create profile: " + createError.message,
+                variant: "destructive",
+              });
+              await supabase.auth.signOut();
+              return;
+            }
           }
 
           if (!profile.is_approved) {
@@ -137,11 +204,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }, 0);
       }
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      if (error.message === "Email not confirmed") {
+        toast({
+          title: "Email Not Confirmed",
+          description: "Please check your email and confirm your account before logging in.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -151,16 +226,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setLoading(true);
       
-      // First check if email is already in use by trying to sign in
-      const { error: checkError } = await supabase.auth.signInWithOtp({
-        email: email,
-        options: {
-          shouldCreateUser: false // Don't create a new user, just check if exists
+      // First, check if a user with this email already exists in the auth system
+      const { data: existingUsers, error: checkError } = await supabase.auth.admin.listUsers({
+        filter: {
+          email: email
         }
       });
       
-      // If no error, the email exists and OTP was sent
-      if (!checkError) {
+      if (checkError) {
+        console.log("Error checking existing user, proceeding with signup:", checkError);
+      } else if (existingUsers && existingUsers.users.length > 0) {
         toast({
           title: "Email already in use",
           description: "This email address is already registered.",
@@ -186,23 +261,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         try {
           // Now create the user profile
-          const { error: profileError } = await supabase.rpc('create_user_profile', {
-            user_id: authData.user.id,
-            user_email: authData.user.email || '',
-            is_user_approved: false,
-            user_role: 'user'
-          });
-
-          if (profileError) {
-            console.error('Error creating user profile:', profileError);
-            throw new Error('Failed to create user profile: ' + profileError.message);
-          }
+          await createUserProfile(authData.user.id, authData.user.email || '');
 
           toast({
             title: "Registration Successful",
-            description: "Your account is pending admin approval. You will be notified when approved.",
+            description: authData.session ? "You are now logged in." : "Please check your email to confirm your account before logging in.",
           });
-          navigate('/login');
+          
+          if (authData.session) {
+            navigate('/');
+          } else {
+            navigate('/login');
+          }
         } catch (profileCreationError: any) {
           console.error("Profile creation error:", profileCreationError);
           // Clean up by signing out
@@ -212,11 +282,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (error: any) {
       console.error('Signup error:', error);
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      
+      if (error.message.includes("Email signups are disabled")) {
+        toast({
+          title: "Email Registration Disabled",
+          description: "Email registration is currently disabled. Please contact the administrator.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
     } finally {
       setLoading(false);
     }

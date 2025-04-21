@@ -227,15 +227,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(true);
       
       // First, check if a user with this email already exists in the auth system
-      const { data: existingUsers, error: checkError } = await supabase.auth.admin.listUsers({
-        filter: {
-          email: email
+      // The filter parameter is not supported in PageParams type, so we need to modify this approach
+      const { data, error: emailCheckError } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          shouldCreateUser: false
         }
       });
       
-      if (checkError) {
-        console.log("Error checking existing user, proceeding with signup:", checkError);
-      } else if (existingUsers && existingUsers.users.length > 0) {
+      // If we didn't get an error about user not found, that means the user exists
+      if (!emailCheckError || (emailCheckError && !emailCheckError.message.includes("Email not found"))) {
         toast({
           title: "Email already in use",
           description: "This email address is already registered.",

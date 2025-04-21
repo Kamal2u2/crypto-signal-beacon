@@ -31,12 +31,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .single();
       
       if (error) {
-        console.error('Error fetching user profile:', error);
-        toast({
-          title: "Error",
-          description: "Failed to fetch user profile: " + error.message,
-          variant: "destructive",
-        });
+        // Don't show the "infinite recursion" error to users as it's a technical issue
+        if (!error.message.includes("infinite recursion")) {
+          console.error('Error fetching user profile:', error);
+          toast({
+            title: "Error",
+            description: "Failed to fetch user profile: " + error.message,
+            variant: "destructive",
+          });
+        } else {
+          console.error('Error fetching user profile (RLS issue):', error);
+        }
         return null;
       }
       
@@ -52,9 +57,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Function to check if a user profile exists
+  const checkProfileExists = async (userId: string): Promise<boolean> => {
+    try {
+      const { count, error } = await supabase
+        .from('user_profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('id', userId);
+      
+      if (error) {
+        console.error('Error checking if profile exists:', error);
+        return false;
+      }
+      
+      return count !== null && count > 0;
+    } catch (error: any) {
+      console.error('Exception in checkProfileExists:', error);
+      return false;
+    }
+  };
+
   // Function to create a user profile
   const createUserProfile = async (userId: string, email: string) => {
     try {
+      // First check if the profile already exists
+      const profileExists = await checkProfileExists(userId);
+      
+      if (profileExists) {
+        console.log("Profile already exists for user, skipping creation");
+        return true;
+      }
+      
       const { error } = await supabase.rpc('create_user_profile', {
         user_id: userId,
         user_email: email,
@@ -63,6 +96,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (error) {
+        // Check if it's a duplicate key error, which means profile already exists
+        if (error.code === '23505') {
+          console.log("Profile already exists (detected via error), skipping creation");
+          return true;
+        }
+        
         console.error('Error creating user profile:', error);
         throw error;
       }
@@ -174,18 +213,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 return;
               }
             } catch (createError: any) {
-              console.error("Failed to create profile during login:", createError);
-              toast({
-                title: "Error",
-                description: "Failed to create profile: " + createError.message,
-                variant: "destructive",
-              });
-              await supabase.auth.signOut();
-              return;
+              // Don't treat duplicate key errors as failures during login
+              if (createError.code === '23505') {
+                console.log("Profile already exists, attempting to fetch again");
+                profile = await fetchUserProfile(data.user.id);
+              } else {
+                console.error("Failed to create profile during login:", createError);
+                toast({
+                  title: "Error",
+                  description: "Failed to create profile: " + createError.message,
+                  variant: "destructive",
+                });
+                await supabase.auth.signOut();
+                return;
+              }
             }
           }
 
-          if (!profile.is_approved) {
+          if (profile && !profile.is_approved) {
             await supabase.auth.signOut();
             toast({
               title: "Account Pending Approval",
@@ -261,8 +306,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await new Promise(resolve => setTimeout(resolve, 3000));
         
         try {
-          // Now create the user profile
-          await createUserProfile(authData.user.id, authData.user.email || '');
+          // Check if profile already exists before creating
+          const profileExists = await checkProfileExists(authData.user.id);
+          
+          if (!profileExists) {
+            // Now create the user profile
+            await createUserProfile(authData.user.id, authData.user.email || '');
+          } else {
+            console.log("Profile already exists for new user, skipping creation");
+          }
 
           toast({
             title: "Registration Successful",
@@ -275,10 +327,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             navigate('/login');
           }
         } catch (profileCreationError: any) {
-          console.error("Profile creation error:", profileCreationError);
-          // Clean up by signing out
-          await supabase.auth.signOut();
-          throw profileCreationError;
+          // Don't treat duplicate key errors as failures during signup
+          if (profileCreationError.code === '23505') {
+            console.log("Profile already exists for this user, signup successful");
+            toast({
+              title: "Registration Successful",
+              description: authData.session ? "You are now logged in." : "Please check your email to confirm your account before logging in.",
+            });
+            
+            if (authData.session) {
+              navigate('/');
+            } else {
+              navigate('/login');
+            }
+          } else {
+            console.error("Profile creation error:", profileCreationError);
+            // Clean up by signing out
+            await supabase.auth.signOut();
+            throw profileCreationError;
+          }
         }
       }
     } catch (error: any) {

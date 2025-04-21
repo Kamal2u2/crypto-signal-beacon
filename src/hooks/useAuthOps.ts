@@ -36,19 +36,39 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
           const userProfile = await fetchUserProfile(data.user.id);
           if (userProfile) {
             setUser(userProfile);
+            console.log("User profile set, navigating to homepage");
             
-            // Explicitly navigate after setting the user
-            console.log("Redirecting to homepage after successful login");
-            navigate('/');
+            // Force navigation to home page after successful login and profile fetch
+            navigate('/', { replace: true });
+            
+            toast({
+              title: "Welcome back!",
+              description: "You have successfully signed in.",
+            });
+          } else {
+            console.log("No profile found after login, attempting to create one");
+            try {
+              await createUserProfile(data.user.id, data.user.email || '');
+              const newProfile = await fetchUserProfile(data.user.id);
+              if (newProfile) {
+                setUser(newProfile);
+                navigate('/', { replace: true });
+              } else {
+                // Handle case where profile creation succeeded but fetching failed
+                console.error("Created profile but couldn't fetch it");
+                navigate('/', { replace: true });
+              }
+            } catch (profileError) {
+              console.error("Error creating profile after login:", profileError);
+              // Still navigate even if profile creation failed
+              navigate('/', { replace: true });
+            }
           }
         } catch (profileError) {
-          console.error("Error fetching user profile:", profileError);
+          console.error("Error fetching user profile after login:", profileError);
+          // If profile fetch fails, still navigate to home page
+          navigate('/', { replace: true });
         }
-        
-        toast({
-          title: "Welcome back!",
-          description: "You have successfully signed in.",
-        });
       }
     } catch (error: any) {
       console.error("Sign in exception:", error);
@@ -107,9 +127,9 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
         });
         
         if (authData.session) {
-          navigate('/');
+          navigate('/', { replace: true });
         } else {
-          navigate('/login');
+          navigate('/login', { replace: true });
         }
       }
     } catch (error: any) {
@@ -133,8 +153,13 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
       
       await supabase.auth.signOut();
       
-      // User state will be cleared by the auth state listener
-      navigate('/login');
+      setUser(null);
+      navigate('/login', { replace: true });
+      
+      toast({
+        title: "Signed Out",
+        description: "You have been successfully signed out.",
+      });
     } catch (error: any) {
       console.error("Sign out error:", error);
       toast({

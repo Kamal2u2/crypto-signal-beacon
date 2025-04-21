@@ -28,25 +28,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Initialize auth operations with our state setters
   const { signIn, signUp, signOut } = useAuthOps({ setUser, setLoading });
 
-  // Effect for redirection based on auth state
-  useEffect(() => {
-    if (!loading) {
-      const publicRoutes = ['/login', '/signup'];
-      const currentPath = location.pathname;
-      
-      if (user && publicRoutes.includes(currentPath)) {
-        // If user is logged in and on a public route, redirect to home
-        console.log("User is authenticated on public route, redirecting to home");
-        navigate('/', { replace: true });
-      }
-    }
-  }, [user, loading, location.pathname, navigate]);
-
   // Check for existing session on mount and setup auth state listener
   useEffect(() => {
     const setupAuth = async () => {
       try {
-        // First set up the auth state change listener
+        // First check for an existing session to avoid flashes
+        console.log("Checking for existing session...");
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session) {
+          console.log("No existing session found");
+          setUser(null);
+          setLoading(false);
+          return;
+        }
+
+        console.log("Session found, handling authentication");
+        
+        // Set up the auth state change listener
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
           console.log("Auth state changed:", event, session ? "Session exists" : "No session");
           
@@ -61,60 +60,102 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   if (profile) {
                     console.log("Profile found, setting user state");
                     setUser(profile);
+                    
+                    // Handle redirect for authenticated users on public routes
+                    if (['/login', '/signup'].includes(location.pathname)) {
+                      console.log("Redirecting authenticated user from public route to home");
+                      navigate('/', { replace: true });
+                    }
                   } else {
                     console.log("No profile found, attempting to create one");
                     try {
                       await createUserProfile(session.user.id, session.user.email || '');
                       const newProfile = await fetchUserProfile(session.user.id);
-                      setUser(newProfile);
+                      if (newProfile) {
+                        setUser(newProfile);
+                        if (['/login', '/signup'].includes(location.pathname)) {
+                          navigate('/', { replace: true });
+                        }
+                      } else {
+                        console.error("Profile creation likely succeeded but fetch failed");
+                        // Force navigation despite missing profile
+                        if (['/login', '/signup'].includes(location.pathname)) {
+                          navigate('/', { replace: true });
+                        }
+                      }
                     } catch (createError) {
                       console.error("Failed to create profile:", createError);
                     }
                   }
                 } catch (error) {
                   console.error("Error handling auth state change:", error);
+                  // Even if there's an error fetching the profile, we still want to navigate
+                  // away from login/signup if the user is authenticated
+                  if (session && ['/login', '/signup'].includes(location.pathname)) {
+                    navigate('/', { replace: true });
+                  }
                 } finally {
                   setLoading(false);
                 }
               }, 0);
+            } else {
+              setLoading(false);
             }
           } else if (event === 'SIGNED_OUT') {
             console.log("User signed out, clearing user state");
             setUser(null);
             setLoading(false);
+            navigate('/login', { replace: true });
+          } else {
+            setLoading(false);
           }
         });
 
-        // Then check for an existing session
-        console.log("Checking for existing session...");
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (!session) {
-          console.log("No existing session found");
-          setUser(null);
-          setLoading(false);
-          return;
-        }
-
-        console.log("Session found, fetching user profile");
-        const profile = await fetchUserProfile(session.user.id);
-        
-        if (profile) {
-          console.log("Profile found, setting user state");
-          setUser(profile);
-        } else {
-          console.log("No profile found, attempting to create one");
+        // Perform profile fetching for existing session
+        if (session.user) {
           try {
-            await createUserProfile(session.user.id, session.user.email || '');
-            const newProfile = await fetchUserProfile(session.user.id);
-            setUser(newProfile);
-          } catch (createError) {
-            console.error("Failed to create profile:", createError);
+            console.log("Fetching profile for existing session");
+            const profile = await fetchUserProfile(session.user.id);
+            
+            if (profile) {
+              console.log("Profile found for existing session");
+              setUser(profile);
+              
+              // If on login/signup page with valid session, redirect to home
+              if (['/login', '/signup'].includes(location.pathname)) {
+                console.log("Redirecting to home from public route with valid session");
+                navigate('/', { replace: true });
+              }
+            } else {
+              console.log("No profile found for existing session, creating one");
+              await createUserProfile(session.user.id, session.user.email || '');
+              const newProfile = await fetchUserProfile(session.user.id);
+              
+              if (newProfile) {
+                setUser(newProfile);
+                if (['/login', '/signup'].includes(location.pathname)) {
+                  navigate('/', { replace: true });
+                }
+              } else {
+                console.log("Failed to fetch newly created profile");
+                // If on login page with valid auth but no profile, still redirect to home
+                if (['/login', '/signup'].includes(location.pathname)) {
+                  navigate('/', { replace: true });
+                }
+              }
+            }
+          } catch (error) {
+            console.error("Error with existing session profile:", error);
+            // Even with errors, if authenticated, redirect from login/signup
+            if (['/login', '/signup'].includes(location.pathname)) {
+              navigate('/', { replace: true });
+            }
           }
         }
 
         setLoading(false);
         
+        // Cleanup function
         return () => {
           console.log("Cleaning up auth subscription");
           subscription.unsubscribe();
@@ -127,7 +168,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     setupAuth();
-  }, [fetchUserProfile, createUserProfile, toast]);
+  }, [fetchUserProfile, createUserProfile, navigate, location.pathname]);
 
   // Provide auth context to components
   return (

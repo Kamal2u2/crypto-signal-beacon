@@ -3,11 +3,9 @@ import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { UserProfile } from '@/types/auth';
 
-// Hook for user profile operations
 export function useUserProfile() {
   const { toast } = useToast();
 
-  // Fetch user profile by userId
   const fetchUserProfile = async (userId: string): Promise<UserProfile | null> => {
     try {
       const { data: profile, error } = await supabase
@@ -15,8 +13,8 @@ export function useUserProfile() {
         .select('*')
         .eq('id', userId)
         .maybeSingle();
+      
       if (error) {
-        // Don't show "infinite recursion" error to users as it's technical
         if (!error.message.includes("infinite recursion")) {
           console.error('Error fetching user profile:', error);
           toast({
@@ -29,6 +27,7 @@ export function useUserProfile() {
         }
         return null;
       }
+      
       return profile as UserProfile | null;
     } catch (error: any) {
       console.error('Exception in fetchUserProfile:', error);
@@ -41,7 +40,6 @@ export function useUserProfile() {
     }
   };
 
-  // Check if a profile exists for userId
   const checkProfileExists = async (userId: string): Promise<boolean> => {
     try {
       const { count, error } = await supabase
@@ -61,7 +59,6 @@ export function useUserProfile() {
     }
   };
 
-  // Create user profile
   const createUserProfile = async (userId: string, email: string) => {
     try {
       // First check if profile exists

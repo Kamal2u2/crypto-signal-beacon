@@ -22,74 +22,95 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { toast } = useToast();
   const { fetchUserProfile, createUserProfile } = useUserProfile();
 
+  // Initialize auth operations with our state setters
   const { signIn, signUp, signOut } = useAuthOps({ setUser, setLoading });
 
+  // Check for existing session on mount and setup auth state listener
   useEffect(() => {
-    const checkUser = async () => {
+    const setupAuth = async () => {
       try {
-        setLoading(true);
-        const { data: { session } } = await supabase.auth.getSession();
-
-        if (session?.user) {
-          let profile = await fetchUserProfile(session.user.id);
-
-          // If no profile exists, try to create one
-          if (!profile) {
-            console.log("No profile found, attempting to create one");
-            try {
-              await createUserProfile(session.user.id, session.user.email || '');
-              // Fetch the newly created profile
-              profile = await fetchUserProfile(session.user.id);
-            } catch (createError) {
-              console.error("Failed to create profile:", createError);
-            }
+        // First set up the auth state change listener
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+          console.log("Auth state changed:", event, session ? "Session exists" : "No session");
+          
+          if (session?.user) {
+            // Use setTimeout to avoid potential deadlocks with Supabase auth
+            setTimeout(async () => {
+              try {
+                // Check if user profile exists
+                const profile = await fetchUserProfile(session.user.id);
+                
+                if (profile) {
+                  console.log("Profile found, setting user state");
+                  setUser(profile);
+                } else {
+                  console.log("No profile found, attempting to create one");
+                  try {
+                    await createUserProfile(session.user.id, session.user.email || '');
+                    const newProfile = await fetchUserProfile(session.user.id);
+                    setUser(newProfile);
+                  } catch (createError) {
+                    console.error("Failed to create profile:", createError);
+                  }
+                }
+              } catch (error) {
+                console.error("Error handling auth state change:", error);
+              } finally {
+                setLoading(false);
+              }
+            }, 0);
+          } else {
+            console.log("No session, clearing user state");
+            setUser(null);
+            setLoading(false);
           }
+        });
 
+        // Then check for an existing session
+        console.log("Checking for existing session...");
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session) {
+          console.log("No existing session found");
+          setUser(null);
+          setLoading(false);
+          return;
+        }
+
+        console.log("Session found, fetching user profile");
+        const profile = await fetchUserProfile(session.user.id);
+        
+        if (profile) {
+          console.log("Profile found, setting user state");
           setUser(profile);
         } else {
-          setUser(null);
+          console.log("No profile found, attempting to create one");
+          try {
+            await createUserProfile(session.user.id, session.user.email || '');
+            const newProfile = await fetchUserProfile(session.user.id);
+            setUser(newProfile);
+          } catch (createError) {
+            console.error("Failed to create profile:", createError);
+          }
         }
-      } catch (error: any) {
-        console.error('Error in session check:', error);
-        toast({
-          title: "Error",
-          description: "Session check failed: " + error.message,
-          variant: "destructive",
-        });
+
+        setLoading(false);
+        
+        return () => {
+          console.log("Cleaning up auth subscription");
+          subscription.unsubscribe();
+        };
+      } catch (error) {
+        console.error("Error in auth setup:", error);
         setUser(null);
-      } finally {
         setLoading(false);
       }
     };
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
-        setTimeout(async () => {
-          let profile = await fetchUserProfile(session.user.id);
+    setupAuth();
+  }, [fetchUserProfile, createUserProfile, toast]);
 
-          if (!profile) {
-            console.log("No profile found during auth state change, attempting to create one");
-            try {
-              await createUserProfile(session.user.id, session.user.email || '');
-              profile = await fetchUserProfile(session.user.id);
-            } catch (createError) {
-              console.error("Failed to create profile during auth state change:", createError);
-            }
-          }
-
-          setUser(profile);
-          setLoading(false);
-        }, 0);
-      } else {
-        setUser(null);
-        setLoading(false);
-      }
-    });
-
-    checkUser();
-    return () => subscription.unsubscribe();
-  }, [toast, fetchUserProfile, createUserProfile]);
-
+  // Provide auth context to components
   return (
     <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut }}>
       {children}

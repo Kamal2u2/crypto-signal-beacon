@@ -1,9 +1,10 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
 import { UserProfile } from '@/types/auth';
 import { useToast } from '@/hooks/use-toast';
+import { useUserProfile } from '@/hooks/useUserProfile';
+import { useAuthOps } from '@/hooks/useAuthOps';
+import { supabase } from '@/lib/supabase';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -18,110 +19,20 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
   const { toast } = useToast();
+  const { fetchUserProfile, createUserProfile } = useUserProfile();
 
-  // Function to fetch user profile with error handling
-  const fetchUserProfile = async (userId: string) => {
-    try {
-      const { data: profile, error } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-      
-      if (error) {
-        // Don't show the "infinite recursion" error to users as it's a technical issue
-        if (!error.message.includes("infinite recursion")) {
-          console.error('Error fetching user profile:', error);
-          toast({
-            title: "Error",
-            description: "Failed to fetch user profile: " + error.message,
-            variant: "destructive",
-          });
-        } else {
-          console.error('Error fetching user profile (RLS issue):', error);
-        }
-        return null;
-      }
-      
-      return profile;
-    } catch (error: any) {
-      console.error('Exception in fetchUserProfile:', error);
-      toast({
-        title: "Error",
-        description: "Exception fetching profile: " + error.message,
-        variant: "destructive",
-      });
-      return null;
-    }
-  };
-
-  // Function to check if a user profile exists
-  const checkProfileExists = async (userId: string): Promise<boolean> => {
-    try {
-      const { count, error } = await supabase
-        .from('user_profiles')
-        .select('*', { count: 'exact', head: true })
-        .eq('id', userId);
-      
-      if (error) {
-        console.error('Error checking if profile exists:', error);
-        return false;
-      }
-      
-      return count !== null && count > 0;
-    } catch (error: any) {
-      console.error('Exception in checkProfileExists:', error);
-      return false;
-    }
-  };
-
-  // Function to create a user profile
-  const createUserProfile = async (userId: string, email: string) => {
-    try {
-      // First check if the profile already exists
-      const profileExists = await checkProfileExists(userId);
-      
-      if (profileExists) {
-        console.log("Profile already exists for user, skipping creation");
-        return true;
-      }
-      
-      const { error } = await supabase.rpc('create_user_profile', {
-        user_id: userId,
-        user_email: email,
-        is_user_approved: true, // Auto-approve for now to fix login issues
-        user_role: 'user'
-      });
-
-      if (error) {
-        // Check if it's a duplicate key error, which means profile already exists
-        if (error.code === '23505') {
-          console.log("Profile already exists (detected via error), skipping creation");
-          return true;
-        }
-        
-        console.error('Error creating user profile:', error);
-        throw error;
-      }
-      
-      return true;
-    } catch (error: any) {
-      console.error('Exception in createUserProfile:', error);
-      throw error;
-    }
-  };
+  const { signIn, signUp, signOut } = useAuthOps({ setUser, setLoading });
 
   useEffect(() => {
     const checkUser = async () => {
       try {
         setLoading(true);
         const { data: { session } } = await supabase.auth.getSession();
-        
+
         if (session?.user) {
           let profile = await fetchUserProfile(session.user.id);
-          
+
           // If no profile exists, try to create one
           if (!profile) {
             console.log("No profile found, attempting to create one");
@@ -133,7 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               console.error("Failed to create profile:", createError);
             }
           }
-          
+
           setUser(profile);
         } else {
           setUser(null);
@@ -151,25 +62,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    // Set up auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
-        // Use setTimeout to prevent potential recursive loops with RLS
         setTimeout(async () => {
           let profile = await fetchUserProfile(session.user.id);
-          
-          // If no profile exists, try to create one
+
           if (!profile) {
             console.log("No profile found during auth state change, attempting to create one");
             try {
               await createUserProfile(session.user.id, session.user.email || '');
-              // Fetch the newly created profile
               profile = await fetchUserProfile(session.user.id);
             } catch (createError) {
               console.error("Failed to create profile during auth state change:", createError);
             }
           }
-          
+
           setUser(profile);
           setLoading(false);
         }, 0);
@@ -181,201 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     checkUser();
     return () => subscription.unsubscribe();
-  }, [toast]);
-
-  const signIn = async (email: string, password: string) => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      
-      if (error) throw error;
-
-      if (data.user) {
-        // Use setTimeout to prevent potential recursive loops with RLS
-        setTimeout(async () => {
-          let profile = await fetchUserProfile(data.user.id);
-          
-          // If no profile exists, try to create one
-          if (!profile) {
-            console.log("No profile found during login, attempting to create one");
-            try {
-              await createUserProfile(data.user.id, data.user.email || '');
-              // Fetch the newly created profile
-              profile = await fetchUserProfile(data.user.id);
-              
-              if (!profile) {
-                toast({
-                  title: "Error",
-                  description: "Could not create user profile. Please contact support.",
-                  variant: "destructive",
-                });
-                await supabase.auth.signOut();
-                return;
-              }
-            } catch (createError: any) {
-              // Don't treat duplicate key errors as failures during login
-              if (createError.code === '23505') {
-                console.log("Profile already exists, attempting to fetch again");
-                profile = await fetchUserProfile(data.user.id);
-              } else {
-                console.error("Failed to create profile during login:", createError);
-                toast({
-                  title: "Error",
-                  description: "Failed to create profile: " + createError.message,
-                  variant: "destructive",
-                });
-                await supabase.auth.signOut();
-                return;
-              }
-            }
-          }
-
-          if (profile && !profile.is_approved) {
-            await supabase.auth.signOut();
-            toast({
-              title: "Account Pending Approval",
-              description: "Your account is pending admin approval. Please try again later.",
-              variant: "destructive",
-            });
-            return;
-          }
-
-          setUser(profile);
-          toast({
-            title: "Welcome back!",
-            description: "You have successfully signed in.",
-          });
-          navigate('/');
-        }, 0);
-      }
-    } catch (error: any) {
-      if (error.message === "Email not confirmed") {
-        toast({
-          title: "Email Not Confirmed",
-          description: "Please check your email and confirm your account before logging in.",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: error.message,
-          variant: "destructive",
-        });
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const signUp = async (email: string, password: string) => {
-    try {
-      setLoading(true);
-      
-      // First, check if a user with this email already exists in the auth system
-      // The filter parameter is not supported in PageParams type, so we need to modify this approach
-      const { data, error: emailCheckError } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          shouldCreateUser: false
-        }
-      });
-      
-      // If we didn't get an error about user not found, that means the user exists
-      if (!emailCheckError || (emailCheckError && !emailCheckError.message.includes("Email not found"))) {
-        toast({
-          title: "Email already in use",
-          description: "This email address is already registered.",
-          variant: "destructive",
-        });
-        setLoading(false);
-        return;
-      }
-      
-      // Create the auth user with signUp
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-
-      if (authError) throw authError;
-
-      if (authData.user) {
-        console.log("Auth user created successfully with ID:", authData.user.id);
-        
-        // Wait a bit longer to ensure the auth user is fully created in the database
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        
-        try {
-          // Check if profile already exists before creating
-          const profileExists = await checkProfileExists(authData.user.id);
-          
-          if (!profileExists) {
-            // Now create the user profile
-            await createUserProfile(authData.user.id, authData.user.email || '');
-          } else {
-            console.log("Profile already exists for new user, skipping creation");
-          }
-
-          toast({
-            title: "Registration Successful",
-            description: authData.session ? "You are now logged in." : "Please check your email to confirm your account before logging in.",
-          });
-          
-          if (authData.session) {
-            navigate('/');
-          } else {
-            navigate('/login');
-          }
-        } catch (profileCreationError: any) {
-          // Don't treat duplicate key errors as failures during signup
-          if (profileCreationError.code === '23505') {
-            console.log("Profile already exists for this user, signup successful");
-            toast({
-              title: "Registration Successful",
-              description: authData.session ? "You are now logged in." : "Please check your email to confirm your account before logging in.",
-            });
-            
-            if (authData.session) {
-              navigate('/');
-            } else {
-              navigate('/login');
-            }
-          } else {
-            console.error("Profile creation error:", profileCreationError);
-            // Clean up by signing out
-            await supabase.auth.signOut();
-            throw profileCreationError;
-          }
-        }
-      }
-    } catch (error: any) {
-      console.error('Signup error:', error);
-      
-      if (error.message.includes("Email signups are disabled")) {
-        toast({
-          title: "Email Registration Disabled",
-          description: "Email registration is currently disabled. Please contact the administrator.",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: error.message,
-          variant: "destructive",
-        });
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const signOut = async () => {
-    setLoading(true);
-    await supabase.auth.signOut();
-    setUser(null);
-    setLoading(false);
-    navigate('/login');
-  };
+  }, [toast, fetchUserProfile, createUserProfile]);
 
   return (
     <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut }}>

@@ -31,13 +31,24 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
       if (data.user) {
         console.log("Sign in successful for:", data.user.email);
         
-        // Let the auth state listener in AuthContext handle setting the user
+        // Fetch user profile immediately
+        try {
+          const userProfile = await fetchUserProfile(data.user.id);
+          if (userProfile) {
+            setUser(userProfile);
+            
+            // Explicitly navigate after setting the user
+            console.log("Redirecting to homepage after successful login");
+            navigate('/');
+          }
+        } catch (profileError) {
+          console.error("Error fetching user profile:", profileError);
+        }
+        
         toast({
           title: "Welcome back!",
           description: "You have successfully signed in.",
         });
-        
-        navigate('/');
       }
     } catch (error: any) {
       console.error("Sign in exception:", error);

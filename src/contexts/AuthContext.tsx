@@ -1,5 +1,6 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { UserProfile } from '@/types/auth';
 import { useToast } from '@/hooks/use-toast';
 import { useUserProfile } from '@/hooks/useUserProfile';
@@ -19,11 +20,27 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const { fetchUserProfile, createUserProfile } = useUserProfile();
 
   // Initialize auth operations with our state setters
   const { signIn, signUp, signOut } = useAuthOps({ setUser, setLoading });
+
+  // Effect for redirection based on auth state
+  useEffect(() => {
+    if (!loading) {
+      const publicRoutes = ['/login', '/signup'];
+      const currentPath = location.pathname;
+      
+      if (user && publicRoutes.includes(currentPath)) {
+        // If user is logged in and on a public route, redirect to home
+        console.log("User is authenticated on public route, redirecting to home");
+        navigate('/', { replace: true });
+      }
+    }
+  }, [user, loading, location.pathname, navigate]);
 
   // Check for existing session on mount and setup auth state listener
   useEffect(() => {
@@ -33,34 +50,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
           console.log("Auth state changed:", event, session ? "Session exists" : "No session");
           
-          if (session?.user) {
-            // Use setTimeout to avoid potential deadlocks with Supabase auth
-            setTimeout(async () => {
-              try {
-                // Check if user profile exists
-                const profile = await fetchUserProfile(session.user.id);
-                
-                if (profile) {
-                  console.log("Profile found, setting user state");
-                  setUser(profile);
-                } else {
-                  console.log("No profile found, attempting to create one");
-                  try {
-                    await createUserProfile(session.user.id, session.user.email || '');
-                    const newProfile = await fetchUserProfile(session.user.id);
-                    setUser(newProfile);
-                  } catch (createError) {
-                    console.error("Failed to create profile:", createError);
+          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+            if (session?.user) {
+              // Use setTimeout to avoid potential deadlocks with Supabase auth
+              setTimeout(async () => {
+                try {
+                  // Check if user profile exists
+                  const profile = await fetchUserProfile(session.user.id);
+                  
+                  if (profile) {
+                    console.log("Profile found, setting user state");
+                    setUser(profile);
+                  } else {
+                    console.log("No profile found, attempting to create one");
+                    try {
+                      await createUserProfile(session.user.id, session.user.email || '');
+                      const newProfile = await fetchUserProfile(session.user.id);
+                      setUser(newProfile);
+                    } catch (createError) {
+                      console.error("Failed to create profile:", createError);
+                    }
                   }
+                } catch (error) {
+                  console.error("Error handling auth state change:", error);
+                } finally {
+                  setLoading(false);
                 }
-              } catch (error) {
-                console.error("Error handling auth state change:", error);
-              } finally {
-                setLoading(false);
-              }
-            }, 0);
-          } else {
-            console.log("No session, clearing user state");
+              }, 0);
+            }
+          } else if (event === 'SIGNED_OUT') {
+            console.log("User signed out, clearing user state");
             setUser(null);
             setLoading(false);
           }

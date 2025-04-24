@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { useUserProfile } from './useUserProfile';
 import { UserProfile } from '@/types/auth';
+import { toast as sonnerToast } from 'sonner';
 
 interface UseAuthOpsProps {
   setUser: (user: UserProfile | null) => void;
@@ -19,7 +20,6 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
   const signIn = async (email: string, password: string) => {
     try {
       console.log("Attempting sign in for:", email);
-      setLoading(true);
       
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       
@@ -31,44 +31,11 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
       if (data.user) {
         console.log("Sign in successful for:", data.user.email);
         
-        // Fetch user profile immediately
-        try {
-          const userProfile = await fetchUserProfile(data.user.id);
-          if (userProfile) {
-            setUser(userProfile);
-            console.log("User profile set, navigating to homepage");
-            
-            // Force navigation to home page after successful login and profile fetch
-            navigate('/', { replace: true });
-            
-            toast({
-              title: "Welcome back!",
-              description: "You have successfully signed in.",
-            });
-          } else {
-            console.log("No profile found after login, attempting to create one");
-            try {
-              await createUserProfile(data.user.id, data.user.email || '');
-              const newProfile = await fetchUserProfile(data.user.id);
-              if (newProfile) {
-                setUser(newProfile);
-                navigate('/', { replace: true });
-              } else {
-                // Handle case where profile creation succeeded but fetching failed
-                console.error("Created profile but couldn't fetch it");
-                navigate('/', { replace: true });
-              }
-            } catch (profileError) {
-              console.error("Error creating profile after login:", profileError);
-              // Still navigate even if profile creation failed
-              navigate('/', { replace: true });
-            }
-          }
-        } catch (profileError) {
-          console.error("Error fetching user profile after login:", profileError);
-          // If profile fetch fails, still navigate to home page
-          navigate('/', { replace: true });
-        }
+        // Show success toast
+        sonnerToast.success("Signed in successfully!");
+        
+        // Force navigation to home page after successful login
+        navigate('/', { replace: true });
       }
     } catch (error: any) {
       console.error("Sign in exception:", error);
@@ -86,8 +53,7 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
           variant: "destructive",
         });
       }
-    } finally {
-      setLoading(false);
+      throw error;
     }
   };
 
@@ -95,7 +61,24 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
   const signUp = async (email: string, password: string) => {
     try {
       console.log("Attempting sign up for:", email);
-      setLoading(true);
+      
+      // Check if the email is already in use before attempting signup
+      const { data: existingUsers, error: checkError } = await supabase.auth.admin.listUsers({
+        filter: {
+          email: email
+        }
+      });
+
+      if (checkError) {
+        console.error("Error checking existing user:", checkError);
+      } else if (existingUsers && existingUsers.length > 0) {
+        toast({
+          title: "Email already in use",
+          description: "This email address is already registered.",
+          variant: "destructive",
+        });
+        return;
+      }
 
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
@@ -118,13 +101,11 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
       if (authData.user) {
         console.log("Auth user created successfully with ID:", authData.user.id);
 
-        // Let the auth state listener handle profile creation and setting the user
-        toast({
-          title: "Registration Successful",
-          description: authData.session 
-            ? "You are now logged in." 
-            : "Please check your email to confirm your account before logging in.",
-        });
+        sonnerToast.success(
+          authData.session 
+            ? "Registration successful! You are now logged in."
+            : "Registration successful! Please check your email to confirm your account."
+        );
         
         if (authData.session) {
           navigate('/', { replace: true });
@@ -140,8 +121,7 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
         description: error.message || "An error occurred during sign up.",
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
+      throw error;
     }
   };
 
@@ -149,17 +129,13 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
   const signOut = async () => {
     try {
       console.log("Signing out...");
-      setLoading(true);
       
       await supabase.auth.signOut();
       
       setUser(null);
       navigate('/login', { replace: true });
       
-      toast({
-        title: "Signed Out",
-        description: "You have been successfully signed out.",
-      });
+      sonnerToast.success("You have been successfully signed out.");
     } catch (error: any) {
       console.error("Sign out error:", error);
       toast({
@@ -167,8 +143,7 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
         description: error.message || "An error occurred during sign out.",
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
+      throw error;
     }
   };
 

@@ -4,15 +4,34 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
+import { Loader2 } from 'lucide-react';
 
 const Signup = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { signUp } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { signUp, loading } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await signUp(email, password);
+    if (!email || !password) return;
+    
+    setIsSubmitting(true);
+    try {
+      await signUp(email, password);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const isLoading = isSubmitting || loading;
+  
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setEmail(e.target.value);
+  };
+  
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPassword(e.target.value);
   };
 
   return (
@@ -29,20 +48,33 @@ const Signup = () => {
               type="email"
               placeholder="Email address"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={handleEmailChange}
+              disabled={isLoading}
               required
             />
             <Input
               type="password"
               placeholder="Password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={handlePasswordChange}
+              disabled={isLoading}
               required
             />
           </div>
           <div>
-            <Button type="submit" className="w-full">
-              Sign up
+            <Button 
+              type="submit" 
+              className="w-full"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Signing up...
+                </>
+              ) : (
+                'Sign up'
+              )}
             </Button>
           </div>
         </form>

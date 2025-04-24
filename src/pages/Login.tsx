@@ -14,12 +14,25 @@ const Login = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!email || !password) return;
+    
     setIsSubmitting(true);
-    await signIn(email, password);
-    setIsSubmitting(false);
+    try {
+      await signIn(email, password);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
   
   const isLoading = isSubmitting || loading;
+  
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setEmail(e.target.value);
+  };
+  
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPassword(e.target.value);
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
@@ -35,7 +48,7 @@ const Login = () => {
               type="email"
               placeholder="Email address"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={handleEmailChange}
               disabled={isLoading}
               required
             />
@@ -43,7 +56,7 @@ const Login = () => {
               type="password"
               placeholder="Password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={handlePasswordChange}
               disabled={isLoading}
               required
             />

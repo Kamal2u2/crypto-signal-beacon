@@ -63,15 +63,17 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
       console.log("Attempting sign up for:", email);
       
       // Check if the email is already in use before attempting signup
-      const { data: existingUsers, error: checkError } = await supabase.auth.admin.listUsers({
-        filter: {
-          email: email
-        }
-      });
+      // Remove the incorrect filter approach and use a simpler query
+      const { data, error: checkError } = await supabase
+        .from('user_profiles')
+        .select('email')
+        .eq('email', email)
+        .maybeSingle();
 
       if (checkError) {
         console.error("Error checking existing user:", checkError);
-      } else if (existingUsers && existingUsers.length > 0) {
+      } else if (data) {
+        // If we found a profile with this email, it's already in use
         toast({
           title: "Email already in use",
           description: "This email address is already registered.",

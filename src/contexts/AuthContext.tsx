@@ -23,20 +23,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
-  const { fetchUserProfile, createUserProfile } = useUserProfile();
+  const { fetchUserProfile } = useUserProfile();
 
   // Initialize auth operations with our state setters
   const { signIn, signUp, signOut } = useAuthOps({ setUser, setLoading });
 
   // Check for existing session on mount and setup auth state listener
   useEffect(() => {
+    console.log("Setting up auth effect");
     let isMounted = true;
     
     const setupAuth = async () => {
       try {
         console.log("Checking for existing session...");
         
-        // Set up auth state change listener first to avoid race conditions
+        // Get current session first to handle initial load
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!isMounted) return;
+        
+        if (session?.user) {
+          console.log("Session found, handling authentication");
+          try {
+            const profile = await fetchUserProfile(session.user.id);
+            
+            if (profile && isMounted) {
+              setUser(profile);
+              if (['/login', '/signup'].includes(location.pathname)) {
+                navigate('/', { replace: true });
+              }
+            } 
+          } catch (error) {
+            console.error("Error with existing session profile:", error);
+          }
+        } else {
+          console.log("No existing session found");
+          if (isMounted) setUser(null);
+          
+          // If on a protected route without auth, redirect to login
+          const currentPath = location.pathname;
+          if (currentPath !== '/login' && currentPath !== '/signup' && currentPath !== '/') {
+            navigate('/login', { replace: true });
+          }
+        }
+        
+        // Set up auth state change listener after initial session check
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
           async (event, session) => {
             console.log("Auth state changed:", event, session ? "Session exists" : "No session");
@@ -50,105 +81,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   
                   if (profile && isMounted) {
                     setUser(profile);
-                    setLoading(false);
                     
                     if (['/login', '/signup'].includes(location.pathname)) {
                       navigate('/', { replace: true });
                     }
-                  } else if (isMounted) {
-                    try {
-                      await createUserProfile(session.user.id, session.user.email || '');
-                      
-                      if (isMounted) {
-                        const newProfile = await fetchUserProfile(session.user.id);
-                        if (newProfile) {
-                          setUser(newProfile);
-                        }
-                        setLoading(false);
-                        
-                        if (['/login', '/signup'].includes(location.pathname)) {
-                          navigate('/', { replace: true });
-                        }
-                      }
-                    } catch (createError) {
-                      console.error("Failed to create profile:", createError);
-                      if (isMounted) {
-                        setLoading(false);
-                      }
-                    }
                   }
                 } catch (profileError) {
                   console.error("Error handling auth state change:", profileError);
-                  if (isMounted) {
-                    setLoading(false);
-                    if (['/login', '/signup'].includes(location.pathname) && session) {
-                      navigate('/', { replace: true });
-                    }
-                  }
                 }
-              } else if (isMounted) {
-                setLoading(false);
               }
             } else if (event === 'SIGNED_OUT') {
               if (isMounted) {
                 setUser(null);
-                setLoading(false);
               }
-            } else if (isMounted) {
-              setLoading(false);
             }
           }
         );
-
-        // Get current session after setting up listener
-        const { data: { session } } = await supabase.auth.getSession();
         
-        if (!isMounted) {
-          subscription.unsubscribe();
-          return;
-        }
-        
-        if (!session) {
-          console.log("No existing session found");
-          setUser(null);
+        if (isMounted) {
           setLoading(false);
-          return;
-        }
-
-        try {
-          console.log("Session found, handling authentication");
-          const profile = await fetchUserProfile(session.user.id);
-          
-          if (profile && isMounted) {
-            setUser(profile);
-            
-            if (['/login', '/signup'].includes(location.pathname)) {
-              navigate('/', { replace: true });
-            }
-          } else if (isMounted) {
-            try {
-              await createUserProfile(session.user.id, session.user.email || '');
-              
-              if (isMounted) {
-                const newProfile = await fetchUserProfile(session.user.id);
-                if (newProfile) {
-                  setUser(newProfile);
-                }
-                
-                if (['/login', '/signup'].includes(location.pathname)) {
-                  navigate('/', { replace: true });
-                }
-              }
-            } catch (createError) {
-              console.error("Error with creating profile:", createError);
-            }
-          }
-        } catch (error) {
-          console.error("Error with existing session profile:", error);
-        } finally {
-          if (isMounted) {
-            setLoading(false);
-          }
         }
         
         return () => {
@@ -168,7 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       isMounted = false;
     };
-  }, [fetchUserProfile, createUserProfile, navigate, location.pathname]);
+  }, [fetchUserProfile, navigate, location.pathname]);
 
   // Provide auth context to components
   return (

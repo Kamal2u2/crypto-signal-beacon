@@ -8,6 +8,7 @@ export function useUserProfile() {
 
   const fetchUserProfile = async (userId: string): Promise<UserProfile | null> => {
     try {
+      console.log('Fetching user profile for ID:', userId);
       const { data: profile, error } = await supabase
         .from('user_profiles')
         .select('*')
@@ -27,7 +28,8 @@ export function useUserProfile() {
         }
         return null;
       }
-      
+
+      console.log('Profile fetched:', profile ? 'found' : 'not found');
       return profile as UserProfile | null;
     } catch (error: any) {
       console.error('Exception in fetchUserProfile:', error);
@@ -42,6 +44,7 @@ export function useUserProfile() {
 
   const checkProfileExists = async (userId: string): Promise<boolean> => {
     try {
+      console.log('Checking if profile exists for ID:', userId);
       const { count, error } = await supabase
         .from('user_profiles')
         .select('*', { count: 'exact', head: true })
@@ -59,8 +62,9 @@ export function useUserProfile() {
     }
   };
 
-  const createUserProfile = async (userId: string, email: string) => {
+  const createUserProfile = async (userId: string, email: string): Promise<boolean> => {
     try {
+      console.log('Creating user profile for ID:', userId, 'and email:', email);
       // First check if profile exists
       const profileExists = await checkProfileExists(userId);
 
@@ -84,6 +88,7 @@ export function useUserProfile() {
         console.error('Error creating user profile:', error);
         throw error;
       }
+      console.log('User profile created successfully');
       return true;
     } catch (error: any) {
       console.error('Exception in createUserProfile:', error);

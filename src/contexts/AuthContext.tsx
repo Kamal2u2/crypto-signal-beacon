@@ -35,6 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     const setupAuth = async () => {
       try {
+        setLoading(true);
         console.log("Checking for existing session...");
         
         // Get current session first to handle initial load
@@ -43,28 +44,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!isMounted) return;
         
         if (session?.user) {
-          console.log("Session found, handling authentication");
+          console.log("Session found, fetching user profile");
           try {
             const profile = await fetchUserProfile(session.user.id);
             
             if (profile && isMounted) {
+              console.log("User profile found:", profile.email);
               setUser(profile);
-              if (['/login', '/signup'].includes(location.pathname)) {
-                navigate('/', { replace: true });
-              }
-            } 
+            } else {
+              console.log("No user profile found for session user");
+              setUser(null);
+            }
           } catch (error) {
             console.error("Error with existing session profile:", error);
+            setUser(null);
           }
         } else {
           console.log("No existing session found");
           if (isMounted) setUser(null);
-          
-          // If on a protected route without auth, redirect to login
-          const currentPath = location.pathname;
-          if (currentPath !== '/login' && currentPath !== '/signup' && currentPath !== '/') {
-            navigate('/login', { replace: true });
-          }
+        }
+        
+        if (isMounted) {
+          setLoading(false);
         }
         
         // Set up auth state change listener after initial session check
@@ -74,33 +75,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             
             if (!isMounted) return;
             
-            if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-              if (session?.user) {
-                try {
-                  const profile = await fetchUserProfile(session.user.id);
+            if (event === 'SIGNED_IN' && session?.user) {
+              try {
+                const profile = await fetchUserProfile(session.user.id);
+                
+                if (profile && isMounted) {
+                  setUser(profile);
+                  console.log("User signed in:", profile.email);
                   
-                  if (profile && isMounted) {
-                    setUser(profile);
-                    
-                    if (['/login', '/signup'].includes(location.pathname)) {
-                      navigate('/', { replace: true });
-                    }
+                  // Redirect to home page if on login or signup
+                  if (['/login', '/signup'].includes(location.pathname)) {
+                    navigate('/', { replace: true });
                   }
-                } catch (profileError) {
-                  console.error("Error handling auth state change:", profileError);
+                } else {
+                  console.warn("SIGNED_IN event but no profile found!");
+                  setUser(null);
                 }
+              } catch (profileError) {
+                console.error("Error handling auth state change:", profileError);
+                setUser(null);
               }
             } else if (event === 'SIGNED_OUT') {
               if (isMounted) {
+                console.log("User signed out");
                 setUser(null);
+                // Redirect to login page after sign out
+                navigate('/login', { replace: true });
               }
+            } else if (event === 'USER_UPDATED' && session?.user) {
+              // Handle user updates if needed
+              try {
+                const profile = await fetchUserProfile(session.user.id);
+                if (profile && isMounted) {
+                  setUser(profile);
+                }
+              } catch (error) {
+                console.error("Error updating user profile:", error);
+              }
+            }
+            
+            // Make sure loading is false after any auth state change
+            if (isMounted) {
+              setLoading(false);
             }
           }
         );
-        
-        if (isMounted) {
-          setLoading(false);
-        }
         
         return () => {
           subscription.unsubscribe();

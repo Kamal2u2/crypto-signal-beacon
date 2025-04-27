@@ -20,6 +20,7 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
   const signIn = async (email: string, password: string) => {
     try {
       console.log("Attempting sign in for:", email);
+      setLoading(true);
       
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       
@@ -30,6 +31,16 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
       
       if (data.user) {
         console.log("Sign in successful for:", data.user.email);
+        
+        // Fetch the user profile
+        try {
+          const profile = await fetchUserProfile(data.user.id);
+          if (profile) {
+            setUser(profile);
+          }
+        } catch (profileError) {
+          console.error("Error fetching profile after login:", profileError);
+        }
         
         // Show success toast
         sonnerToast.success("Signed in successfully!");
@@ -54,6 +65,8 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
         });
       }
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -61,9 +74,9 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
   const signUp = async (email: string, password: string) => {
     try {
       console.log("Attempting sign up for:", email);
+      setLoading(true);
       
       // Check if the email is already in use before attempting signup
-      // Remove the incorrect filter approach and use a simpler query
       const { data, error: checkError } = await supabase
         .from('user_profiles')
         .select('email')
@@ -102,6 +115,22 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
 
       if (authData.user) {
         console.log("Auth user created successfully with ID:", authData.user.id);
+        
+        // Create user profile if needed
+        if (authData.session) {
+          try {
+            // Create a profile for this user
+            await createUserProfile(authData.user.id, email);
+            
+            // Fetch the newly created profile
+            const profile = await fetchUserProfile(authData.user.id);
+            if (profile) {
+              setUser(profile);
+            }
+          } catch (profileError) {
+            console.error("Error creating/fetching profile after signup:", profileError);
+          }
+        }
 
         sonnerToast.success(
           authData.session 
@@ -110,8 +139,10 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
         );
         
         if (authData.session) {
+          // If we have a session, user is logged in, redirect to home
           navigate('/', { replace: true });
         } else {
+          // If email confirmation is required, redirect to login
           navigate('/login', { replace: true });
         }
       }
@@ -124,6 +155,8 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
         variant: "destructive",
       });
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -131,6 +164,7 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
   const signOut = async () => {
     try {
       console.log("Signing out...");
+      setLoading(true);
       
       await supabase.auth.signOut();
       
@@ -146,6 +180,8 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
         variant: "destructive",
       });
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 

@@ -10,29 +10,23 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { signIn, loading } = useAuth();
+  const { signIn, loading: authLoading } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) return;
     
-    setIsSubmitting(true);
     try {
+      setIsSubmitting(true);
       await signIn(email, password);
+    } catch (error) {
+      console.error("Login form error:", error);
     } finally {
       setIsSubmitting(false);
     }
   };
   
-  const isLoading = isSubmitting || loading;
-  
-  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setEmail(e.target.value);
-  };
-  
-  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setPassword(e.target.value);
-  };
+  const isLoading = isSubmitting || authLoading;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
@@ -48,7 +42,7 @@ const Login = () => {
               type="email"
               placeholder="Email address"
               value={email}
-              onChange={handleEmailChange}
+              onChange={(e) => setEmail(e.target.value)}
               disabled={isLoading}
               required
             />
@@ -56,7 +50,7 @@ const Login = () => {
               type="password"
               placeholder="Password"
               value={password}
-              onChange={handlePasswordChange}
+              onChange={(e) => setPassword(e.target.value)}
               disabled={isLoading}
               required
             />

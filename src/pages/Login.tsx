@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Skeleton } from '@/components/ui/skeleton';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -44,6 +43,9 @@ const Login = () => {
           <h2 className="mt-6 text-center text-3xl font-extrabold text-foreground">
             Sign in to your account
           </h2>
+          <p className="mt-2 text-center text-sm text-muted-foreground">
+            Enter your credentials to access your account
+          </p>
         </div>
         
         {error && (
@@ -54,27 +56,41 @@ const Login = () => {
         
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
-            <Input
-              type="email"
-              placeholder="Email address"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={isLoading}
-              required
-            />
-            <Input
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={isLoading}
-              required
-            />
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-foreground mb-1">
+                Email address
+              </label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="Email address"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isLoading}
+                required
+                className="appearance-none relative block w-full px-3 py-2 border border-input"
+              />
+            </div>
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-foreground mb-1">
+                Password
+              </label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoading}
+                required
+                className="appearance-none relative block w-full px-3 py-2 border border-input"
+              />
+            </div>
           </div>
           <div>
             <Button 
               type="submit" 
-              className="w-full" 
+              className="w-full"
               disabled={isLoading}
             >
               {isLoading ? (

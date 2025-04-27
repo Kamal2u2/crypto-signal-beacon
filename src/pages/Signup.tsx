@@ -48,6 +48,9 @@ const Signup = () => {
           <h2 className="mt-6 text-center text-3xl font-extrabold text-foreground">
             Create a new account
           </h2>
+          <p className="mt-2 text-center text-sm text-muted-foreground">
+            Register to access all features
+          </p>
         </div>
         
         {error && (
@@ -58,23 +61,40 @@ const Signup = () => {
         
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
-            <Input
-              type="email"
-              placeholder="Email address"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={isLoading}
-              required
-            />
-            <Input
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={isLoading}
-              required
-              minLength={6}
-            />
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-foreground mb-1">
+                Email address
+              </label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="Email address"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isLoading}
+                required
+                className="appearance-none relative block w-full px-3 py-2 border border-input"
+              />
+            </div>
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-foreground mb-1">
+                Password
+              </label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoading}
+                required
+                minLength={6}
+                className="appearance-none relative block w-full px-3 py-2 border border-input"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Password must be at least 6 characters long
+              </p>
+            </div>
           </div>
           <div>
             <Button 

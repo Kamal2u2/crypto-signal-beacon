@@ -45,37 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     const setupAuth = async () => {
       try {
-        // Get current session first to handle initial load
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (!isMounted) return;
-        
-        if (session?.user) {
-          console.log("Session found, fetching user profile");
-          try {
-            const profile = await fetchUserProfile(session.user.id);
-            
-            if (profile && isMounted) {
-              console.log("User profile found:", profile.email);
-              setUser(profile);
-            } else {
-              console.log("No user profile found for session user");
-              setUser(null);
-            }
-          } catch (error) {
-            console.error("Error with existing session profile:", error);
-            setUser(null);
-          }
-        } else {
-          console.log("No existing session found");
-          if (isMounted) setUser(null);
-        }
-        
-        if (isMounted) {
-          setLoading(false);
-        }
-        
-        // Set up auth state change listener after initial session check
+        // Set up auth state change listener first
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
           async (event, session) => {
             console.log("Auth state changed:", event, session ? "Session exists" : "No session");
@@ -84,6 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             
             if (event === 'SIGNED_IN' && session?.user) {
               try {
+                // Check if profile exists
                 const profile = await fetchUserProfile(session.user.id);
                 
                 if (profile && isMounted) {
@@ -95,8 +66,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     navigate('/', { replace: true });
                   }
                 } else {
-                  console.warn("SIGNED_IN event but no profile found!");
-                  setUser(null);
+                  console.warn("SIGNED_IN event but no profile found! Creating one now.");
+                  
+                  try {
+                    // Try to create profile if it doesn't exist
+                    await createUserProfile(session.user.id, session.user.email || '');
+                    
+                    // Fetch the newly created profile
+                    const newProfile = await fetchUserProfile(session.user.id);
+                    
+                    if (newProfile && isMounted) {
+                      setUser(newProfile);
+                      
+                      if (['/login', '/signup'].includes(location.pathname)) {
+                        navigate('/', { replace: true });
+                      }
+                    } else {
+                      console.error("Failed to create profile on sign in");
+                      setUser(null);
+                    }
+                  } catch (profileError) {
+                    console.error("Error creating missing profile:", profileError);
+                    setUser(null);
+                  }
                 }
               } catch (profileError) {
                 console.error("Error handling auth state change:", profileError);
@@ -137,6 +129,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         );
         
+        // Now check for an existing session
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!isMounted) return;
+        
+        if (session?.user) {
+          console.log("Session found, fetching user profile");
+          try {
+            const profile = await fetchUserProfile(session.user.id);
+            
+            if (profile && isMounted) {
+              console.log("User profile found:", profile.email);
+              setUser(profile);
+            } else {
+              console.log("No user profile found for session user, creating one");
+              
+              try {
+                // Try to create profile if it doesn't exist
+                await createUserProfile(session.user.id, session.user.email || '');
+                
+                // Fetch the newly created profile
+                const newProfile = await fetchUserProfile(session.user.id);
+                
+                if (newProfile && isMounted) {
+                  setUser(newProfile);
+                } else {
+                  console.error("Failed to create profile on session check");
+                  setUser(null);
+                }
+              } catch (createError) {
+                console.error("Error creating profile on session check:", createError);
+                setUser(null);
+              }
+            }
+          } catch (error) {
+            console.error("Error with existing session profile:", error);
+            setUser(null);
+          }
+        } else {
+          console.log("No existing session found");
+          if (isMounted) setUser(null);
+        }
+        
+        if (isMounted) {
+          setLoading(false);
+        }
+        
         return () => {
           subscription.unsubscribe();
         };
@@ -155,7 +194,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isMounted = false;
       if (authTimeout) clearTimeout(authTimeout);
     };
-  }, [fetchUserProfile, navigate, location.pathname]);
+  }, [fetchUserProfile, navigate, location.pathname, createUserProfile]);
 
   // Provide auth context to components
   return (

@@ -91,46 +91,52 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+// AppRoutes component to separate routes from BrowserRouter
+const AppRoutes = () => (
+  <Routes>
+    <Route 
+      path="/login" 
+      element={
+        <PublicRoute>
+          <Login />
+        </PublicRoute>
+      } 
+    />
+    <Route 
+      path="/signup" 
+      element={
+        <PublicRoute>
+          <Signup />
+        </PublicRoute>
+      } 
+    />
+    <Route
+      path="/admin"
+      element={
+        <AdminRoute>
+          <Admin />
+        </AdminRoute>
+      }
+    />
+    <Route
+      path="/"
+      element={
+        <ProtectedRoute>
+          <Index />
+        </ProtectedRoute>
+      }
+    />
+    <Route path="*" element={<NotFound />} />
+  </Routes>
+);
+
+// Main App component
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <BrowserRouter>
       <TooltipProvider>
         <AuthProvider>
-          <Routes>
-            <Route 
-              path="/login" 
-              element={
-                <PublicRoute>
-                  <Login />
-                </PublicRoute>
-              } 
-            />
-            <Route 
-              path="/signup" 
-              element={
-                <PublicRoute>
-                  <Signup />
-                </PublicRoute>
-              } 
-            />
-            <Route
-              path="/admin"
-              element={
-                <AdminRoute>
-                  <Admin />
-                </AdminRoute>
-              }
-            />
-            <Route
-              path="/"
-              element={
-                <ProtectedRoute>
-                  <Index />
-                </ProtectedRoute>
-              }
-            />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <AppRoutes />
         </AuthProvider>
         <Toaster />
         <Sonner />

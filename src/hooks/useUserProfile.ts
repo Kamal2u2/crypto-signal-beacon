@@ -9,14 +9,8 @@ export function useUserProfile() {
   const fetchUserProfile = async (userId: string): Promise<UserProfile | null> => {
     try {
       console.log('Fetching user profile for ID:', userId);
-      // First check if the user exists in auth
-      const { data: authUser, error: authError } = await supabase.auth.getUser();
       
-      if (authError || !authUser) {
-        console.error('Error fetching auth user:', authError);
-        return null;
-      }
-      
+      // Use the direct table query instead of a complex join that might cause RLS recursion
       const { data: profile, error } = await supabase
         .from('user_profiles')
         .select('*')
@@ -24,16 +18,12 @@ export function useUserProfile() {
         .maybeSingle();
       
       if (error) {
-        if (!error.message.includes("infinite recursion")) {
-          console.error('Error fetching user profile:', error);
-          toast({
-            title: "Error",
-            description: "Failed to fetch user profile: " + error.message,
-            variant: "destructive",
-          });
-        } else {
-          console.error('Error fetching user profile (RLS issue):', error);
-        }
+        console.error('Error fetching user profile:', error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch user profile: " + error.message,
+          variant: "destructive",
+        });
         return null;
       }
 
@@ -74,7 +64,8 @@ export function useUserProfile() {
   const createUserProfile = async (userId: string, email: string): Promise<boolean> => {
     try {
       console.log('Creating user profile for ID:', userId, 'and email:', email);
-      // First check if profile exists
+      
+      // First check if profile exists to avoid duplicates
       const profileExists = await checkProfileExists(userId);
 
       if (profileExists) {
@@ -82,23 +73,31 @@ export function useUserProfile() {
         return true;
       }
 
-      const { error } = await supabase
-        .from('user_profiles')
-        .insert({
-          id: userId,
-          email: email,
-          is_approved: true,
-          role: 'user'
-        });
-
+      // Use the RPC function instead of direct insert to bypass RLS
+      const { error } = await supabase.rpc('create_user_profile', {
+        user_id: userId,
+        user_email: email,
+        is_user_approved: true,
+        user_role: 'user'
+      });
+      
       if (error) {
-        // If the error is a duplicate key violation, the profile already exists
-        if (error.code === '23505') {
-          console.log("Profile already exists (detected via error), skipping creation");
-          return true;
+        // If there's an error with the RPC function, try direct insert
+        console.warn('Error using RPC, falling back to direct insert:', error);
+        
+        const { error: insertError } = await supabase
+          .from('user_profiles')
+          .insert({
+            id: userId,
+            email: email,
+            is_approved: true,
+            role: 'user'
+          });
+          
+        if (insertError) {
+          console.error('Error creating user profile:', insertError);
+          throw insertError;
         }
-        console.error('Error creating user profile:', error);
-        throw error;
       }
       
       console.log('User profile created successfully');

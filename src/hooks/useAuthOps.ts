@@ -32,24 +32,36 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
       if (data.user) {
         console.log("Sign in successful for:", data.user.email);
         
-        // Fetch the user profile
+        // Check if profile exists first
+        const profileExists = await checkProfileExists(data.user.id);
+        
+        if (!profileExists) {
+          console.log("No profile found after login, creating one now");
+          try {
+            await createUserProfile(data.user.id, data.user.email || email);
+          } catch (profileError) {
+            console.error("Failed to create profile during login:", profileError);
+          }
+        }
+        
+        // Now fetch the profile (either existing or newly created)
         try {
           const profile = await fetchUserProfile(data.user.id);
+          
           if (profile) {
             setUser(profile);
-            
-            // Show success toast
             sonnerToast.success("Signed in successfully!");
-            
-            // Force navigation to home page after successful login
             navigate('/', { replace: true });
           } else {
-            console.error("No profile found after login");
+            console.error("No profile found or created after login");
             toast({
               title: "Profile Error",
               description: "No user profile found. Please try again or contact support.",
               variant: "destructive",
             });
+            // Try to sign out to avoid a broken state
+            await supabase.auth.signOut();
+            setUser(null);
           }
         } catch (profileError) {
           console.error("Error fetching profile after login:", profileError);
@@ -130,41 +142,48 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
       if (authData.user) {
         console.log("Auth user created successfully with ID:", authData.user.id);
         
-        // Create user profile if needed
-        if (authData.session) {
-          try {
-            // Check if profile already exists first
-            const profileExists = await checkProfileExists(authData.user.id);
-            
-            if (!profileExists) {
-              // Create a profile for this user
-              await createUserProfile(authData.user.id, email);
-            }
-            
+        // Create user profile right away 
+        try {
+          await createUserProfile(authData.user.id, email);
+          
+          // If we have a session, user is auto signed in
+          if (authData.session) {
             // Fetch the newly created profile
             const profile = await fetchUserProfile(authData.user.id);
+            
             if (profile) {
               setUser(profile);
-              
               sonnerToast.success("Registration successful! You are now logged in.");
-              
-              // If we have a session, user is logged in, redirect to home
+              navigate('/', { replace: true });
+            } else {
+              // Profile creation may have failed
+              console.error("Profile not found after creation");
+              toast({
+                title: "Profile Creation Failed",
+                description: "We couldn't create your profile. Please try logging in.",
+                variant: "destructive",
+              });
+              // Still redirect to home if we have a session
               navigate('/', { replace: true });
             }
-          } catch (profileError) {
-            console.error("Error creating/fetching profile after signup:", profileError);
-            toast({
-              title: "Profile Creation Failed",
-              description: "We couldn't create your profile. Please try logging in.",
-              variant: "destructive",
-            });
-            // Still redirect to home if we have a session
-            navigate('/', { replace: true });
+          } else {
+            // Email confirmation is required
+            sonnerToast.success("Registration successful! Please check your email to confirm your account.");
+            navigate('/login', { replace: true });
           }
-        } else {
-          sonnerToast.success("Registration successful! Please check your email to confirm your account.");
-          // If email confirmation is required, redirect to login
-          navigate('/login', { replace: true });
+        } catch (profileError) {
+          console.error("Error creating profile after signup:", profileError);
+          toast({
+            title: "Profile Creation Failed",
+            description: "We couldn't create your profile. Please try logging in.",
+            variant: "destructive",
+          });
+          // If we have a session, still redirect to home
+          if (authData.session) {
+            navigate('/', { replace: true });
+          } else {
+            navigate('/login', { replace: true });
+          }
         }
       }
     } catch (error: any) {

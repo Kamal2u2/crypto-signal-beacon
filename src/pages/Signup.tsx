@@ -5,22 +5,35 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const Signup = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { signUp, loading: authLoading } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) return;
+    if (!email || !password) {
+      setError("Email and password are required");
+      return;
+    }
+    
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+    
+    setError(null);
     
     try {
       setIsSubmitting(true);
       await signUp(email, password);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Signup form error:", error);
+      setError(error.message || "Failed to sign up");
     } finally {
       setIsSubmitting(false);
     }
@@ -36,6 +49,13 @@ const Signup = () => {
             Create a new account
           </h2>
         </div>
+        
+        {error && (
+          <Alert variant="destructive" className="my-4">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
             <Input

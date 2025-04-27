@@ -9,6 +9,14 @@ export function useUserProfile() {
   const fetchUserProfile = async (userId: string): Promise<UserProfile | null> => {
     try {
       console.log('Fetching user profile for ID:', userId);
+      // First check if the user exists in auth
+      const { data: authUser, error: authError } = await supabase.auth.getUser();
+      
+      if (authError || !authUser) {
+        console.error('Error fetching auth user:', authError);
+        return null;
+      }
+      
       const { data: profile, error } = await supabase
         .from('user_profiles')
         .select('*')
@@ -45,17 +53,18 @@ export function useUserProfile() {
   const checkProfileExists = async (userId: string): Promise<boolean> => {
     try {
       console.log('Checking if profile exists for ID:', userId);
-      const { count, error } = await supabase
+      const { data, error } = await supabase
         .from('user_profiles')
-        .select('*', { count: 'exact', head: true })
-        .eq('id', userId);
+        .select('id')
+        .eq('id', userId)
+        .maybeSingle();
 
       if (error) {
         console.error('Error checking if profile exists:', error);
         return false;
       }
 
-      return !!(count && count > 0);
+      return !!data;
     } catch (error: any) {
       console.error('Exception in checkProfileExists:', error);
       return false;
@@ -73,14 +82,17 @@ export function useUserProfile() {
         return true;
       }
 
-      const { error } = await supabase.rpc('create_user_profile', {
-        user_id: userId,
-        user_email: email,
-        is_user_approved: true,
-        user_role: 'user'
-      });
+      const { error } = await supabase
+        .from('user_profiles')
+        .insert({
+          id: userId,
+          email: email,
+          is_approved: true,
+          role: 'user'
+        });
 
       if (error) {
+        // If the error is a duplicate key violation, the profile already exists
         if (error.code === '23505') {
           console.log("Profile already exists (detected via error), skipping creation");
           return true;
@@ -88,6 +100,7 @@ export function useUserProfile() {
         console.error('Error creating user profile:', error);
         throw error;
       }
+      
       console.log('User profile created successfully');
       return true;
     } catch (error: any) {

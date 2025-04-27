@@ -5,22 +5,31 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { signIn, loading: authLoading } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) return;
+    if (!email || !password) {
+      setError("Email and password are required");
+      return;
+    }
+    
+    setError(null);
     
     try {
       setIsSubmitting(true);
       await signIn(email, password);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Login form error:", error);
+      setError(error.message || "Failed to sign in");
     } finally {
       setIsSubmitting(false);
     }
@@ -36,6 +45,13 @@ const Login = () => {
             Sign in to your account
           </h2>
         </div>
+        
+        {error && (
+          <Alert variant="destructive" className="my-4">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
             <Input

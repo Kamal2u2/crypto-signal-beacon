@@ -23,7 +23,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
-  const { fetchUserProfile } = useUserProfile();
+  const { fetchUserProfile, createUserProfile } = useUserProfile();
 
   // Initialize auth operations with our state setters
   const { signIn, signUp, signOut } = useAuthOps({ setUser, setLoading });
@@ -32,12 +32,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     console.log("Setting up auth effect");
     let isMounted = true;
+    let authTimeout: NodeJS.Timeout | null = null;
+    
+    // Set a timeout to prevent infinite loading
+    authTimeout = setTimeout(() => {
+      if (isMounted && loading) {
+        console.log("Auth timeout reached, setting loading to false");
+        setLoading(false);
+        setUser(null);
+      }
+    }, 5000); // 5 seconds timeout
     
     const setupAuth = async () => {
       try {
-        setLoading(true);
-        console.log("Checking for existing session...");
-        
         // Get current session first to handle initial load
         const { data: { session } } = await supabase.auth.getSession();
         
@@ -94,6 +101,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               } catch (profileError) {
                 console.error("Error handling auth state change:", profileError);
                 setUser(null);
+              } finally {
+                if (isMounted) {
+                  setLoading(false);
+                }
               }
             } else if (event === 'SIGNED_OUT') {
               if (isMounted) {
@@ -101,6 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 setUser(null);
                 // Redirect to login page after sign out
                 navigate('/login', { replace: true });
+                setLoading(false);
               }
             } else if (event === 'USER_UPDATED' && session?.user) {
               // Handle user updates if needed
@@ -111,6 +123,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 }
               } catch (error) {
                 console.error("Error updating user profile:", error);
+              } finally {
+                if (isMounted) {
+                  setLoading(false);
+                }
               }
             }
             
@@ -137,6 +153,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     return () => {
       isMounted = false;
+      if (authTimeout) clearTimeout(authTimeout);
     };
   }, [fetchUserProfile, navigate, location.pathname]);
 

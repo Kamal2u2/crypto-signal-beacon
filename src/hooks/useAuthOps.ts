@@ -37,16 +37,28 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
           const profile = await fetchUserProfile(data.user.id);
           if (profile) {
             setUser(profile);
+            
+            // Show success toast
+            sonnerToast.success("Signed in successfully!");
+            
+            // Force navigation to home page after successful login
+            navigate('/', { replace: true });
+          } else {
+            console.error("No profile found after login");
+            toast({
+              title: "Profile Error",
+              description: "No user profile found. Please try again or contact support.",
+              variant: "destructive",
+            });
           }
         } catch (profileError) {
           console.error("Error fetching profile after login:", profileError);
+          toast({
+            title: "Profile Error",
+            description: "Error fetching profile. Please try again.",
+            variant: "destructive",
+          });
         }
-        
-        // Show success toast
-        sonnerToast.success("Signed in successfully!");
-        
-        // Force navigation to home page after successful login
-        navigate('/', { replace: true });
       }
     } catch (error: any) {
       console.error("Sign in exception:", error);
@@ -92,6 +104,7 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
           description: "This email address is already registered.",
           variant: "destructive",
         });
+        setLoading(false);
         return;
       }
 
@@ -110,6 +123,7 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
         } else {
           throw authError;
         }
+        setLoading(false);
         return;
       }
 
@@ -119,29 +133,36 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
         // Create user profile if needed
         if (authData.session) {
           try {
-            // Create a profile for this user
-            await createUserProfile(authData.user.id, email);
+            // Check if profile already exists first
+            const profileExists = await checkProfileExists(authData.user.id);
+            
+            if (!profileExists) {
+              // Create a profile for this user
+              await createUserProfile(authData.user.id, email);
+            }
             
             // Fetch the newly created profile
             const profile = await fetchUserProfile(authData.user.id);
             if (profile) {
               setUser(profile);
+              
+              sonnerToast.success("Registration successful! You are now logged in.");
+              
+              // If we have a session, user is logged in, redirect to home
+              navigate('/', { replace: true });
             }
           } catch (profileError) {
             console.error("Error creating/fetching profile after signup:", profileError);
+            toast({
+              title: "Profile Creation Failed",
+              description: "We couldn't create your profile. Please try logging in.",
+              variant: "destructive",
+            });
+            // Still redirect to home if we have a session
+            navigate('/', { replace: true });
           }
-        }
-
-        sonnerToast.success(
-          authData.session 
-            ? "Registration successful! You are now logged in."
-            : "Registration successful! Please check your email to confirm your account."
-        );
-        
-        if (authData.session) {
-          // If we have a session, user is logged in, redirect to home
-          navigate('/', { replace: true });
         } else {
+          sonnerToast.success("Registration successful! Please check your email to confirm your account.");
           // If email confirmation is required, redirect to login
           navigate('/login', { replace: true });
         }
@@ -179,7 +200,6 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
         description: error.message || "An error occurred during sign out.",
         variant: "destructive",
       });
-      throw error;
     } finally {
       setLoading(false);
     }

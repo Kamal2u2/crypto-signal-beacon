@@ -39,8 +39,14 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
           console.log("No profile found after login, creating one now");
           try {
             await createUserProfile(data.user.id, data.user.email || email);
-          } catch (profileError) {
+            console.log("Profile created during login");
+          } catch (profileError: any) {
             console.error("Failed to create profile during login:", profileError);
+            toast({
+              title: "Profile Creation Issue",
+              description: "Could not create profile: " + profileError.message,
+              variant: "destructive",
+            });
           }
         }
         
@@ -49,6 +55,7 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
           const profile = await fetchUserProfile(data.user.id);
           
           if (profile) {
+            console.log("Profile fetched successfully after login:", profile);
             setUser(profile);
             sonnerToast.success("Signed in successfully!");
             navigate('/', { replace: true });
@@ -63,11 +70,11 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
             await supabase.auth.signOut();
             setUser(null);
           }
-        } catch (profileError) {
+        } catch (profileError: any) {
           console.error("Error fetching profile after login:", profileError);
           toast({
             title: "Profile Error",
-            description: "Error fetching profile. Please try again.",
+            description: "Error fetching profile: " + profileError.message,
             variant: "destructive",
           });
         }
@@ -79,6 +86,12 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
         toast({
           title: "Email Not Confirmed",
           description: "Please check your email and confirm your account before logging in.",
+          variant: "destructive",
+        });
+      } else if (error.message?.includes("Invalid login credentials")) {
+        toast({
+          title: "Invalid Credentials",
+          description: "Email or password is incorrect. Please try again.",
           variant: "destructive",
         });
       } else {

@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -16,15 +15,16 @@ const Login = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (!email || !password) {
       setError("Email and password are required");
       return;
     }
     
     setError(null);
+    setIsSubmitting(true);
     
     try {
-      setIsSubmitting(true);
       await signIn(email, password);
     } catch (error: any) {
       console.error("Login form error:", error);

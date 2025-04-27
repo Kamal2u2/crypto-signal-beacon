@@ -34,14 +34,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let isMounted = true;
     let authTimeout: NodeJS.Timeout | null = null;
     
-    // Set a timeout to prevent infinite loading
+    // Set a shorter timeout to prevent infinite loading
     authTimeout = setTimeout(() => {
       if (isMounted && loading) {
         console.log("Auth timeout reached, setting loading to false");
         setLoading(false);
-        setUser(null);
       }
-    }, 5000); // 5 seconds timeout
+    }, 3000); // 3 seconds timeout
     
     const setupAuth = async () => {
       try {
@@ -83,16 +82,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                       }
                     } else {
                       console.error("Failed to create profile on sign in");
-                      setUser(null);
+                      if (isMounted) setUser(null);
                     }
                   } catch (profileError) {
                     console.error("Error creating missing profile:", profileError);
-                    setUser(null);
+                    if (isMounted) setUser(null);
                   }
                 }
               } catch (profileError) {
                 console.error("Error handling auth state change:", profileError);
-                setUser(null);
+                if (isMounted) setUser(null);
               } finally {
                 if (isMounted) {
                   setLoading(false);
@@ -102,8 +101,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               if (isMounted) {
                 console.log("User signed out");
                 setUser(null);
-                // Redirect to login page after sign out
-                navigate('/login', { replace: true });
                 setLoading(false);
               }
             } else if (event === 'USER_UPDATED' && session?.user) {
@@ -156,16 +153,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   setUser(newProfile);
                 } else {
                   console.error("Failed to create profile on session check");
-                  setUser(null);
+                  if (isMounted) setUser(null);
                 }
               } catch (createError) {
                 console.error("Error creating profile on session check:", createError);
-                setUser(null);
+                if (isMounted) setUser(null);
               }
             }
           } catch (error) {
             console.error("Error with existing session profile:", error);
-            setUser(null);
+            if (isMounted) setUser(null);
           }
         } else {
           console.log("No existing session found");

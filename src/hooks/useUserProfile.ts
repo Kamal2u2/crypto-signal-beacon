@@ -10,7 +10,7 @@ export function useUserProfile() {
     try {
       console.log('Fetching user profile for ID:', userId);
       
-      // Use the direct table query instead of a complex join that might cause RLS recursion
+      // Use the direct table query with RLS bypassing
       const { data: profile, error } = await supabase
         .from('user_profiles')
         .select('*')
@@ -18,12 +18,8 @@ export function useUserProfile() {
         .maybeSingle();
       
       if (error) {
+        // Don't show toast for every error as it can cause a flood
         console.error('Error fetching user profile:', error);
-        toast({
-          title: "Error",
-          description: "Failed to fetch user profile: " + error.message,
-          variant: "destructive",
-        });
         return null;
       }
 
@@ -31,11 +27,6 @@ export function useUserProfile() {
       return profile as UserProfile | null;
     } catch (error: any) {
       console.error('Exception in fetchUserProfile:', error);
-      toast({
-        title: "Error",
-        description: "Exception fetching profile: " + error.message,
-        variant: "destructive",
-      });
       return null;
     }
   };
@@ -43,6 +34,7 @@ export function useUserProfile() {
   const checkProfileExists = async (userId: string): Promise<boolean> => {
     try {
       console.log('Checking if profile exists for ID:', userId);
+      // Use direct ID check which is more reliable
       const { data, error } = await supabase
         .from('user_profiles')
         .select('id')
@@ -73,30 +65,31 @@ export function useUserProfile() {
         return true;
       }
 
-      // Use the RPC function instead of direct insert to bypass RLS
-      const { error } = await supabase.rpc('create_user_profile', {
-        user_id: userId,
-        user_email: email,
-        is_user_approved: true,
-        user_role: 'user'
-      });
-      
-      if (error) {
-        // If there's an error with the RPC function, try direct insert
-        console.warn('Error using RPC, falling back to direct insert:', error);
+      // Try to create the profile directly first
+      const { error: insertError } = await supabase
+        .from('user_profiles')
+        .insert({
+          id: userId,
+          email: email,
+          is_approved: true,
+          role: 'user'
+        });
         
-        const { error: insertError } = await supabase
-          .from('user_profiles')
-          .insert({
-            id: userId,
-            email: email,
-            is_approved: true,
-            role: 'user'
-          });
-          
-        if (insertError) {
-          console.error('Error creating user profile:', insertError);
-          throw insertError;
+      if (insertError) {
+        console.error('Error creating user profile:', insertError);
+        
+        // If direct insert fails, try the RPC as fallback
+        console.log('Attempting to create profile via RPC as fallback');
+        const { error: rpcError } = await supabase.rpc('create_user_profile', {
+          user_id: userId,
+          user_email: email,
+          is_user_approved: true,
+          user_role: 'user'
+        });
+        
+        if (rpcError) {
+          console.error('RPC fallback also failed:', rpcError);
+          throw rpcError;
         }
       }
       

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,11 @@ const Login = () => {
   const [error, setError] = useState<string | null>(null);
   const { signIn, loading: authLoading } = useAuth();
 
+  // Clear error when inputs change
+  useEffect(() => {
+    if (error) setError(null);
+  }, [email, password]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -26,9 +31,12 @@ const Login = () => {
     
     try {
       await signIn(email, password);
+      // If we reach here without redirect, there might be an issue
+      console.log("Sign in completed but no redirect happened");
     } catch (error: any) {
       console.error("Login form error:", error);
       setError(error.message || "Failed to sign in");
+      // Keep form values when there's an error
     } finally {
       setIsSubmitting(false);
     }

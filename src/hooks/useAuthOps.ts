@@ -1,4 +1,3 @@
-
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
@@ -22,86 +21,78 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
       console.log("Attempting sign in for:", email);
       setLoading(true);
       
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      // First check if the user exists in auth database
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ 
+        email, 
+        password 
+      });
       
-      if (error) {
-        console.error("Sign in error:", error);
-        throw error;
+      if (authError) {
+        console.error("Sign in error:", authError);
+        throw authError;
       }
       
-      if (data.user) {
-        console.log("Sign in successful for:", data.user.email);
-        
-        // Check if profile exists first
-        const profileExists = await checkProfileExists(data.user.id);
-        
-        if (!profileExists) {
-          console.log("No profile found after login, creating one now");
-          try {
-            await createUserProfile(data.user.id, data.user.email || email);
-            console.log("Profile created during login");
-          } catch (profileError: any) {
-            console.error("Failed to create profile during login:", profileError);
-            toast({
-              title: "Profile Creation Issue",
-              description: "Could not create profile: " + profileError.message,
-              variant: "destructive",
-            });
-          }
-        }
-        
-        // Now fetch the profile (either existing or newly created)
+      if (!authData.user) {
+        throw new Error("No user returned from authentication");
+      }
+      
+      console.log("Auth successful for:", authData.user.email);
+      
+      // Check if profile exists
+      const profile = await fetchUserProfile(authData.user.id);
+      
+      if (profile) {
+        console.log("Profile found after login:", profile.email);
+        setUser(profile);
+        sonnerToast.success("Signed in successfully!");
+        navigate('/', { replace: true });
+      } else {
+        console.log("No profile found after login, creating one now");
         try {
-          const profile = await fetchUserProfile(data.user.id);
+          // Create profile if doesn't exist
+          await createUserProfile(authData.user.id, authData.user.email || email);
           
-          if (profile) {
-            console.log("Profile fetched successfully after login:", profile);
-            setUser(profile);
+          // Fetch the newly created profile
+          const newProfile = await fetchUserProfile(authData.user.id);
+          
+          if (newProfile) {
+            console.log("Profile created and fetched successfully");
+            setUser(newProfile);
             sonnerToast.success("Signed in successfully!");
             navigate('/', { replace: true });
           } else {
-            console.error("No profile found or created after login");
-            toast({
-              title: "Profile Error",
-              description: "No user profile found. Please try again or contact support.",
-              variant: "destructive",
-            });
-            // Try to sign out to avoid a broken state
-            await supabase.auth.signOut();
-            setUser(null);
+            console.error("Failed to create/fetch profile during login");
+            throw new Error("Failed to create user profile");
           }
         } catch (profileError: any) {
-          console.error("Error fetching profile after login:", profileError);
-          toast({
-            title: "Profile Error",
-            description: "Error fetching profile: " + profileError.message,
-            variant: "destructive",
-          });
+          console.error("Error creating profile during login:", profileError);
+          throw new Error("Failed to create user profile: " + profileError.message);
         }
       }
     } catch (error: any) {
       console.error("Sign in exception:", error);
       
-      if (error.message === "Email not confirmed") {
-        toast({
-          title: "Email Not Confirmed",
-          description: "Please check your email and confirm your account before logging in.",
-          variant: "destructive",
-        });
-      } else if (error.message?.includes("Invalid login credentials")) {
-        toast({
-          title: "Invalid Credentials",
-          description: "Email or password is incorrect. Please try again.",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Sign In Failed",
-          description: error.message || "An error occurred during sign in.",
-          variant: "destructive",
-        });
+      let errorMessage = "An error occurred during sign in.";
+      
+      // Interpret common error messages
+      if (error.message?.includes("Invalid login credentials")) {
+        errorMessage = "Email or password is incorrect. Please try again.";
+      } else if (error.message === "Email not confirmed") {
+        errorMessage = "Please check your email and confirm your account before logging in.";
+      } else if (error.message?.includes("profile")) {
+        errorMessage = "Could not access your user profile. Please try again.";
+      } else if (error.message) {
+        errorMessage = error.message;
       }
-      throw error;
+      
+      // Show toast for errors but also throw for the login form to handle
+      toast({
+        title: "Sign In Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      
+      throw new Error(errorMessage);
     } finally {
       setLoading(false);
     }

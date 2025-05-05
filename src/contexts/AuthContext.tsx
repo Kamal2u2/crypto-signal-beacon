@@ -40,43 +40,64 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log("Auth timeout reached, setting loading to false");
         setLoading(false);
       }
-    }, 3000); // 3 seconds timeout
+    }, 5000); // 5 seconds timeout
     
     const setupAuth = async () => {
       try {
         // Set up auth state change listener first
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
-          async (event, session) => {
+          (event, session) => {
             console.log("Auth state changed:", event, session ? "Session exists" : "No session");
             
             if (!isMounted) return;
             
             if (event === 'SIGNED_IN' && session?.user) {
-              try {
-                // On sign-in, try to fetch user profile - don't create one here
-                // (creation should only happen during signup or explicit profile creation)
-                const profile = await fetchUserProfile(session.user.id);
+              // Defer profile fetching to prevent deadlocks
+              setTimeout(async () => {
+                if (!isMounted) return;
                 
-                if (profile && isMounted) {
-                  console.log("User signed in with profile:", profile.email);
-                  setUser(profile);
+                try {
+                  // On sign-in, try to fetch user profile
+                  const profile = await fetchUserProfile(session.user.id);
                   
-                  // Redirect to home page if on login or signup
-                  if (['/login', '/signup'].includes(location.pathname)) {
-                    navigate('/', { replace: true });
+                  if (profile && isMounted) {
+                    console.log("User signed in with profile:", profile.email);
+                    setUser(profile);
+                    
+                    // Redirect to home page if on login or signup
+                    if (['/login', '/signup'].includes(location.pathname)) {
+                      navigate('/', { replace: true });
+                    }
+                  } else if (isMounted) {
+                    console.log("SIGNED_IN event but no profile found, creating one");
+                    try {
+                      // Profile not found, create one
+                      await createUserProfile(session.user.id, session.user.email || '');
+                      const newProfile = await fetchUserProfile(session.user.id);
+                      
+                      if (newProfile && isMounted) {
+                        setUser(newProfile);
+                        if (['/login', '/signup'].includes(location.pathname)) {
+                          navigate('/', { replace: true });
+                        }
+                      } else {
+                        console.error("Failed to create/fetch profile on sign in");
+                        if (isMounted) setUser(null);
+                      }
+                    } catch (createError) {
+                      console.error("Error creating profile on sign in:", createError);
+                      if (isMounted) setUser(null);
+                    }
                   }
-                } else {
-                  console.log("SIGNED_IN event but no profile found");
-                  setUser(null);
+                } catch (profileError) {
+                  console.error("Error handling auth state change:", profileError);
+                  if (isMounted) setUser(null);
+                } finally {
+                  if (isMounted) {
+                    setLoading(false);
+                  }
                 }
-              } catch (profileError) {
-                console.error("Error handling auth state change:", profileError);
-                if (isMounted) setUser(null);
-              } finally {
-                if (isMounted) {
-                  setLoading(false);
-                }
-              }
+              }, 0);
             } else if (event === 'SIGNED_OUT') {
               if (isMounted) {
                 console.log("User signed out");
@@ -84,18 +105,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 setLoading(false);
               }
             } else if (event === 'USER_UPDATED' && session?.user) {
-              try {
-                const profile = await fetchUserProfile(session.user.id);
-                if (profile && isMounted) {
-                  setUser(profile);
+              setTimeout(async () => {
+                if (!isMounted) return;
+                
+                try {
+                  const profile = await fetchUserProfile(session.user.id);
+                  if (profile && isMounted) {
+                    setUser(profile);
+                  }
+                } catch (error) {
+                  console.error("Error updating user profile:", error);
+                } finally {
+                  if (isMounted) {
+                    setLoading(false);
+                  }
                 }
-              } catch (error) {
-                console.error("Error updating user profile:", error);
-              } finally {
-                if (isMounted) {
-                  setLoading(false);
-                }
-              }
+              }, 0);
             }
             
             // Make sure loading is false after any auth state change
@@ -112,40 +137,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         if (session?.user) {
           console.log("Existing session found for:", session.user.email);
-          try {
-            const profile = await fetchUserProfile(session.user.id);
+          // Defer profile fetching to prevent deadlocks
+          setTimeout(async () => {
+            if (!isMounted) return;
             
-            if (profile && isMounted) {
-              console.log("User profile found for session");
-              setUser(profile);
-            } else {
-              console.log("No profile found for session user - creating one");
-              try {
-                await createUserProfile(session.user.id, session.user.email || '');
-                const newProfile = await fetchUserProfile(session.user.id);
-                
-                if (newProfile && isMounted) {
-                  setUser(newProfile);
-                } else {
-                  console.log("Could not create/fetch profile on session check");
+            try {
+              const profile = await fetchUserProfile(session.user.id);
+              
+              if (profile && isMounted) {
+                console.log("User profile found for session");
+                setUser(profile);
+              } else {
+                console.log("No profile found for session user - creating one");
+                try {
+                  await createUserProfile(session.user.id, session.user.email || '');
+                  const newProfile = await fetchUserProfile(session.user.id);
+                  
+                  if (newProfile && isMounted) {
+                    setUser(newProfile);
+                  } else {
+                    console.log("Could not create/fetch profile on session check");
+                    if (isMounted) setUser(null);
+                  }
+                } catch (createError) {
+                  console.error("Error creating profile on session check:", createError);
                   if (isMounted) setUser(null);
                 }
-              } catch (createError) {
-                console.error("Error creating profile on session check:", createError);
-                if (isMounted) setUser(null);
+              }
+            } catch (error) {
+              console.error("Error with existing session profile:", error);
+              if (isMounted) setUser(null);
+            } finally {
+              if (isMounted) {
+                setLoading(false);
               }
             }
-          } catch (error) {
-            console.error("Error with existing session profile:", error);
-            if (isMounted) setUser(null);
-          }
+          }, 0);
         } else {
           console.log("No existing session found");
           if (isMounted) setUser(null);
-        }
-        
-        if (isMounted) {
-          setLoading(false);
+          if (isMounted) {
+            setLoading(false);
+          }
         }
         
         return () => {

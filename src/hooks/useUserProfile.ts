@@ -10,7 +10,22 @@ export function useUserProfile() {
     try {
       console.log('Fetching user profile for ID:', userId);
       
-      // Use the direct table query with RLS bypassing
+      // Try first with RPC which bypasses RLS
+      const { data: profileData, error: rpcError } = await supabase.rpc(
+        'get_user_profile_by_id',
+        { user_id: userId }
+      );
+      
+      if (!rpcError && profileData) {
+        console.log('Profile fetched via RPC:', profileData);
+        return profileData as UserProfile;
+      }
+      
+      if (rpcError) {
+        console.log('RPC not available, falling back to direct query');
+      }
+      
+      // Fallback to direct query
       const { data: profile, error } = await supabase
         .from('user_profiles')
         .select('*')
@@ -18,7 +33,6 @@ export function useUserProfile() {
         .maybeSingle();
       
       if (error) {
-        // Don't show toast for every error as it can cause a flood
         console.error('Error fetching user profile:', error);
         return null;
       }
@@ -34,7 +48,23 @@ export function useUserProfile() {
   const checkProfileExists = async (userId: string): Promise<boolean> => {
     try {
       console.log('Checking if profile exists for ID:', userId);
-      // Use direct ID check which is more reliable
+      
+      // First try with RPC
+      const { data: exists, error: rpcError } = await supabase.rpc(
+        'profile_exists',
+        { user_id: userId }
+      );
+      
+      if (!rpcError && exists !== null) {
+        console.log('Profile existence checked via RPC:', exists);
+        return !!exists;
+      }
+      
+      if (rpcError) {
+        console.log('RPC not available, falling back to direct query');
+      }
+      
+      // Fallback to direct ID check
       const { data, error } = await supabase
         .from('user_profiles')
         .select('id')
@@ -65,36 +95,46 @@ export function useUserProfile() {
         return true;
       }
 
-      // Try to create the profile directly first
-      const { error: insertError } = await supabase
-        .from('user_profiles')
-        .insert({
-          id: userId,
-          email: email,
-          is_approved: true,
-          role: 'user'
-        });
+      // Try to create the profile via RPC first (most reliable method)
+      const { error: rpcError } = await supabase.rpc('create_user_profile', {
+        user_id: userId,
+        user_email: email,
+        is_user_approved: true,
+        user_role: 'user'
+      });
+      
+      if (!rpcError) {
+        console.log('User profile created successfully via RPC');
+        return true;
+      }
+      
+      console.log('RPC failed, attempting direct insert:', rpcError);
+      
+      // Direct insert as fallback with several retries
+      for (let i = 0; i < 3; i++) {
+        const { error: insertError } = await supabase
+          .from('user_profiles')
+          .insert({
+            id: userId,
+            email: email,
+            is_approved: true,
+            role: 'user'
+          });
+          
+        if (!insertError) {
+          console.log('User profile created successfully via direct insert');
+          return true;
+        }
         
-      if (insertError) {
-        console.error('Error creating user profile:', insertError);
+        console.error(`Insert attempt ${i+1} failed:`, insertError);
         
-        // If direct insert fails, try the RPC as fallback
-        console.log('Attempting to create profile via RPC as fallback');
-        const { error: rpcError } = await supabase.rpc('create_user_profile', {
-          user_id: userId,
-          user_email: email,
-          is_user_approved: true,
-          user_role: 'user'
-        });
-        
-        if (rpcError) {
-          console.error('RPC fallback also failed:', rpcError);
-          throw rpcError;
+        // Wait a short time before retry
+        if (i < 2) {
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
       }
       
-      console.log('User profile created successfully');
-      return true;
+      throw new Error('Failed to create user profile after multiple attempts');
     } catch (error: any) {
       console.error('Exception in createUserProfile:', error);
       throw error;

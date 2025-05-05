@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -15,8 +16,8 @@ const Login = () => {
 
   // Clear error when inputs change
   useEffect(() => {
-    if (error) setError(null);
-  }, [email, password]);
+    if (error && (email || password)) setError(null);
+  }, [email, password, error]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

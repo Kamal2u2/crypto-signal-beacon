@@ -1,3 +1,4 @@
+
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
@@ -38,8 +39,46 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
       
       console.log("Auth successful for:", authData.user.email);
       
-      // Check if profile exists
-      const profile = await fetchUserProfile(authData.user.id);
+      // Wait for profile creation to complete before continuing
+      const maxRetries = 5;
+      let profile = null;
+      let profileError = null;
+      
+      for (let i = 0; i < maxRetries; i++) {
+        try {
+          // Check if profile exists
+          const exists = await checkProfileExists(authData.user.id);
+          
+          if (!exists) {
+            console.log(`Profile check attempt ${i+1}: Creating profile for ${authData.user.email}`);
+            try {
+              // Create profile if doesn't exist
+              await createUserProfile(authData.user.id, authData.user.email || email);
+              // Wait a bit for database propagation
+              await new Promise(resolve => setTimeout(resolve, 500));
+            } catch (err) {
+              console.error(`Profile creation attempt ${i+1} failed:`, err);
+            }
+          } else {
+            console.log(`Profile check attempt ${i+1}: Profile exists for ${authData.user.email}`);
+          }
+          
+          // Try to fetch the profile
+          profile = await fetchUserProfile(authData.user.id);
+          
+          if (profile) {
+            console.log(`Profile fetch attempt ${i+1}: Success for ${authData.user.email}`);
+            break;
+          } else {
+            console.log(`Profile fetch attempt ${i+1}: No profile found for ${authData.user.email}`);
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+        } catch (err) {
+          console.error(`Profile check/fetch attempt ${i+1} failed:`, err);
+          profileError = err;
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
       
       if (profile) {
         console.log("Profile found after login:", profile.email);
@@ -47,27 +86,12 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
         sonnerToast.success("Signed in successfully!");
         navigate('/', { replace: true });
       } else {
-        console.log("No profile found after login, creating one now");
-        try {
-          // Create profile if doesn't exist
-          await createUserProfile(authData.user.id, authData.user.email || email);
-          
-          // Fetch the newly created profile
-          const newProfile = await fetchUserProfile(authData.user.id);
-          
-          if (newProfile) {
-            console.log("Profile created and fetched successfully");
-            setUser(newProfile);
-            sonnerToast.success("Signed in successfully!");
-            navigate('/', { replace: true });
-          } else {
-            console.error("Failed to create/fetch profile during login");
-            throw new Error("Failed to create user profile");
-          }
-        } catch (profileError: any) {
-          console.error("Error creating profile during login:", profileError);
-          throw new Error("Failed to create user profile: " + profileError.message);
-        }
+        console.error("No profile found after multiple attempts");
+        
+        // Force logout to clean state for next login attempt
+        await supabase.auth.signOut();
+        
+        throw new Error("Could not access your user profile. Please try again.");
       }
     } catch (error: any) {
       console.error("Sign in exception:", error);
@@ -91,6 +115,9 @@ export function useAuthOps({ setUser, setLoading }: UseAuthOpsProps) {
         description: errorMessage,
         variant: "destructive",
       });
+      
+      // Make sure we're not in a half-authenticated state
+      await supabase.auth.signOut();
       
       throw new Error(errorMessage);
     } finally {
